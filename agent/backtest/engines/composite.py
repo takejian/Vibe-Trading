@@ -68,8 +68,12 @@ def _build_rule_engines(config: dict, codes: List[str]) -> Dict[str, BaseEngine]
             from backtest.engines.global_equity import GlobalEquityEngine
             engines["index"] = GlobalEquityEngine(config, market="us")
         elif market == "forex":
-            from backtest.engines.forex import ForexEngine
-            engines["forex"] = ForexEngine(config)
+            # Forex backtesting is disabled in this build (exchange-rate
+            # instruments are not supported).
+            raise ValueError(
+                "Forex pair backtesting is disabled in this build "
+                "(exchange-rate instruments such as EURUSD are not supported)"
+            )
         elif market == "futures":
             futures_codes = [c for c in codes if _detect_market(c) == "futures"]
             if any(_is_china_futures(c) for c in futures_codes):

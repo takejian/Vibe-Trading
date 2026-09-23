@@ -1508,10 +1508,14 @@ def _create_market_engine(source: str, config: dict, codes: List[str]):
         from backtest.engines.global_futures import GlobalFuturesEngine
         return GlobalFuturesEngine(config)
 
-    # Forex routing (Wave 2)
+    # Forex routing is disabled: FX-pair / exchange-rate instruments are not
+    # supported by this build. Forex symbols are still recognised so this can
+    # fail with a clear message instead of falling through to another engine.
     if "forex" in markets:
-        from backtest.engines.forex import ForexEngine
-        return ForexEngine(config)
+        raise ValueError(
+            "Forex pair backtesting is disabled in this build "
+            "(exchange-rate instruments such as EURUSD are not supported)"
+        )
 
     # India equity routing — must precede source-based routing because India's
     # effective source is ``yahoo``, which has no Wave-1 branch and would

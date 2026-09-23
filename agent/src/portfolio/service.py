@@ -8,7 +8,6 @@ import json
 import socket
 import subprocess
 import sys
-import urllib.request
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -46,6 +45,11 @@ _RISK_XRAY_MAX_SYMBOLS = 50
 # snapshots/history are intentionally hidden after upgrade, including
 # USD/HKD/CNY snapshots whose numeric values would otherwise remain valid.
 PORTFOLIO_VALUATION_VERSION = 3
+# Online exchange-rate fetching is disabled by request: analysis must never
+# query an external FX service or fail because one is unreachable. Portfolio
+# valuation instead uses these fixed reference rates (currency units per USD).
+FIXED_USD_CNY = Decimal("7.10")
+FIXED_USD_HKD = Decimal("7.80")
 _LOADER_MARKET_SUFFIXES = frozenset({"US", "HK", "SZ", "SH", "BJ", "KS", "KQ", "NS", "BO", "TO", "V"})
 _NON_EQUITY_ASSET_TYPES = frozenset({"crypto", "stablecoin", "cash"})
 
@@ -157,7 +161,7 @@ class PortfolioService:
             get_longbridge_quotes: Optional batch quote reader used only for
                 Longbridge positions the connector reports without a price.
             fx_fetcher: Returns ``(usd_cny, usd_hkd, fetched_at)``. Defaults to
-                the built-in HTTPS fetch.
+                the built-in fixed reference rates; no network FX fetch is made.
             progress_callback: Called as ``(source_id, status, error)`` while a
                 refresh walks its sources.
         """
@@ -175,7 +179,7 @@ class PortfolioService:
         self._get_positions = get_positions
         self._get_quote = get_quote
         self._get_longbridge_quotes = get_longbridge_quotes
-        self._fx_fetcher = fx_fetcher or self._fetch_fx
+        self._fx_fetcher = fx_fetcher or self._fixed_fx
         self._progress_callback = progress_callback
         self.settings_store = settings_store or PortfolioSettingsStore()
 
@@ -238,8 +242,7 @@ class PortfolioService:
             The snapshot envelope that was stored.
 
         Raises:
-            RuntimeError: If no source is enabled, or if FX rates can neither
-                be fetched nor loaded from cache.
+            RuntimeError: If no source is enabled.
         """
         settings = self.settings_store.load()
         sources = [source for source in settings.sources if source.enabled]
@@ -979,41 +982,28 @@ class PortfolioService:
     def _rates(self) -> tuple[Decimal, Decimal, str, bool]:
         """Return the USD/CNY and USD/HKD rates used to value this snapshot.
 
-        Returns:
-            ``(usd_cny, usd_hkd, fetched_at, stale)`` where ``stale`` marks a
-            fall back to the cached rates.
+        Online exchange-rate fetching is disabled, so this never calls the
+        network or the FX cache: the built-in fixed rates are used (an
+        injected ``fx_fetcher``, e.g. in tests, is still honoured).
 
-        Raises:
-            RuntimeError: If the fetch fails and no cached pair exists.
+        Returns:
+            ``(usd_cny, usd_hkd, fetched_at, stale)`` where ``stale`` is
+            always ``False`` because the fixed rates never go stale.
         """
-        try:
-            usd_cny, usd_hkd, fetched_at = self._fx_fetcher()
-            self.store.save_fx("USD", "CNY", str(usd_cny), fetched_at)
-            self.store.save_fx("USD", "HKD", str(usd_hkd), fetched_at)
-            return usd_cny, usd_hkd, fetched_at, False
-        except Exception:
-            cny = self.store.load_fx("USD", "CNY")
-            hkd = self.store.load_fx("USD", "HKD")
-            if cny is None or hkd is None:
-                raise RuntimeError("FX service unavailable and no prior USD/CNY + USD/HKD cache exists")
-            return _decimal(cny[0]), _decimal(hkd[0]), min(cny[1], hkd[1]), True
+        usd_cny, usd_hkd, fetched_at = self._fx_fetcher()
+        return usd_cny, usd_hkd, fetched_at, False
 
     @staticmethod
-    def _fetch_fx() -> tuple[Decimal, Decimal, str]:
-        """Fetch USD/CNY and USD/HKD from the public reference-rate endpoint.
+    def _fixed_fx() -> tuple[Decimal, Decimal, str]:
+        """Return the built-in fixed USD/CNY and USD/HKD reference rates.
+
+        No exchange-rate service is queried; the constants live next to
+        ``FIXED_USD_CNY`` / ``FIXED_USD_HKD``.
 
         Returns:
             ``(usd_cny, usd_hkd, fetched_at)``.
         """
-        url = "https://api.frankfurter.app/latest?from=USD&to=CNY,HKD"
-        request = urllib.request.Request(url, headers={"User-Agent": "Vibe-Trading/portfolio"})
-        with urllib.request.urlopen(request, timeout=8) as response:  # noqa: S310 - fixed HTTPS host
-            payload = json.load(response)
-        return (
-            _decimal(payload["rates"]["CNY"]),
-            _decimal(payload["rates"]["HKD"]),
-            _now(),
-        )
+        return FIXED_USD_CNY, FIXED_USD_HKD, _now()
 
     @staticmethod
     def _warnings(accounts: list[dict[str, Any]], positions: list[dict[str, Any]], fx_stale: bool) -> list[str]:
