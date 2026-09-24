@@ -174,3 +174,20 @@ bench_report.json
 # Grounding ledger persisted by ad-hoc verification scripts into tests/
 agent/tests/artifacts/
 .idea/*
+
+# Harness: machine-local analysis scratch (never tracked; harness/config and
+# harness/scripts ARE tracked) and any stray runtime logs under harness/.
+# The managed server normally logs under ~/.vibe-trading/logs instead.
+/harness/.analysis/
+harness/**/*.log
+
+# Harness engineering docs are authored and tracked. The generic `docs/`
+# ignore above targets internal plans/specs — do not use docs/ for local
+# scratch (use the wiki/ tree or ~/.vibe-trading instead).
+!docs/
+!docs/**
+docs/screenshots/
+
+# AGENTS.md is the curated AI-agent navigation map (the legacy CLAUDE.md
+# auto-mirror workflow no longer exists in this repo).
+!AGENTS.md

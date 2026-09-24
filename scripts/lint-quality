@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# lint-quality — repository architecture + quality hard gates.
+#
+#   1. package-layer dependency gate  (scripts/lint-deps)
+#   2. ruff hard gate (F821 undefined-name + other zero-violation bug rules)
+#   3. existing style debt report (non-blocking statistics)
+#   4. dependency manifest drift report (non-blocking; scripts/lint-manifest)
+#   5. existing repo safety gates (tools/ci_grep_gates.sh + its pytest)
+#
+# Exit 0 only when every hard gate passes. Tool resolution:
+#   $PYTHON / $RUFF override -> .venv/bin/{python,ruff} -> PATH.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+INSTALL_HINT="install with: pip install -e .[dev]"
+
+# ------------------------------------------------------------- tool resolution
+if [ -n "${PYTHON:-}" ]; then
+    PY="$PYTHON"
+elif [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+else
+    PY="python"
+fi
+
+if [ -n "${RUFF:-}" ]; then
+    RUFF_BIN="$RUFF"
+elif [ -x ".venv/bin/ruff" ]; then
+    RUFF_BIN=".venv/bin/ruff"
+elif command -v ruff >/dev/null 2>&1; then
+    RUFF_BIN="$(command -v ruff)"
+else
+    echo "ruff not found — $INSTALL_HINT" >&2
+    exit 2
+fi
+
+RUFF_SCOPE=(agent/src agent/cli agent/backtest agent/evals agent/api_server.py agent/mcp_server.py)
+# Hard-gate rule set: calibrated to zero violations on 2026-09-24.
+# F821 undefined-name is mandatory; the rest are bug-class rules that are
+# already clean. Promote more rules from segment 3 once they reach zero.
+RUFF_HARD_RULES="F821,F706,F522,F523,F525,B006,B002,B015,B016,B018,B020,F823"
+
+# ------------------------------------------------------- segment 1: layering
+echo "## 1/5 Architecture layer gate (scripts/lint-deps)"
+"$PY" scripts/lint-deps
+echo
+
+# ------------------------------------------------------------ segment 2: ruff
+echo "## 2/5 Ruff hard gate ($RUFF_HARD_RULES)"
+"$RUFF_BIN" check --select "$RUFF_HARD_RULES" "${RUFF_SCOPE[@]}"
+echo
+
+# ------------------------------------------------- segment 3: debt statistics
+echo "## Existing style debt (non-blocking; new code must stay clean; promote to hard gate once zero)"
+"$RUFF_BIN" check "${RUFF_SCOPE[@]}" --statistics || true
+echo
+
+# ------------------------------------------ segment 4: manifest drift report
+echo "## 4/5 Dependency manifest drift (non-blocking; scripts/lint-manifest --strict to fail)"
+"$PY" scripts/lint-manifest
+echo
+
+# ---------------------------------------------- segment 5: repo safety gates
+echo "## 5/5 Repository safety gates"
+bash tools/ci_grep_gates.sh
+if ! "$PY" -c "import pytest" >/dev/null 2>&1; then
+    echo "pytest not found — $INSTALL_HINT" >&2
+    exit 2
+fi
+"$PY" -m pytest tools/test_ci_env_var_gate.py -q
+echo
+
+echo "lint-quality: ALL HARD GATES PASSED"

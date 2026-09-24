@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "scope": "agent/src",
+  "description": "agent/src 包级分层唯一真源。L0 基础/实体/安全 -> L1 数据与基础能力 -> L2 工具与业务能力 -> L3 智能体编排 -> L4 入口/适配。grandfathered_reverse_edges 为冻结存量反向边（只减不增，新增需 reviewer 签字）；bidirectional_debt_pairs 为已登记同层/跨层双向依赖债。来源：harness/.analysis/architecture.json (2026-09-24)。",
+  "layers": {
+    "L0": ["config", "core", "entities", "governance", "security", "utils"],
+    "L1": ["factors", "market_data", "memory", "providers", "quantlib"],
+    "L2": [
+      "channels",
+      "channelsui",
+      "goal",
+      "hypotheses",
+      "live",
+      "portfolio",
+      "scheduled_research",
+      "shadow_account",
+      "skills",
+      "strategy_discovery",
+      "strategy_store",
+      "tools",
+      "trading"
+    ],
+    "L3": ["agent", "session", "swarm"],
+    "L4": ["api", "openbb_bridge", "preflight", "ui_services"]
+  },
+  "module_nodes": ["market_data", "preflight", "ui_services"],
+  "grandfathered_reverse_edges": [
+    {
+      "from": "tools",
+      "to": "agent",
+      "reason": "BaseTool/ToolRegistry 当前定义于 src/agent/tools.py（仅依赖 stdlib，无 src 内部导入），tools 包在模块级导入它（src/tools/__init__.py:21，共 77 处）；架构债，冻结待 tools.py 下沉为 L1/L2 工具内核。",
+      "evidence": "src/tools/__init__.py:21; src/tools/compact_tool.py:8; src/agent/loop.py:55-58",
+      "severity": "P0"
+    },
+    {
+      "from": "tools",
+      "to": "swarm",
+      "reason": "swarm_tool 与 swarm runtime/worker 互调（部分经函数内延迟导入缓解），tools(L2) 上依赖 L3 编排层；冻结待 Swarm 执行端口以 Protocol 形式下沉。",
+      "evidence": "src/tools/swarm_tool.py:447,884 (5 处); src/swarm/runtime.py:50-51; src/swarm/worker.py:36",
+      "severity": "P1"
+    },
+    {
+      "from": "channels",
+      "to": "session",
+      "reason": "channels runtime 模块级导入 session 服务以回推会话事件（4 处），L2 -> L3 单向反向；冻结待事件回调改为 Protocol/消息总线解耦。",
+      "evidence": "src/channels/runtime.py:20-21; architecture.json edge_counts channels->session imports=4",
+      "severity": "P1"
+    },
+    {
+      "from": "factors",
+      "to": "tools",
+      "reason": "因子 bench runner 直接调用 tools 层工具实现（3 处），L1 alpha zoo 上依赖 L2；冻结待评测执行能力下沉或经接口反转。",
+      "evidence": "src/factors/bench_runner.py:40; src/factors/bench_runner_strict.py:66",
+      "severity": "P2"
+    },
+    {
+      "from": "security",
+      "to": "channels",
+      "reason": "security 网络/工作区策略直接感知渠道域名与路径白名单（2 处），L0 安全层反向依赖 L2；冻结待渠道策略数据改为注入/反转。",
+      "evidence": "src/security/network.py:8; src/security/workspace_policy.py:8",
+      "severity": "P2"
+    },
+    {
+      "from": "scheduled_research",
+      "to": "api",
+      "reason": "服务层在 try/except 内反向取 L4 路由层 API 单例（失败回退新建 store），L2 -> L4；冻结待 store 单例下沉到服务层。",
+      "evidence": "src/scheduled_research/service.py:205-208; src/scheduled_research/service.py:67",
+      "severity": "P1"
+    },
+    {
+      "from": "memory",
+      "to": "agent",
+      "reason": "PersistentMemory 引用 agent 层类型（1 处），L1 -> L3；冻结待记忆读写协议下沉到低层。",
+      "evidence": "src/memory/persistent.py:17; src/agent/context.py:16",
+      "severity": "P3"
+    },
+    {
+      "from": "tools",
+      "to": "session",
+      "reason": "session_search_tool 调用 SessionService 做会话检索（1 处，与 session->tools 构成双向对），L2 -> L3；architecture.json 任务说明漏列、但 edges/cycles 实测存在的存量债，冻结待会话检索端口下沉为 Protocol。",
+      "evidence": "src/tools/session_search_tool.py:64; src/session/service.py:483; architecture.json cycles pair [tools,session] P3",
+      "severity": "P3"
+    }
+  ],
+  "bidirectional_debt_pairs": [
+    ["tools", "agent"],
+    ["trading", "live"],
+    ["swarm", "tools"],
+    ["api", "scheduled_research"],
+    ["channels", "channelsui"],
+    ["channels", "security"],
+    ["scheduled_research", "channels"],
+    ["tools", "factors"],
+    ["tools", "trading"],
+    ["live", "tools"],
+    ["shadow_account", "tools"],
+    ["tools", "goal"],
+    ["tools", "scheduled_research"],
+    ["strategy_store", "strategy_discovery"],
+    ["memory", "agent"],
+    ["portfolio", "tools"],
+    ["tools", "session"]
+  ]
+}

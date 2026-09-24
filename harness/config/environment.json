@@ -1,0 +1,308 @@
+{
+  "schema_version": "2.0",
+  "project": {
+    "name": "vibe-trading-ai",
+    "version": "0.1.15",
+    "python": ">=3.11",
+    "node": ">=22.22.0"
+  },
+  "entry_points": [
+    {
+      "name": "vibe-trading",
+      "target": "cli:main",
+      "kind": "cli+api-server"
+    },
+    {
+      "name": "vibe-trading-mcp",
+      "target": "mcp_server:main",
+      "kind": "mcp stdio/sse/http"
+    }
+  ],
+  "services": {
+    "external": [],
+    "embedded": [
+      {
+        "name": "duckdb",
+        "path": "~/.vibe-trading/data/market.duckdb",
+        "purpose": "local market warehouse, populated by agent/scripts/local_db/init_local_db.py"
+      },
+      {
+        "name": "sqlite",
+        "files": [
+          "~/.vibe-trading/sessions.db",
+          "~/.vibe-trading/strategy_store.db"
+        ]
+      }
+    ]
+  },
+  "lifecycle": {
+    "setup": "harness/scripts/setup-env.sh",
+    "start": "harness/scripts/start-server.sh",
+    "teardown": "harness/scripts/teardown-env.sh",
+    "health_check": {
+      "method": "GET",
+      "path": "/live",
+      "port_default": 8899
+    }
+  },
+  "env_var_categories": [
+    {
+      "category": "llm",
+      "required_for_core": false,
+      "vars": [
+        "LANGCHAIN_PROVIDER",
+        "LANGCHAIN_MODEL_NAME",
+        "LANGCHAIN_TEMPERATURE",
+        "TIMEOUT_SECONDS",
+        "MAX_RETRIES",
+        "LANGCHAIN_REASONING_EFFORT",
+        "LANGCHAIN_USE_RESPONSES_API",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_API_BASE",
+        "OPENAI_CUSTOM_HEADERS",
+        "OPENAI_MODEL",
+        "OPENAI_CODEX_BASE_URL",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_API_URL",
+        "ANTHROPIC_MAX_TOKENS",
+        "VIBE_TRADING_ANTHROPIC_PROMPT_CACHE",
+        "OLLAMA_BASE_URL",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_BASE_URL",
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_BASE_URL",
+        "VIBE_TRADING_DEEPSEEK_ADAPTER",
+        "COPILOT_GITHUB_TOKEN",
+        "DASHSCOPE_API_KEY",
+        "DASHSCOPE_BASE_URL",
+        "OPENCODE_API_KEY",
+        "OPENCODE_BASE_URL",
+        "NVIDIA_API_KEY",
+        "NVIDIA_BASE_URL",
+        "GEMINI_API_KEY",
+        "GEMINI_BASE_URL",
+        "GROQ_API_KEY",
+        "GROQ_BASE_URL",
+        "ZHIPU_API_KEY",
+        "ZHIPU_BASE_URL",
+        "MOONSHOT_API_KEY",
+        "MOONSHOT_BASE_URL",
+        "MOONSHOT_USER_AGENT",
+        "KIMI_CODING_API_KEY",
+        "KIMI_CODING_BASE_URL",
+        "MINIMAX_API_KEY",
+        "MINIMAX_BASE_URL",
+        "MIMO_API_KEY",
+        "MIMO_BASE_URL",
+        "NOVITA_API_KEY",
+        "NOVITA_BASE_URL",
+        "SPARK_API_KEY",
+        "SPARK_BASE_URL",
+        "ZAI_API_KEY",
+        "ZAI_BASE_URL",
+        "MODELSCOPE_API_KEY",
+        "MODELSCOPE_BASE_URL",
+        "VIBE_TRADING_DISABLE_HTTP_PROXY"
+      ],
+      "doc": "LLM provider selection and credentials: LANGCHAIN_PROVIDER picks the adapter (default openai); every non-native provider is reached through the OpenAI-compatible contract by pointing OPENAI_BASE_URL (legacy alias OPENAI_API_BASE) at the vendor endpoint and setting its *_API_KEY; per-provider *_BASE_URL/key vars are read for openrouter/deepseek/dashscope/anthropic/ollama/gemini/groq/zhipu/moonshot/minimax/mimo/novita/spark/zai/modelscope/kimi-coding/opencode; only the selected provider's key is required. Source: agent/src/config/env_schema.py:139-164, agent/src/providers/llm.py, agent/.env.example:9-149"
+    },
+    {
+      "category": "market_data",
+      "required_for_core": false,
+      "vars": [
+        "TUSHARE_TOKEN",
+        "MARKET_DATA_ORDER_A_SHARE",
+        "MARKET_DATA_ORDER_HK_EQUITY",
+        "MARKET_DATA_ORDER_US_EQUITY",
+        "MARKET_DATA_ORDER_INDIA_EQUITY",
+        "MARKET_DATA_ORDER_KR_EQUITY",
+        "MARKET_DATA_ORDER_CA_EQUITY",
+        "MARKET_DATA_ORDER_AR_EQUITY",
+        "MARKET_DATA_ORDER_UK_EQUITY",
+        "MARKET_DATA_ORDER_VIETNAM_EQUITY",
+        "MARKET_DATA_ORDER_CRYPTO",
+        "MARKET_DATA_ORDER_FUTURES",
+        "MARKET_DATA_ORDER_FUND",
+        "MARKET_DATA_ORDER_MACRO",
+        "MARKET_DATA_ORDER_FOREX",
+        "MARKET_DATA_ORDER_INDEX",
+        "CCXT_EXCHANGE",
+        "CCXT_TIMEOUT_MS",
+        "CCXT_FETCH_BUDGET_S",
+        "FINNHUB_API_KEY",
+        "ALPHAVANTAGE_API_KEY",
+        "TIINGO_API_KEY",
+        "FMP_API_KEY",
+        "FRED_API_KEY",
+        "GILDATA_TOKEN",
+        "GILDATA_BASE_URL",
+        "ALIYUN_IQS_API_KEY",
+        "QVERIS_API_KEY",
+        "QVERIS_BASE_URL",
+        "TICKERALL_API_KEY",
+        "TICKERALL_ACCOUNT_ID",
+        "TICKERALL_BASE_URL",
+        "RSSHUB_BASE_URL",
+        "VIBE_TRADING_IWENCAI_KEY",
+        "VIBE_TRADING_SEC_UA",
+        "VIBE_TRADING_SEC_13F_MAX_XML_MB",
+        "VIBE_TRADING_SEC_13F_BUDGET_S",
+        "VIBE_TRADING_SEC_FTD_URL",
+        "VIBE_TRADING_SEC_FTD_FILES",
+        "VIBE_TRADING_OPENALEX_MAILTO",
+        "VIBE_TW_STOCK_DB",
+        "VIBE_TW_STOCK_DATA_DIR",
+        "VIBE_TRADING_DATA_CACHE",
+        "VIBE_TRADING_DATA_CACHE_ROOT",
+        "VIBE_TRADING_EASTMONEY_MIN_INTERVAL",
+        "VIBE_TRADING_SINA_MIN_INTERVAL",
+        "VIBE_TRADING_STOOQ_MIN_INTERVAL",
+        "VIBE_TRADING_YAHOO_MIN_INTERVAL",
+        "VIBE_TRADING_SEC_MIN_INTERVAL",
+        "VIBE_TRADING_FINNHUB_MIN_INTERVAL",
+        "VIBE_TRADING_ALPHAVANTAGE_MIN_INTERVAL",
+        "VIBE_TRADING_TIINGO_MIN_INTERVAL",
+        "VIBE_TRADING_FMP_MIN_INTERVAL",
+        "VIBE_TRADING_TICKERALL_MIN_INTERVAL",
+        "VIBE_TRADING_FRED_MIN_INTERVAL",
+        "VIBE_TRADING_IWENCAI_MIN_INTERVAL",
+        "VIBE_TRADING_THS_MIN_INTERVAL"
+      ],
+      "doc": "Market-data source routing, optional vendor keys, cache and politeness knobs; the MARKET_DATA_ORDER_<market> vars override the built-in per-market fallback chains (e.g. A-share default chain tencent,mootdx,eastmoney,baostock,akshare,tushare,gildata,local; empty value keeps the built-in chain); free sources work without any key. Source: agent/src/config/env_schema.py:181-246, agent/backtest/loaders/registry.py:179-246, agent/.env.example:190-262"
+    },
+    {
+      "category": "broker",
+      "required_for_core": false,
+      "vars": [
+        "FUTU_HOST",
+        "FUTU_PORT",
+        "FUTU_TRADE_PWD_MD5",
+        "LONGBRIDGE_APP_KEY",
+        "LONGBRIDGE_APP_SECRET",
+        "LONGBRIDGE_ACCESS_TOKEN",
+        "ETORO_API_KEY",
+        "ETORO_USER_KEY",
+        "TAP_PROXY_URL",
+        "TAP_AGENT_KEY",
+        "TAP_ALPACA_CREDENTIAL",
+        "TAP_APPROVAL_TIMEOUT"
+      ],
+      "doc": "Broker connector env vars for the Futu/Longbridge/eToro gateways and the TAP human-approval order proxy (all secrets, all optional; other brokers store credentials as files under ~/.vibe-trading/live/<broker>/ during onboarding and have no dedicated env vars). Source: agent/src/config/env_schema.py:185-186,222-226,343, agent/src/trading/tap_forward.py, agent/src/live/paths.py:23-38"
+    },
+    {
+      "category": "service_auth",
+      "required_for_core": false,
+      "vars": [
+        "API_AUTH_KEY",
+        "VIBE_TRADING_API_KEY",
+        "CORS_ORIGINS",
+        "VIBE_TRADING_EXTRA_CORS_ORIGINS",
+        "API_ALLOWED_HOSTS",
+        "VIBE_TRADING_MCP_ALLOWED_HOSTS",
+        "VIBE_TRADING_TRUST_DOCKER_LOOPBACK",
+        "VIBE_TRADING_CSP_REPORT_ONLY",
+        "VIBE_TRADING_ENABLE_SHELL_TOOLS",
+        "VIBE_TRADING_ALLOWED_FILE_ROOTS",
+        "VIBE_TRADING_ALLOWED_WRITE_ROOTS",
+        "VIBE_TRADING_ALLOWED_RUN_ROOTS",
+        "VIBE_TRADING_API_URL"
+      ],
+      "doc": "API/MCP service auth and exposure controls: API_AUTH_KEY is optional for loopback dev but required for non-loopback binds (server prints a warning and the loopback peer-IP guard rejects remote peers); covers CORS, allowed hosts, shell-tools switch and filesystem root allowlists. Source: agent/src/config/env_schema.py:301-340, agent/api_server.py:348-353, mcp_server.py:3055"
+    },
+    {
+      "category": "paths",
+      "required_for_core": false,
+      "vars": [
+        "VIBE_TRADING_HOME",
+        "VIBE_TRADING_HYPOTHESES_PATH",
+        "VIBE_TRADING_GOAL_DB_PATH",
+        "VIBE_TRADING_PLAYBOOK_DIR",
+        "VIBE_TRADING_SWARM_AGENT_CONFIG",
+        "VIBE_TRADING_STRATEGY_STORE_DB_PATH",
+        "VIBE_TRADING_STRATEGY_DISCOVERY_DB_PATH",
+        "ALLOW_SESSION_MCP_SERVERS",
+        "VIBE_TRADING_THEME",
+        "VIBE_GOAL_SESSION_ID"
+      ],
+      "doc": "Runtime-root and on-disk location overrides (databases, hypotheses, playbooks, swarm config); VIBE_TRADING_HOME must be shell-exported because it is read before agent/.env loads, default resolves to ~/.vibe-trading. Source: agent/src/config/paths.py:10-34, agent/src/config/env_schema.py:485-499"
+    },
+    {
+      "category": "swarm",
+      "required_for_core": false,
+      "vars": [
+        "SWARM_WORKER_TIMEOUT",
+        "SWARM_WORKER_MAX_ITER",
+        "SWARM_MAX_WORKERS",
+        "SWARM_TIMEOUT",
+        "SWARM_HEARTBEAT_INTERVAL_S",
+        "SWARM_STREAM_RETRY_DELAY_S",
+        "SWARM_STREAM_RETRY_MAX_DELAY_S",
+        "SWARM_WORKER_RETRY_BASE_DELAY_S",
+        "SWARM_WORKER_RETRY_MAX_DELAY_S",
+        "SWARM_GROUNDING_MAX_SYMBOLS"
+      ],
+      "doc": "Multi-agent swarm sizing, streaming heartbeat/retry backoff and grounding limits for parallel worker teams. Source: agent/src/config/env_schema.py:358-373"
+    },
+    {
+      "category": "tuning",
+      "required_for_core": false,
+      "vars": [
+        "TOKEN_THRESHOLD",
+        "VT_HEARTBEAT_INTERVAL_S",
+        "VT_REASONING_DELTA_MIN_INTERVAL_S",
+        "VT_STREAM_RETRY_DELAY_S",
+        "VT_STREAM_RETRY_MAX_DELAY_S",
+        "VIBE_TRADING_TOOL_TIMEOUT_SECONDS",
+        "VIBE_TRADING_LLM_TIMEOUT_SECONDS",
+        "VIBE_TRADING_RUN_STALL_TIMEOUT_SECONDS",
+        "VIBE_TRADING_SSE_TIMEOUT",
+        "VIBE_TRADING_GOAL_MAX_CONTINUATIONS",
+        "VIBE_LIVE_AUTHORIZE_TIMEOUT_S",
+        "VIBE_TRADING_SLASH_ARG_MAX",
+        "VIBE_TRADING_BENCH_WORKERS",
+        "CONTENT_FILTER_WARNING_THRESHOLD",
+        "VIBE_TRADING_SCHEDULER_MAX_CONSECUTIVE_FAILURES",
+        "VIBE_TRADING_SCHEDULER_RETRY_BASE_DELAY_MS",
+        "VIBE_TRADING_SCHEDULER_RETRY_MAX_DELAY_MS",
+        "VIBE_TRADING_DISABLE_BOTTLENECK",
+        "VIBE_TRADING_SEARCH_BING_FALLBACK",
+        "VIBE_TRADING_SEARCH_BACKENDS"
+      ],
+      "doc": "Runtime performance/timeout/retry tuning knobs for agent loops, SSE streams, tools, scheduler backoff and search backends (safe built-in defaults; no core flow requires them). Source: agent/src/config/env_schema.py:404-459"
+    },
+    {
+      "category": "feature_flags",
+      "required_for_core": false,
+      "vars": [
+        "VIBE_TRADING_ENABLE_ADVISORY",
+        "VIBE_TRADING_ENABLE_SCHEDULER",
+        "VIBE_TRADING_CHANNELS_AUTO_START",
+        "VIBE_CONTEXTUAL_IDENTITY_CONSTRAINTS",
+        "ENABLE_SESSION_RUNTIME",
+        "VIBE_TRADING_OCR_ENGINE",
+        "VIBE_TRADING_OCR_LLM_MODEL",
+        "VIBE_TRADING_OCR_QWEN_MODEL",
+        "VT_MEMORY",
+        "VT_MEMORY_QUALITY",
+        "VT_MEMORY_GC",
+        "VT_MEMORY_DECAY",
+        "VT_MEMORY_HIERARCHY",
+        "VT_MEMORY_LINKS",
+        "VT_MEMORY_COMPRESSION",
+        "VT_MEMORY_FTS_INDEX"
+      ],
+      "doc": "Opt-in feature toggles: advisory, scheduler, channels auto-start and identity constraints (advisory/scheduler/channels default off), plus the OCR engine selector and VT_MEMORY subsystem presets grouped here because they gate optional subsystems. Source: agent/src/config/env_schema.py:260-274,317,429-449,546-599"
+    }
+  ],
+  "secrets_policy": "env vars only enter via agent/src/config/env_schema.py; raw os.environ outside config/ is rejected by tools/ci_env_var_gate.py; never commit agent/.env",
+  "test": {
+    "framework": "pytest",
+    "testpaths": [
+      "agent/tests"
+    ],
+    "sandbox": "conftest redirects HOME and snapshots environ; factor suite disables socket; no real keys needed"
+  },
+  "runtime_root": "~/.vibe-trading"
+}

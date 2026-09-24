@@ -1,0 +1,364 @@
+#!/usr/bin/env python3
+"""lint-deps — mechanical package-layer dependency gate for agent/src.
+
+Scans every .py file under agent/src with the stdlib AST (no imports are
+executed), aggregates Import/ImportFrom edges to top-level src nodes and
+enforces the layering declared in harness/config/layer-map.json:
+
+  (a) every node (directory or registered single-file module) must be
+      registered in the layer map — blind spots are ERRORs;
+  (b) a lower layer importing a higher layer is an ERROR unless the exact
+      edge is frozen in grandfathered_reverse_edges;
+  (c) same-layer bidirectional package pairs emit WARNINGs (registered debt
+      pairs are acknowledged, new pairs ask to be registered);
+  (d) grandfathered edges that are still hit are counted as frozen debt.
+
+Entry points (agent/cli, agent/api_server.py, agent/mcp_server.py,
+agent/backtest) are intentionally NOT scanned: they are L4+ composition
+roots and may import any layer.
+
+Exit code: 1 on any ERROR (or on any WARNING with --strict), else 0.
+Stdlib only: ast / os / sys / json / pathlib.
+"""
+
+import ast
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = REPO_ROOT / "agent" / "src"
+LAYER_MAP_PATH = REPO_ROOT / "harness" / "config" / "layer-map.json"
+
+REVERSE_FIX_HINT = (
+    "  Layer rule: lower layers must not depend on higher layers.\n"
+    "  Fix options: 1) move the dependent logic up 2) invert via Protocol/dependency injection\n"
+    "  3) extract shared primitives to a lower layer 4) if unavoidable, add an entry to\n"
+    "  harness/config/layer-map.json with reviewer sign-off (this throws P0 debt signal)."
+)
+
+
+# ------------------------------------------------------------------ loading
+
+def load_layer_map(path=LAYER_MAP_PATH):
+    """Return (layer_of, allowlist, debt_pairs, raw_map)."""
+    with open(path, "r", encoding="utf-8") as fh:
+        raw = json.load(fh)
+    layer_of = {}
+    for layer, names in raw["layers"].items():
+        for name in names:
+            if name in layer_of:
+                raise ValueError("duplicate node %r in layer map" % name)
+            layer_of[name] = layer
+    if len(layer_of) != 31:
+        raise ValueError(
+            "layer map must register all 31 src nodes, found %d" % len(layer_of)
+        )
+    allowlist = {}
+    for entry in raw["grandfathered_reverse_edges"]:
+        allowlist[(entry["from"], entry["to"])] = entry
+    debt_pairs = {tuple(sorted(pair)) for pair in raw["bidirectional_debt_pairs"]}
+    return layer_of, allowlist, debt_pairs, raw
+
+
+def node_exists_on_disk(name):
+    return (SRC_DIR / name).is_dir() or (SRC_DIR / (name + ".py")).is_file()
+
+
+# ----------------------------------------------------------------- scanning
+
+def owner_of(rel_parts):
+    """Top-level src node owning a file given its path parts relative to src.
+
+    Returns None for the src namespace package __init__.py itself.
+    """
+    if len(rel_parts) == 1:
+        stem = rel_parts[0][:-3] if rel_parts[0].endswith(".py") else rel_parts[0]
+        if stem == "__init__":
+            return None
+        return stem
+    return rel_parts[0]
+
+
+def strip_src_prefix(parts):
+    """Map an absolute import path to parts below the src package.
+
+    Returns None when the import is not intra-src (stdlib / third party).
+    """
+    if parts and parts[0] == "src":
+        return parts[1:]
+    if len(parts) >= 2 and parts[0] == "agent" and parts[1] == "src":
+        return parts[2:]
+    return None
+
+
+def resolve_import_targets(node, dir_parts):
+    """Yield ('node', name) | ('candidate', name) target descriptors.
+
+    'node'      - import is anchored at src.<name>... (name is the top node)
+    'candidate' - import resolves to the src package itself (e.g.
+                  `from src import x` or `from . import x` at src root),
+                  each imported name may be a top node or a re-exported attr.
+    """
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            parts = strip_src_prefix(alias.name.split("."))
+            if parts is None:
+                continue
+            if parts:
+                yield ("node", parts[0])
+        return
+
+    if not isinstance(node, ast.ImportFrom):
+        return
+
+    if node.level == 0:
+        if not node.module:
+            return
+        parts = strip_src_prefix(node.module.split("."))
+        if parts is None:
+            return
+        if parts:
+            yield ("node", parts[0])
+        else:
+            for alias in node.names:
+                yield ("candidate", alias.name)
+        return
+
+    # Relative import: anchor = package dirs after walking (level-1) parents.
+    up = node.level - 1
+    if up > len(dir_parts):
+        return
+    anchor = list(dir_parts[: len(dir_parts) - up])
+    if node.module:
+        anchor.extend(node.module.split("."))
+    if anchor:
+        yield ("node", anchor[0])
+    else:
+        for alias in node.names:
+            yield ("candidate", alias.name)
+
+
+def scan(layer_of):
+    """Walk SRC_DIR; return a ScanResult dict."""
+    edges = {}          # (owner, target) -> list of "src/path:line" (deduped)
+    errors = []         # pre-layering structural problems
+    files_checked = 0
+
+    for path in sorted(SRC_DIR.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        rel = path.relative_to(SRC_DIR)
+        owner = owner_of(rel.parts)
+        if owner is None:
+            continue  # src/__init__.py — namespace root, not a node
+        files_checked += 1
+
+        if owner not in layer_of:
+            errors.append(
+                "ERROR src/%s:1: file belongs to node %r which is not registered in "
+                "harness/config/layer-map.json.\n"
+                "  Layer rule: the layer map must have no blind spots.\n"
+                "  Fix: register the node under the correct layer (single-file modules "
+                "go in layers + module_nodes)." % (rel.as_posix(), owner)
+            )
+
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(rel))
+        except SyntaxError as exc:
+            errors.append(
+                "ERROR src/%s:%d: syntax error while parsing: %s"
+                % (rel.as_posix(), exc.lineno or 1, exc.msg)
+            )
+            continue
+
+        dir_parts = rel.parts[:-1]
+        for inode in ast.walk(tree):
+            if not isinstance(inode, (ast.Import, ast.ImportFrom)):
+                continue
+            seen_this_stmt = set()
+            for kind, name in resolve_import_targets(inode, dir_parts):
+                target = None
+                if name in layer_of:
+                    target = name
+                elif not node_exists_on_disk(name):
+                    # candidate: re-exported attribute of the src package.
+                    # node: statically unresolvable import (dead/optional);
+                    # only an on-disk package missing from the map is a blind
+                    # spot, so nonexistent paths are not flagged.
+                    continue
+                if target is None:
+                    errors.append(
+                        "ERROR src/%s:%d: import targets node %r which is not registered in "
+                        "harness/config/layer-map.json.\n"
+                        "  Layer rule: the layer map must have no blind spots.\n"
+                        "  Fix: register %r under the correct layer, or remove the import."
+                        % (rel.as_posix(), inode.lineno, name, name)
+                    )
+                    continue
+                if target == owner:
+                    continue  # intra-node self edge
+                key = (owner, target)
+                site = "src/%s:%d" % (rel.as_posix(), inode.lineno)
+                if site not in seen_this_stmt:
+                    seen_this_stmt.add(site)
+                    edges.setdefault(key, [])
+                    if site not in edges[key]:
+                        edges[key].append(site)
+
+    return {"files_checked": files_checked, "edges": edges, "errors": errors}
+
+
+# ---------------------------------------------------------------- evaluation
+
+def evaluate(scan_result, layer_of, allowlist, debt_pairs):
+    """Classify scanned edges; return (errors, warnings, info, grandfathered)."""
+    errors = list(scan_result["errors"])
+    warnings = []
+    info = []
+    edges = scan_result["edges"]
+
+    layer_no = {name: int(layer[1:]) for name, layer in layer_of.items()}
+
+    # Rule (b)/(d): reverse-layer edges.
+    grandfathered = {}
+    for (src_node, dst_node), sites in sorted(edges.items()):
+        if layer_no[src_node] < layer_no[dst_node]:
+            entry = allowlist.get((src_node, dst_node))
+            if entry is None:
+                example = sites[0]
+                path, _, line = example.partition(":")
+                errors.append(
+                    "ERROR %s:%s: package '%s'(%s) imports '%s'(%s) — reverse-layer "
+                    "dependency not in allowlist.\n%s"
+                    % (
+                        path,
+                        line,
+                        src_node,
+                        layer_of[src_node],
+                        dst_node,
+                        layer_of[dst_node],
+                        REVERSE_FIX_HINT,
+                    )
+                )
+            else:
+                grandfathered[(src_node, dst_node)] = (entry, sites)
+
+    for (src_node, dst_node), entry in sorted(allowlist.items()):
+        if (src_node, dst_node) not in edges:
+            info.append(
+                "NOTICE allowlist entry %s(%s)->%s(%s) [%s] has no remaining import sites; "
+                "remove it from grandfathered_reverse_edges."
+                % (
+                    src_node,
+                    layer_of.get(src_node, "?"),
+                    dst_node,
+                    layer_of.get(dst_node, "?"),
+                    entry.get("severity", "?"),
+                )
+            )
+
+    # Rule (c): same-layer bidirectional package pairs.
+    edge_keys = set(edges)
+    seen_pairs = set()
+    for a, b in sorted(edge_keys):
+        if (b, a) not in edge_keys:
+            continue
+        pair = tuple(sorted((a, b)))
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        if layer_no[a] != layer_no[b]:
+            continue  # cross-layer: reverse side is ERROR or grandfathered above
+        if pair in debt_pairs:
+            warnings.append(
+                "WARNING same-layer bidirectional pair %s<->%s (%s) — registered debt "
+                "(frozen); eliminate by extracting/sharedizing or merging."
+                % (a, b, layer_of[a])
+            )
+        else:
+            warnings.append(
+                "WARNING new same-layer bidirectional pair %s<->%s (%s) — not registered; "
+                "if this is accepted existing debt, add %s to bidirectional_debt_pairs in "
+                "harness/config/layer-map.json."
+                % (a, b, layer_of[a], list(pair))
+            )
+
+    return errors, warnings, info, grandfathered
+
+
+# -------------------------------------------------------------------- output
+
+def format_grandfathered(grandfathered, layer_of):
+    lines = ["Grandfathered reverse edges (frozen; allowlist is closed):"]
+    for (src_node, dst_node), (entry, sites) in sorted(
+        grandfathered.items(), key=lambda kv: kv[0][0] + "->" + kv[0][1]
+    ):
+        lines.append(
+            "  grandfathered (frozen) %s(%s)->%s(%s) [%s] — %d import site(s); e.g. %s"
+            % (
+                src_node,
+                layer_of[src_node],
+                dst_node,
+                layer_of[dst_node],
+                entry.get("severity", "?"),
+                len(sites),
+                ", ".join(sites[:2]),
+            )
+        )
+    return lines
+
+
+def main(argv):
+    strict = "--strict" in argv[1:]
+    layer_of, allowlist, debt_pairs, _ = load_layer_map()
+    result = scan(layer_of)
+    errors, warnings, info, grandfathered = evaluate(
+        result, layer_of, allowlist, debt_pairs
+    )
+
+    print("lint-deps: architectural layer gate for agent/src")
+    print("=" * 66)
+
+    if grandfathered:
+        print()
+        for line in format_grandfathered(grandfathered, layer_of):
+            print(line)
+
+    if info:
+        print()
+        for line in info:
+            print(line)
+
+    if warnings:
+        print()
+        for line in warnings:
+            print(line)
+
+    if errors:
+        print()
+        for line in errors:
+            print(line)
+
+    print()
+    print(
+        "lint-deps summary: checked %d files / %d edges / %d grandfathered / "
+        "%d warnings / %d errors"
+        % (
+            result["files_checked"],
+            len(result["edges"]),
+            len(grandfathered),
+            len(warnings),
+            len(errors),
+        )
+    )
+
+    if errors:
+        return 1
+    if strict and warnings:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
