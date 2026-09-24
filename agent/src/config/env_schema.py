@@ -30,6 +30,7 @@ __all__ = [
     "EnvConfig",
     "LLMConfig",
     "DataConfig",
+    "MacroConfig",
     "APIConfig",
     "SwarmConfig",
     "AgentTuningConfig",
@@ -244,6 +245,29 @@ class DataConfig(_EnvBase):
     market_data_order_macro: str = Field(alias="MARKET_DATA_ORDER_MACRO", default="")
     market_data_order_forex: str = Field(alias="MARKET_DATA_ORDER_FOREX", default="")
     market_data_order_index: str = Field(alias="MARKET_DATA_ORDER_INDEX", default="")
+
+
+# ---------------------------------------------------------------------------
+# Macro analysis (MySQL)
+# ---------------------------------------------------------------------------
+
+
+class MacroConfig(_EnvBase):
+    """Macro-economic analysis module configuration.
+
+    Source: ``src/macro/db.py``. The macro cycle judgment results live in a
+    local MySQL database (default schema ``vibe``). Credentials are injected
+    through the environment; the password must never be hard-coded.
+    """
+
+    macro_db_host: str = Field(alias="MACRO_DB_HOST", default="127.0.0.1")
+    macro_db_port: int = Field(alias="MACRO_DB_PORT", default=3306)
+    macro_db_user: str = Field(alias="MACRO_DB_USER", default="root")
+    macro_db_password: str = Field(alias="MACRO_DB_PASSWORD", default="")
+    macro_db_name: str = Field(alias="MACRO_DB_NAME", default="vibe")
+    # Per-call LLM timeout (seconds) for the one-shot macro judgment request.
+    # Falls back to the global LLM timeout when unset / non-positive.
+    macro_llm_timeout: int = Field(alias="MACRO_LLM_TIMEOUT", default=0)
 
 
 # ---------------------------------------------------------------------------
@@ -651,6 +675,7 @@ class EnvConfig(_EnvBase):
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    macro: MacroConfig = Field(default_factory=MacroConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     agent_tuning: AgentTuningConfig = Field(default_factory=AgentTuningConfig)

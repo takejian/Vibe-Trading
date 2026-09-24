@@ -28,7 +28,8 @@
     "skipToMain": "تخطَّ إلى المحتوى الرئيسي",
     "sidebar": "الشريط الجانبي لـ Vibe-Trading",
     "mainNavigation": "التنقل الرئيسي",
-    "about": "حول"
+    "about": "حول",
+    "macroAnalysis": "Macro Analysis"
   },
   "runtime": {
     "monitorBadge": "مراقبة التداول",
@@ -242,7 +243,8 @@
       "tradeJournal": "يومية التداول",
       "tradingConnectors": "موصلات التداول",
       "shadowAccount": "الحساب الظلّي",
-      "valueInvesting": "استثمار القيمة"
+      "valueInvesting": "استثمار القيمة",
+      "macroAnalysis": "Macro Analysis"
     },
     "examples": {
       "crossMarketPortfolio": "موازنة محفظة من ثلاثة أسهم",
@@ -1780,6 +1782,75 @@
       "accountDeactivated": " · معطّل",
       "accountSave": "استخدام هذا الحساب",
       "accountSaved": "تم حفظ الحساب."
+    }
+  },
+  "macro": {
+    "title": "Macro Economic Analysis",
+    "subtitle": "Preset macro analysis prompts and historical cycle judgments",
+    "prompts": {
+      "sectionTitle": "Analysis Prompts",
+      "aName": "Macro Cycle Judgment",
+      "aDesc": "Judge the economic cycle of an economy for a given month (recession / recovery / overheating / stagflation)",
+      "bName": "Macro Theme Rotation",
+      "bDesc": "Reserved capability — coming soon",
+      "cName": "Macro Asset Allocation",
+      "cDesc": "Reserved capability — coming soon",
+      "reserved": "Coming soon",
+      "edit": "Edit prompt",
+      "viewHistory": "History",
+      "editTitle": "Edit Prompt A",
+      "editDenied": "Only administrators can edit this prompt.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Prompt saved",
+      "saveFailed": "Failed to save the prompt.",
+      "orchestrationTitle": "AI Tool Orchestration",
+      "orchestrationDesc": "Reserved entry — multi-tool orchestration flows will be available in a later release.",
+      "orchestrationSoon": "Coming soon"
+    },
+    "panel": {
+      "title": "Macro Cycle Judgment",
+      "intro": "Pick an economy; by default the judgment covers the last complete calendar month.",
+      "economy": "Economy",
+      "economyPlaceholder": "Select an economy",
+      "latestMonth": "Default month (last complete calendar month): {{month}}",
+      "run": "Run analysis",
+      "running": "Generating…",
+      "reuseCached": "Already analyzed",
+      "cachedNote": "Reusing the stored judgment for {{month}}; no new model call was made.",
+      "insufficientTitle": "Insufficient macro data",
+      "insufficientDesc": "The probe could not confirm fresh macro indicators for {{month}}. Add notes or pick another month to run the analysis anyway.",
+      "supplement": "Additional notes",
+      "supplementPlaceholder": "e.g. weigh in the latest central bank policy statement…",
+      "statisticsMonth": "Month (YYYY-MM)",
+      "submitForced": "Run with notes / month",
+      "timeout": "The model timed out. Please retry.",
+      "failed": "The analysis failed. Please retry.",
+      "inProgress": "A judgment for this economy/month is already being generated.",
+      "dbUnavailable": "The macro database is unavailable. Check the MACRO_DB_* configuration.",
+      "close": "Close",
+      "retry": "Retry"
+    },
+    "detail": {
+      "month": "Month",
+      "confidence": "Confidence",
+      "currentCycle": "Current cycle",
+      "sectionJudgmentResult": "Judgment",
+      "sectionDimensionCheck": "Dimension Check",
+      "sectionMesoVerify": "Meso Verification",
+      "sectionHistoryAnchor": "Historical Cycle Anchor",
+      "sectionCoreSupport": "Core Supports",
+      "sectionCoreRisk": "Core Risks",
+      "extendedRemark": "Extended Remarks",
+      "showMore": "Show more",
+      "hide": "Hide",
+      "createdAt": "Generated at"
+    },
+    "history": {
+      "title": "Analysis History",
+      "empty": "No analyses for this economy yet.",
+      "loadError": "Failed to load history.",
+      "monthLabel": "Month"
     }
   }
 }

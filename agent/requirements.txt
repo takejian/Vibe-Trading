@@ -59,6 +59,9 @@ sse-starlette>=1.6.0
 # MCP Server
 fastmcp>=2.14.0
 
+# Macro analysis (MySQL)
+PyMySQL>=1.1.0
+
 # Web Search
 ddgs>=6.0.0
 

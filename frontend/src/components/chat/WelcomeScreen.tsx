@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, TrendingUp, Globe, Sparkles, Users, UserCircle2, NotebookPen, Landmark, Gem } from "lucide-react";
+import { ChevronDown, TrendingUp, Globe, Globe2, Sparkles, Users, UserCircle2, NotebookPen, Landmark, Gem } from "lucide-react";
 import { BrandMark } from "@/components/common/BrandMark";
+import { MacroAnalysisPanel } from "@/components/macro/MacroAnalysisPanel";
 
 interface Example {
   titleKey: string;
@@ -13,6 +14,9 @@ interface Category {
   labelKey: string;
   icon: React.ReactNode;
   examples: Example[];
+  /** Macro category renders an interactive panel instead of example cards,
+   *  and must never feed the chat onExample flow. */
+  panel?: "macro";
 }
 
 const CATEGORIES: Category[] = [
@@ -36,6 +40,12 @@ const CATEGORIES: Category[] = [
         promptKey: "welcome.examples.usTechMaxDivPrompt",
       },
     ],
+  },
+  {
+    labelKey: "welcome.categories.macroAnalysis",
+    icon: <Globe2 className="h-4 w-4" />,
+    examples: [],
+    panel: "macro",
   },
   {
     labelKey: "welcome.categories.researchAnalysis",
@@ -347,24 +357,30 @@ export function WelcomeScreen({ onExample }: Props) {
                   </button>
                 ))}
               </div>
-              <div role="tabpanel" className="mt-4 grid gap-2 text-left sm:grid-cols-2">
-                {CATEGORIES[activeCategory].examples.map((ex) => (
-                  <button
-                    key={ex.titleKey}
-                    type="button"
-                    tabIndex={isExamplesOpen ? 0 : -1}
-                    onClick={() => onExample(t(ex.promptKey as any))}
-                    className="block w-full rounded-xl border border-border/60 px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                  >
-                    <span className="text-sm font-medium leading-snug text-foreground">
-                      {t(ex.titleKey as any)}
-                    </span>
-                    <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-                      {t(ex.descKey as any)}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {CATEGORIES[activeCategory].panel === "macro" ? (
+                <div role="tabpanel" className="mx-auto mt-4 max-w-2xl text-left">
+                  <MacroAnalysisPanel embedded />
+                </div>
+              ) : (
+                <div role="tabpanel" className="mt-4 grid gap-2 text-left sm:grid-cols-2">
+                  {CATEGORIES[activeCategory].examples.map((ex) => (
+                    <button
+                      key={ex.titleKey}
+                      type="button"
+                      tabIndex={isExamplesOpen ? 0 : -1}
+                      onClick={() => onExample(t(ex.promptKey as any))}
+                      className="block w-full rounded-xl border border-border/60 px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      <span className="text-sm font-medium leading-snug text-foreground">
+                        {t(ex.titleKey as any)}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                        {t(ex.descKey as any)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -3,6 +3,37 @@ import userEvent from "@testing-library/user-event";
 import i18n from "../../../i18n";
 import { WelcomeScreen } from "../WelcomeScreen";
 
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      listMacroEconomies: vi.fn(async () => ({
+        status: "ok",
+        economies: ["中国", "美国", "日本", "欧元区"],
+      })),
+      runMacroCycleJudgment: vi.fn(async () => ({
+        status: "ok",
+        cached: false,
+        judgment: {
+          economy: "中国",
+          statistics_date: "2026-08",
+          current_cycle: "复苏期",
+          judgment_result: "复苏期。",
+          dimension_check: "",
+          meso_verify: "",
+          history_cycle_anchor: "",
+          judgment_confidence: "中",
+          core_support: "",
+          core_risk: "",
+          extended_remark: "",
+        },
+      })),
+    },
+  };
+});
+
 describe("WelcomeScreen", () => {
   const onExample = vi.fn();
 
@@ -130,7 +161,7 @@ describe("WelcomeScreen", () => {
     expect(onExample).toHaveBeenCalledTimes(2);
   });
 
-  it("reveals eight category tabs and switches example cards from the disclosure", async () => {
+  it("reveals nine category tabs and switches example cards from the disclosure", async () => {
     const user = userEvent.setup();
     render(<WelcomeScreen onExample={onExample} />);
 
@@ -146,8 +177,8 @@ describe("WelcomeScreen", () => {
 
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(library).toHaveAttribute("aria-hidden", "false");
-    // One category at a time: 8 tab chips, only the active category's cards.
-    expect(within(library!).getAllByRole("tab")).toHaveLength(8);
+    // One category at a time: 9 tab chips, only the active category's cards.
+    expect(within(library!).getAllByRole("tab")).toHaveLength(9);
     expect(within(library!).getAllByRole("button")).toHaveLength(3);
     expect(within(library!).getAllByRole("button")[0]).toHaveClass(
       "focus-visible:ring-2",
@@ -155,6 +186,7 @@ describe("WelcomeScreen", () => {
     );
     for (const category of [
       "A-Share Backtest",
+      "Macro Analysis",
       "Research & Analysis",
       "Value Investing",
       "AI Analyst Teams",
@@ -197,5 +229,25 @@ describe("WelcomeScreen", () => {
     expect(screen.queryByText("Finance Skills Library")).not.toBeInTheDocument();
     expect(screen.queryByText("Swarm Agent Teams")).not.toBeInTheDocument();
     expect(screen.queryByText("Shadow Account Backtest")).not.toBeInTheDocument();
+  });
+
+  it("renders the interactive macro panel for the Macro tab without touching onExample", async () => {
+    const user = userEvent.setup();
+    render(<WelcomeScreen onExample={onExample} />);
+
+    await user.click(screen.getByRole("button", { name: "Browse all examples" }));
+    const library = document.getElementById("welcome-example-library")!;
+    await user.click(within(library).getByRole("tab", { name: "Macro Analysis" }));
+
+    // The interactive panel replaces the example-card grid.
+    const panel = await within(library).findByTestId("macro-analysis-panel");
+    expect(panel).toBeInTheDocument();
+    expect(within(panel).getByTestId("macro-economy-select")).toBeInTheDocument();
+
+    await user.click(within(panel).getByTestId("macro-run-button"));
+    expect(await within(panel).findByTestId("macro-judgment-detail")).toBeInTheDocument();
+
+    // The macro flow never feeds the chat example pipeline.
+    expect(onExample).not.toHaveBeenCalled();
   });
 });

@@ -263,6 +263,10 @@ register_portfolio_routes(app)
 from src.api.connection_routes import register_connection_routes  # noqa: E402
 register_connection_routes(app)
 
+# --- Macro economic analysis ---
+from src.api.macro_routes import register_macro_routes  # noqa: E402
+register_macro_routes(app)
+
 from src.api.live_routes import (  # noqa: F401, E402
     CommitMandateRequest,
     LiveHaltRequest,

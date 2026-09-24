@@ -34,6 +34,9 @@ const AlphaZoo = lazy(() =>
 const OptionsLab = lazy(() =>
   import("@/pages/OptionsLab").then((m) => ({ default: m.OptionsLab })),
 );
+const Macro = lazy(() =>
+  import("@/pages/Macro").then((m) => ({ default: m.Macro })),
+);
 
 function PageLoader() {
   return (
@@ -58,6 +61,7 @@ export const router = createBrowserRouter([
       { path: "/", element: wrap(Agent) },
       { path: "/about", element: wrap(Home) },
       { path: "/agent", element: wrap(Agent) },
+      { path: "/macro", element: wrap(Macro) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/scheduled", element: wrap(Scheduled) },
       { path: "/reports", element: wrap(Reports) },

@@ -28,7 +28,8 @@
     "skipToMain": "跳转到主要内容",
     "sidebar": "Vibe-Trading 侧边栏",
     "mainNavigation": "主导航",
-    "about": "关于"
+    "about": "关于",
+    "macroAnalysis": "宏观经济分析"
   },
   "runtime": {
     "monitorBadge": "交易监控",
@@ -242,7 +243,8 @@
       "tradeJournal": "交易日志",
       "tradingConnectors": "交易连接器",
       "shadowAccount": "影子账户",
-      "valueInvesting": "价值投资"
+      "valueInvesting": "价值投资",
+      "macroAnalysis": "宏观分析"
     },
     "examples": {
       "crossMarketPortfolio": "三只 A 股的仓位配比",
@@ -1780,6 +1782,75 @@
       "accountDeactivated": " · 已停用",
       "accountSave": "使用这个账户",
       "accountSaved": "账户已保存。"
+    }
+  },
+  "macro": {
+    "title": "宏观经济分析",
+    "subtitle": "预设宏观分析提示词与历史周期判定结果",
+    "prompts": {
+      "sectionTitle": "分析提示词",
+      "aName": "宏观经济周期判定",
+      "aDesc": "按经济体与月份判定经济周期（衰退期 / 复苏期 / 过热期 / 滞胀期）",
+      "bName": "宏观主题轮动",
+      "bDesc": "预留能力，敬请期待",
+      "cName": "宏观资产配置",
+      "cDesc": "预留能力，敬请期待",
+      "reserved": "敬请期待",
+      "edit": "编辑提示词",
+      "viewHistory": "分析历史",
+      "editTitle": "编辑提示词 A",
+      "editDenied": "仅管理员可编辑该提示词。",
+      "save": "保存",
+      "cancel": "取消",
+      "saved": "提示词已保存",
+      "saveFailed": "提示词保存失败。",
+      "orchestrationTitle": "AI 工具编排",
+      "orchestrationDesc": "预留入口：多工具编排分析流程将在后续版本开放。",
+      "orchestrationSoon": "敬请期待"
+    },
+    "panel": {
+      "title": "宏观经济周期判定",
+      "intro": "选择经济体，默认按上一完整自然月发起一次周期判定。",
+      "economy": "经济体",
+      "economyPlaceholder": "请选择经济体",
+      "latestMonth": "默认月份（上一完整自然月）：{{month}}",
+      "run": "发起分析",
+      "running": "生成中…",
+      "reuseCached": "当月已有",
+      "cachedNote": "已复用 {{month}} 的存量判定结果，未重复调用模型。",
+      "insufficientTitle": "宏观数据不足",
+      "insufficientDesc": "探针未能确认 {{month}} 的最新宏观指标。可补充说明或指定其他月份后强制发起分析。",
+      "supplement": "补充说明",
+      "supplementPlaceholder": "例如：结合央行最新议息会议表态……",
+      "statisticsMonth": "指定月份（YYYY-MM）",
+      "submitForced": "补充后发起",
+      "timeout": "模型响应超时，请重试。",
+      "failed": "分析失败，请重试。",
+      "inProgress": "该经济体 / 月份的分析正在生成中，请稍后查看。",
+      "dbUnavailable": "宏观分析数据库不可用，请检查 MACRO_DB_* 配置。",
+      "close": "关闭",
+      "retry": "重试"
+    },
+    "detail": {
+      "month": "月份",
+      "confidence": "置信度",
+      "currentCycle": "当前周期",
+      "sectionJudgmentResult": "判定结果",
+      "sectionDimensionCheck": "维度校验",
+      "sectionMesoVerify": "中观验证",
+      "sectionHistoryAnchor": "历史周期锚定",
+      "sectionCoreSupport": "核心支撑",
+      "sectionCoreRisk": "核心风险",
+      "extendedRemark": "补充说明",
+      "showMore": "展开",
+      "hide": "收起",
+      "createdAt": "生成时间"
+    },
+    "history": {
+      "title": "分析历史",
+      "empty": "该经济体暂无分析记录。",
+      "loadError": "历史加载失败。",
+      "monthLabel": "月份"
     }
   }
 }

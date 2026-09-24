@@ -8,15 +8,68 @@ import type {
 
 const BASE = "";
 
+// --- Macro analysis types (contract with src/api/macro_routes.py) ---
+
+export interface MacroPrompt {
+  code: "a" | "b" | "c" | string;
+  name: string;
+  prompt_text: string;
+  enabled: boolean;
+  sort_order: number;
+  /** True for prompt a (the only editable structure this iteration). */
+  editable: boolean;
+  /** True when the current principal holds settings-write authorization. */
+  can_edit: boolean;
+  orchestration_config?: string | null;
+  update_time?: string | null;
+}
+
+export interface MacroJudgment {
+  id?: number | null;
+  economy: string;
+  statistics_date: string; // YYYY-MM
+  current_cycle: string;
+  judgment_result: string;
+  dimension_check: string;
+  meso_verify: string;
+  history_cycle_anchor: string;
+  judgment_confidence: string;
+  core_support: string;
+  core_risk: string;
+  extended_remark: string;
+  create_time?: string | null;
+}
+
+export interface MacroReadiness {
+  ready: boolean;
+  latest_month: string;
+  reason?: string | null;
+}
+
+export interface MacroJudgeRequestBody {
+  economy: string;
+  statistics_date?: string;
+  supplement?: string;
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
+  /** Full structured error detail when the backend sends an object body
+   *  (e.g. the macro 422 envelope carrying a `readiness` probe result). */
+  payload?: { readiness?: MacroReadiness; [key: string]: unknown };
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    payload?: { readiness?: MacroReadiness; [key: string]: unknown },
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.payload = payload;
   }
 }
 
@@ -298,6 +351,7 @@ export interface PortfolioSettingsResponse {
 async function errorFromResponse(res: Response): Promise<ApiError> {
   let detail = `HTTP ${res.status}`;
   let code: string | undefined;
+  let payload: ApiError["payload"];
   try {
     const body = await res.json();
     // Options endpoints report errors under an `error` key
@@ -306,16 +360,24 @@ async function errorFromResponse(res: Response): Promise<ApiError> {
     if (typeof raw === "string" && raw) {
       detail = raw;
     } else if (raw && typeof raw === "object") {
-      const structured = raw as { code?: unknown; message?: unknown };
+      const structured = raw as {
+        code?: unknown;
+        message?: unknown;
+        readiness?: unknown;
+        [key: string]: unknown;
+      };
       if (typeof structured.code === "string" && structured.code) code = structured.code;
       if (typeof structured.message === "string" && structured.message) detail = structured.message;
       else if (code) detail = code;
+      if (structured.readiness && typeof structured.readiness === "object") {
+        payload = { readiness: structured.readiness as MacroReadiness };
+      }
     }
   } catch { /* ignore */ }
   if (res.status === 401 || res.status === 403) {
     detail = getAuthRequiredMessage();
   }
-  return new ApiError(detail, res.status, code);
+  return new ApiError(detail, res.status, code, payload);
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -588,6 +650,34 @@ export const api = {
     if (expiration !== undefined) q.set("expiration", String(expiration));
     return request<OptionsChainResponse>(`/options/chain?${q.toString()}`);
   },
+
+  // Macro economic analysis
+  listMacroPrompts: () =>
+    request<{ status: string; prompts: MacroPrompt[] }>("/api/macro/prompts"),
+  updateMacroPrompt: (code: string, prompt_text: string) =>
+    request<{ status: string; prompt: MacroPrompt }>(
+      `/api/macro/prompts/${encodeURIComponent(code)}`,
+      { method: "PUT", body: JSON.stringify({ prompt_text }) },
+    ),
+  listMacroEconomies: () =>
+    request<{ status: string; economies: string[] }>("/api/macro/economies"),
+  getMacroReadiness: (economy: string) =>
+    request<{ status: string; readiness: MacroReadiness }>(
+      `/api/macro/readiness?economy=${encodeURIComponent(economy)}`,
+    ),
+  runMacroCycleJudgment: (body: MacroJudgeRequestBody) =>
+    request<{ status: string; cached: boolean; judgment: MacroJudgment }>(
+      "/api/macro/cycle/judgments",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  listMacroJudgments: (economy: string) =>
+    request<{ status: string; economy: string; judgments: MacroJudgment[] }>(
+      `/api/macro/cycle/judgments?economy=${encodeURIComponent(economy)}`,
+    ),
+  getMacroJudgment: (economy: string, statisticsDate: string) =>
+    request<{ status: string; judgment: MacroJudgment }>(
+      `/api/macro/cycle/judgments/${encodeURIComponent(economy)}/${encodeURIComponent(statisticsDate)}`,
+    ),
 
   // Connector runtime channel — privileged surface actions (NOT agent tools).
   // commit is the ONLY action that writes a mandate; halt trips the kill switch.
