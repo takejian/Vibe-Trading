@@ -37,6 +37,9 @@ const OptionsLab = lazy(() =>
 const Macro = lazy(() =>
   import("@/pages/Macro").then((m) => ({ default: m.Macro })),
 );
+const SwarmStudio = lazy(() =>
+  import("@/pages/SwarmStudio").then((m) => ({ default: m.SwarmStudio })),
+);
 
 function PageLoader() {
   return (
@@ -62,6 +65,7 @@ export const router = createBrowserRouter([
       { path: "/about", element: wrap(Home) },
       { path: "/agent", element: wrap(Agent) },
       { path: "/macro", element: wrap(Macro) },
+      { path: "/swarm", element: wrap(SwarmStudio) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/scheduled", element: wrap(Scheduled) },
       { path: "/reports", element: wrap(Reports) },

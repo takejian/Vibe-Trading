@@ -29,7 +29,8 @@
     "sidebar": "Vibe-Trading 侧边栏",
     "mainNavigation": "主导航",
     "about": "关于",
-    "macroAnalysis": "宏观经济分析"
+    "macroAnalysis": "宏观经济分析",
+    "swarmStudio": "智能体团队"
   },
   "runtime": {
     "monitorBadge": "交易监控",
@@ -1851,6 +1852,111 @@
       "empty": "该经济体暂无分析记录。",
       "loadError": "历史加载失败。",
       "monthLabel": "月份"
+    }
+  },
+  "swarmStudio": {
+    "title": "智能体团队编排",
+    "subtitle": "选择内置团队，按本次评估需要调整角色分工与协作关系后一键发起；调整仅对本次评估生效。",
+    "tabs": {
+      "studio": "团队编排",
+      "history": "我的评估"
+    },
+    "gallery": {
+      "sectionTitle": "第 1 步：选择内置团队预设",
+      "loading": "正在加载团队预设……",
+      "loadError": "团队预设加载失败。",
+      "noDescription": "暂无适用场景说明。",
+      "roleCount": "{{number}} 个角色",
+      "empty": "暂无可用的团队预设。"
+    },
+    "canvas": {
+      "layer": "第 {{index}} 层",
+      "nodeMeta": "{{tools}} 项能力 · {{minutes}} 分钟",
+      "finalRole": "最终决策"
+    },
+    "editor": {
+      "title": "角色设置",
+      "empty": "请选择角色节点，以编辑其职责说明、可用能力与协作连线。",
+      "deleteNode": "删除角色",
+      "addNode": "添加角色",
+      "backToGallery": "返回预设列表",
+      "role": "角色名称",
+      "duty": "职责说明（系统提示词，必填）",
+      "tools": "可用分析能力（仅限本预设能力目录）",
+      "timeout": "执行时长",
+      "seconds": "秒",
+      "edges": "协作连线",
+      "removeEdge": "删除",
+      "noEdges": "该角色尚未连接任何协作关系。",
+      "upstream": "上游角色",
+      "downstream": "下游角色",
+      "addEdge": "添加连线"
+    },
+    "validation": {
+      "valid": "流程合法，可以发起评估。",
+      "emptyGraph": "至少需要一个角色节点。",
+      "invalidNodeId": "角色标识不合法",
+      "duplicateNode": "角色标识重复",
+      "emptyRole": "角色名称不能为空",
+      "emptyDuty": "职责说明不能为空",
+      "invalidTimeout": "执行时长必须为 {{min}} 至 {{max}} 秒之间的整数",
+      "danglingEdge": "存在引用已删除角色的悬空连线",
+      "selfLoop": "角色不能与自身相连",
+      "cycle": "协作关系存在循环依赖",
+      "noStart": "流程缺少起点角色",
+      "orphan": "存在未纳入协作流程的孤立角色"
+    },
+    "launch": {
+      "target": "评估标的",
+      "question": "研究问题",
+      "questionPlaceholder": "当前市场环境下，应该做多还是做空？",
+      "targetRequired": "请填写评估标的。",
+      "questionRequired": "请填写研究问题。",
+      "reset": "重置为预设原样",
+      "submit": "发起评估",
+      "failed": "评估发起失败。"
+    },
+    "run": {
+      "title": "团队评估 {{id}}",
+      "back": "返回",
+      "cancel": "取消评估",
+      "loading": "正在加载评估……",
+      "loadError": "评估加载失败。",
+      "blockedHint": "等待上游角色完成。",
+      "failedHint": "该角色执行失败。",
+      "timeoutHint": "该角色执行超时。",
+      "selectNode": "点击任一角色可查看其分析过程与结论。",
+      "noConclusionYet": "暂无结论：该角色正在排队或分析中。",
+      "finalDecision": "最终决策",
+      "finalPending": "正在等待最终决策角色完成……",
+      "noFinalReport": "暂无最终决策结论。",
+      "nodeStatus": {
+        "waiting": "等待中",
+        "blocked": "受阻于上游",
+        "running": "分析中",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消"
+      }
+    },
+    "history": {
+      "loading": "正在加载评估历史……",
+      "loadError": "评估历史加载失败。",
+      "createdAt": "发起时间",
+      "preset": "团队预设",
+      "target": "评估标的",
+      "question": "研究问题",
+      "statusLabel": "终态",
+      "excerpt": "最终结论",
+      "viewSnapshot": "查看快照",
+      "empty": "暂无评估记录。",
+      "status": {
+        "pending": "等待中",
+        "running": "进行中",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消"
+      }
     }
   }
 }

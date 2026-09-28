@@ -292,6 +292,7 @@ class SwarmRuntime:
         live_callback: Callable | None = None,
         include_shell_tools: bool = False,
         resume_from: SwarmRun | None = None,
+        custom_spec: dict | None = None,
     ) -> SwarmRun:
         """Start a swarm run. Returns immediately, execution happens in background.
 
@@ -304,13 +305,17 @@ class SwarmRuntime:
                 Its completed tasks (and their artifacts) are carried into the
                 new run as-is; every other task re-executes. ``None`` (default)
                 starts a fully fresh run.
+            custom_spec: Optional web-orchestrated single-use customization
+                (nodes/edges/target/question). When provided the run is built
+                from this spec instead of the preset YAML; the preset itself
+                is never modified. Mutually exclusive with ``resume_from``.
 
         Returns:
             The created SwarmRun instance (status=pending initially).
 
         Raises:
             FileNotFoundError: If preset does not exist.
-            ValueError: If DAG validation fails.
+            ValueError: If DAG validation fails or the custom spec is invalid.
         """
         _ensure_dotenv()
         # Reap any previously running runs whose host process died without
@@ -324,7 +329,14 @@ class SwarmRuntime:
         except Exception:
             logger.warning("Stale-run reaper failed", exc_info=True)
 
-        run = build_run_from_preset(preset_name, user_vars)
+        if resume_from is not None and custom_spec is not None:
+            raise ValueError("custom_spec and resume_from are mutually exclusive")
+        if custom_spec is not None:
+            from src.swarm.custom_spec import build_run_from_custom_spec
+
+            run = build_run_from_custom_spec(preset_name, custom_spec, user_vars)
+        else:
+            run = build_run_from_preset(preset_name, user_vars)
         validate_dag(run.tasks)
 
         # Capture which provider/model the run was launched against so the

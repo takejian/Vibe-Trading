@@ -283,6 +283,57 @@ def inspect_preset(name: str) -> dict:
     }
 
 
+def get_preset_detail(name: str) -> dict:
+    """Return the full editor payload for one preset (web orchestration).
+
+    Unlike :func:`list_presets` (summaries) and :func:`inspect_preset`
+    (validation dry-run, intentionally sparse), this exposes everything the
+    web canvas needs to render an editable graph: each agent's duty, tools,
+    skills and timeout; each task's prompt template and dependency edges;
+    the preset-wide tool catalog (the trust boundary for checkbox choices);
+    and the topological execution layers (canvas layout).
+
+    Raises:
+        FileNotFoundError: Preset does not exist.
+    """
+    data = load_preset(name)
+    run = build_run_from_preset(name, {})
+    layers = topological_layers(run.tasks)
+
+    catalog = sorted({tool for agent in run.agents for tool in agent.tools})
+    return {
+        "name": data.get("name", name),
+        "title": data.get("title", ""),
+        "description": data.get("description", ""),
+        "variables": data.get("variables", []),
+        "agents": [
+            {
+                "id": agent.id,
+                "role": agent.role,
+                "system_prompt": agent.system_prompt,
+                "tools": list(agent.tools),
+                "skills": list(agent.skills),
+                "max_iterations": agent.max_iterations,
+                "timeout_seconds": agent.timeout_seconds,
+                "model_name": agent.model_name,
+            }
+            for agent in run.agents
+        ],
+        "tasks": [
+            {
+                "id": task.id,
+                "agent_id": task.agent_id,
+                "prompt_template": task.prompt_template,
+                "depends_on": list(task.depends_on),
+                "input_from": dict(task.input_from),
+            }
+            for task in run.tasks
+        ],
+        "tool_catalog": catalog,
+        "layers": [list(layer) for layer in layers],
+    }
+
+
 def build_run_from_preset(preset_name: str, user_vars: dict[str, str]) -> SwarmRun:
     """Create a SwarmRun from a preset with user variables applied.
 

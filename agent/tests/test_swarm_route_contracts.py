@@ -136,3 +136,160 @@ def test_swarm_detail_uses_redacted_public_task_projection(
     assert "prompt_template" not in task
     assert task["worker_iterations"] == 3
     assert task["iterations"] == 3
+
+
+def test_swarm_preset_detail_returns_full_editor_payload(
+    swarm_store: SwarmStore,
+) -> None:
+    response = _client().get("/swarm/presets/investment_committee/detail")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "investment_committee"
+    assert {a["id"] for a in payload["agents"]} == {
+        "bull_advocate",
+        "bear_advocate",
+        "risk_officer",
+        "portfolio_manager",
+    }
+    pm = next(a for a in payload["agents"] if a["id"] == "portfolio_manager")
+    assert pm["system_prompt"]
+    assert pm["timeout_seconds"] == 1800
+    assert len(payload["tasks"]) == 4
+    assert "get_market_data" in payload["tool_catalog"]
+    assert payload["layers"]  # topological layout present
+
+
+def test_swarm_preset_detail_404_for_unknown(swarm_store: SwarmStore) -> None:
+    response = _client().get("/swarm/presets/no_such_preset/detail")
+    assert response.status_code == 404
+
+
+class _FakeValidatingRuntime:
+    """Route-level fake: delegates custom specs to the real validator/build
+    without starting any thread or LLM call."""
+
+    def __init__(self, store: SwarmStore) -> None:
+        self._store = store
+        self.last_kwargs: dict | None = None
+
+    def start_run(self, preset_name, user_vars, *, include_shell_tools=False,
+                  custom_spec=None, **kwargs):
+        self.last_kwargs = {
+            "preset_name": preset_name,
+            "user_vars": user_vars,
+            "include_shell_tools": include_shell_tools,
+            "custom_spec": custom_spec,
+        }
+        if custom_spec is not None:
+            from src.swarm.custom_spec import build_run_from_custom_spec
+
+            return build_run_from_custom_spec(preset_name, custom_spec, user_vars)
+        raise FileNotFoundError("plain preset launch is not supported by fake")
+
+
+def _ic_custom_spec() -> dict:
+    def node(node_id: str) -> dict:
+        return {
+            "id": node_id,
+            "role": node_id,
+            "duty": f"duty {node_id}",
+            "tools": ["load_skill"],
+            "timeout_seconds": 300,
+            "is_new": False,
+        }
+
+    return {
+        "target": "600519.SH",
+        "question": "做多还是做空",
+        "nodes": [
+            node("bull_advocate"),
+            node("bear_advocate"),
+            node("risk_officer"),
+            node("portfolio_manager"),
+        ],
+        "edges": [
+            {"upstream": "bull_advocate", "downstream": "risk_officer"},
+            {"upstream": "bear_advocate", "downstream": "risk_officer"},
+            {"upstream": "risk_officer", "downstream": "portfolio_manager"},
+        ],
+    }
+
+
+def test_create_custom_swarm_run_passes_spec_and_returns_id(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _FakeValidatingRuntime(swarm_store)
+    monkeypatch.setattr(swarm_routes, "_swarm_runtime", fake)
+
+    response = _client().post(
+        "/swarm/runs",
+        json={
+            "preset_name": "investment_committee",
+            "user_vars": {},
+            "custom": _ic_custom_spec(),
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["preset_name"] == "investment_committee"
+    assert body["status"] == "pending"
+    assert body["id"].startswith("swarm-")
+    assert fake.last_kwargs["custom_spec"]["target"] == "600519.SH"
+
+
+def test_create_custom_swarm_run_rejects_cycle_with_400(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        swarm_routes, "_swarm_runtime", _FakeValidatingRuntime(swarm_store)
+    )
+    spec = _ic_custom_spec()
+    spec["edges"].append(
+        {"upstream": "risk_officer", "downstream": "bull_advocate"}
+    )
+
+    response = _client().post(
+        "/swarm/runs",
+        json={"preset_name": "investment_committee", "user_vars": {}, "custom": spec},
+    )
+
+    assert response.status_code == 400
+
+
+def test_create_custom_swarm_run_rejects_non_object_custom(
+    swarm_store: SwarmStore,
+) -> None:
+    response = _client().post(
+        "/swarm/runs",
+        json={
+            "preset_name": "investment_committee",
+            "user_vars": {},
+            "custom": "not-an-object",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_swarm_run_list_and_detail_carry_customization_fields(
+    swarm_store: SwarmStore,
+) -> None:
+    run = _create_run(swarm_store, status=RunStatus.completed)
+    run.customized = True
+    run.research_target = "600519.SH"
+    run.research_question = "做多还是做空"
+    run.final_report = "倾向做多，理由是……"
+    swarm_store.update_run(run)
+
+    listing = _client().get("/swarm/runs").json()
+    row = next(item for item in listing if item["id"] == run.id)
+    assert row["customized"] is True
+    assert row["research_target"] == "600519.SH"
+    assert row["research_question"] == "做多还是做空"
+    assert row["final_report_excerpt"] == "倾向做多，理由是……"
+
+    detail = _client().get(f"/swarm/runs/{run.id}").json()
+    assert detail["customized"] is True
+    assert detail["research_target"] == "600519.SH"
+    assert detail["research_question"] == "做多还是做空"

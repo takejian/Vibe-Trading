@@ -287,8 +287,15 @@ class SwarmRun(BaseModel):
             run-creation time by :mod:`src.swarm.grounding` so workers see
             real recent prices instead of training-data prices. Keyed by the
             original symbol string; each value is the list of bars returned
-            by the loader. ``None`` when no symbols were detected or every
-            fetch failed.
+        by the loader. ``None`` when no symbols were detected or every
+        fetch failed.
+    customized: ``True`` when the run was built from a web-orchestrated
+        temporary customization of a preset (see ``swarm.custom_spec``);
+        ``False`` for plain preset runs.
+    research_target: Evaluation target (e.g. ``"600519.SH"``) for
+        customized runs; ``None`` for plain preset runs.
+    research_question: The research question the team must answer for a
+        customized run; ``None`` for plain preset runs.
     """
 
     id: str
@@ -307,6 +314,9 @@ class SwarmRun(BaseModel):
     reasoning_effort: str | None = None
     use_responses_api: bool | None = None
     grounding_data: dict[str, list[dict]] | None = None
+    customized: bool = False
+    research_target: str | None = None
+    research_question: str | None = None
 
 
 class WorkerResult(BaseModel):

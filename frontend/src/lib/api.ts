@@ -5,6 +5,10 @@ import type {
   OptionsPayoffRequest,
   OptionsPayoffResponse,
 } from "@/lib/options";
+import type {
+  CustomSpecPayload,
+  SwarmPresetDetail,
+} from "@/lib/swarmGraph";
 
 const BASE = "";
 
@@ -562,13 +566,19 @@ export const api = {
 
   // Swarm API
   listSwarmPresets: () => request<SwarmPreset[]>("/swarm/presets"),
-  createSwarmRun: (preset_name: string, user_vars: Record<string, string>) =>
+  getSwarmPresetDetail: (name: string) =>
+    request<SwarmPresetDetail>(`/swarm/presets/${encodeURIComponent(name)}/detail`),
+  createSwarmRun: (
+    preset_name: string,
+    user_vars: Record<string, string>,
+    custom?: CustomSpecPayload,
+  ) =>
     request<{ id: string; status: string }>("/swarm/runs", {
       method: "POST",
-      body: JSON.stringify({ preset_name, user_vars }),
+      body: JSON.stringify({ preset_name, user_vars, ...(custom ? { custom } : {}) }),
     }),
   listSwarmRuns: () => request<SwarmRunSummary[]>("/swarm/runs"),
-  getSwarmRun: (id: string) => request<Record<string, unknown>>(`/swarm/runs/${id}`),
+  getSwarmRun: (id: string) => request<SwarmRunDetail>(`/swarm/runs/${id}`),
   swarmSseUrl: (id: string) => withAuthTicket(`${BASE}/swarm/runs/${id}/events`),
   cancelSwarmRun: (id: string) =>
     request<{ status: string }>(`/swarm/runs/${id}/cancel`, { method: "POST" }),
@@ -833,8 +843,54 @@ export interface SwarmRunSummary {
   preset_name: string;
   status: string;
   created_at: string;
+  completed_at?: string | null;
+  is_stale?: boolean;
   task_count: number;
   completed_count: number;
+  customized?: boolean;
+  research_target?: string | null;
+  research_question?: string | null;
+  final_report_excerpt?: string | null;
+}
+
+export interface SwarmRunAgent {
+  id: string;
+  role: string;
+  system_prompt: string;
+  tools: string[];
+  skills: string[];
+  max_iterations: number;
+  timeout_seconds: number;
+}
+
+export interface SwarmRunTask {
+  id: string;
+  agent_id: string;
+  status: string;
+  depends_on: string[];
+  input_from?: Record<string, string>;
+  summary?: string | null;
+  error?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  worker_iterations?: number;
+  iterations?: number;
+}
+
+export interface SwarmRunDetail {
+  id: string;
+  preset_name: string;
+  status: string;
+  is_stale?: boolean;
+  user_vars: Record<string, string>;
+  agents: SwarmRunAgent[];
+  tasks: SwarmRunTask[];
+  created_at: string;
+  completed_at?: string | null;
+  final_report?: string | null;
+  customized?: boolean;
+  research_target?: string | null;
+  research_question?: string | null;
 }
 
 export interface LLMProviderOption {

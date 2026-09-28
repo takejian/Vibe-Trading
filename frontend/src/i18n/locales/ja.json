@@ -29,7 +29,8 @@
     "sidebar": "Vibe-Trading サイドバー",
     "mainNavigation": "メインナビゲーション",
     "about": "概要",
-    "macroAnalysis": "Macro Analysis"
+    "macroAnalysis": "Macro Analysis",
+    "swarmStudio": "Agent Teams"
   },
   "runtime": {
     "monitorBadge": "取引モニター",
@@ -1851,6 +1852,111 @@
       "empty": "No analyses for this economy yet.",
       "loadError": "Failed to load history.",
       "monthLabel": "Month"
+    }
+  },
+  "swarmStudio": {
+    "title": "Agent Team Orchestration",
+    "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
+    "tabs": {
+      "studio": "Orchestrate",
+      "history": "My evaluations"
+    },
+    "gallery": {
+      "sectionTitle": "Step 1 — choose a built-in team preset",
+      "loading": "Loading team presets…",
+      "loadError": "Failed to load team presets.",
+      "noDescription": "No scenario description provided.",
+      "roleCount": "{{number}} roles",
+      "empty": "No team presets available."
+    },
+    "canvas": {
+      "layer": "Layer {{index}}",
+      "nodeMeta": "{{tools}} tools · {{minutes}} min",
+      "finalRole": "Final decision"
+    },
+    "editor": {
+      "title": "Role settings",
+      "empty": "Select a role node to edit its duty, capabilities and handoffs.",
+      "deleteNode": "Delete role",
+      "addNode": "Add role",
+      "backToGallery": "Back to presets",
+      "role": "Role name",
+      "duty": "Duty (system prompt, required)",
+      "tools": "Available capabilities (preset catalog only)",
+      "timeout": "Execution duration",
+      "seconds": "seconds",
+      "edges": "Handoff links",
+      "removeEdge": "Remove",
+      "noEdges": "This role has no handoff links.",
+      "upstream": "Upstream role",
+      "downstream": "Downstream role",
+      "addEdge": "Add link"
+    },
+    "validation": {
+      "valid": "Flow is valid — ready to launch.",
+      "emptyGraph": "The flow needs at least one role.",
+      "invalidNodeId": "Invalid role identifier",
+      "duplicateNode": "Duplicate role identifier",
+      "emptyRole": "Role name must not be empty",
+      "emptyDuty": "Duty must not be empty",
+      "invalidTimeout": "Duration must be an integer between {{min}} and {{max}} seconds",
+      "danglingEdge": "A link references a role that does not exist",
+      "selfLoop": "A role cannot hand off to itself",
+      "cycle": "Handoffs contain a cycle (circular dependency)",
+      "noStart": "The flow has no starting role",
+      "orphan": "Role is not connected to the flow (isolated)"
+    },
+    "launch": {
+      "target": "Evaluation target",
+      "question": "Research question",
+      "questionPlaceholder": "In the current market, should we go long or short?",
+      "targetRequired": "Evaluation target is required.",
+      "questionRequired": "Research question is required.",
+      "reset": "Reset to preset",
+      "submit": "Launch evaluation",
+      "failed": "Failed to launch the evaluation."
+    },
+    "run": {
+      "title": "Team evaluation {{id}}",
+      "back": "Back",
+      "cancel": "Cancel evaluation",
+      "loading": "Loading evaluation…",
+      "loadError": "Failed to load the evaluation.",
+      "blockedHint": "Waiting for upstream roles to finish.",
+      "failedHint": "This role failed.",
+      "timeoutHint": "This role timed out.",
+      "selectNode": "Click a role to review its analysis and conclusion.",
+      "noConclusionYet": "No conclusion yet — the role is queued or analyzing.",
+      "finalDecision": "Final decision",
+      "finalPending": "Waiting for the final decision role…",
+      "noFinalReport": "No final decision is available.",
+      "nodeStatus": {
+        "waiting": "Waiting",
+        "blocked": "Blocked by upstream",
+        "running": "Analyzing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      }
+    },
+    "history": {
+      "loading": "Loading evaluation history…",
+      "loadError": "Failed to load evaluation history.",
+      "createdAt": "Started at",
+      "preset": "Team preset",
+      "target": "Target",
+      "question": "Question",
+      "statusLabel": "Status",
+      "excerpt": "Final conclusion",
+      "viewSnapshot": "View snapshot",
+      "empty": "No evaluation records yet.",
+      "status": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      }
     }
   }
 }

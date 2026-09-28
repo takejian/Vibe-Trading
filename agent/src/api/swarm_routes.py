@@ -88,17 +88,37 @@ def register_swarm_routes(
 
         return list_presets()
 
+    @app.get("/swarm/presets/{name}/detail", dependencies=[Depends(require_auth)])
+    async def swarm_preset_detail(name: str):
+        """Full editable definition of one preset (web orchestration canvas)."""
+        from src.swarm.presets import get_preset_detail
+
+        try:
+            return get_preset_detail(name)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     @app.post("/swarm/runs", dependencies=[Depends(require_auth)])
     async def create_swarm_run(payload: dict, http_request: Request):
-        """Start a swarm run: body must include preset_name and user_vars."""
+        """Start a swarm run: body must include preset_name and user_vars.
+
+        Optional ``custom`` object (nodes/edges/target/question) launches a
+        single-use web-orchestrated run; the source preset stays untouched.
+        """
         runtime = _get_swarm_runtime()
         preset_name = payload.get("preset_name", "")
         user_vars = payload.get("user_vars", {})
+        custom = payload.get("custom")
+        if custom is not None and not isinstance(custom, dict):
+            raise HTTPException(status_code=400, detail="custom must be an object")
         try:
             run = runtime.start_run(
                 preset_name,
                 user_vars,
                 include_shell_tools=_host_shell_tools_enabled_for_request(http_request),
+                custom_spec=custom,
             )
             return {"id": run.id, "status": run.status.value, "preset_name": run.preset_name}
         except FileNotFoundError as e:
@@ -116,6 +136,7 @@ def register_swarm_routes(
             # Reconcile each row: a zombie running run will be auto-finalized so
             # the dashboard never shows a "running" stuck row.
             reconciled = runtime._store.reconcile_run(r, write=True)
+            excerpt = (reconciled.final_report or "")[:280]
             items.append(
                 {
                     "id": reconciled.id,
@@ -128,6 +149,10 @@ def register_swarm_routes(
                     "completed_count": sum(
                         1 for t in reconciled.tasks if t.status.value == "completed"
                     ),
+                    "customized": bool(getattr(reconciled, "customized", False)),
+                    "research_target": getattr(reconciled, "research_target", None),
+                    "research_question": getattr(reconciled, "research_question", None),
+                    "final_report_excerpt": excerpt or None,
                 }
             )
         return items
@@ -164,6 +189,9 @@ def register_swarm_routes(
             "created_at": run.created_at,
             "completed_at": run.completed_at,
             "final_report": run.final_report,
+            "customized": bool(getattr(run, "customized", False)),
+            "research_target": getattr(run, "research_target", None),
+            "research_question": getattr(run, "research_question", None),
         }
 
     @app.get(
