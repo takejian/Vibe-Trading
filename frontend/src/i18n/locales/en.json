@@ -1859,7 +1859,8 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations"
+      "history": "My evaluations",
+      "skills": "Skill Square"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -1867,7 +1868,11 @@
       "loadError": "Failed to load team presets.",
       "noDescription": "No scenario description provided.",
       "roleCount": "{{number}} roles",
-      "empty": "No team presets available."
+      "empty": "No team presets available.",
+      "myTeamsSection": "My custom teams",
+      "builtinSection": "Built-in team presets",
+      "myTeamsNoDescription": "No scenario description provided.",
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
     },
     "canvas": {
       "layer": "Layer {{index}}",
@@ -1890,7 +1895,14 @@
       "noEdges": "This role has no handoff links.",
       "upstream": "Upstream role",
       "downstream": "Downstream role",
-      "addEdge": "Add link"
+      "addEdge": "Add link",
+      "skills": "Skills used by this role",
+      "addSkill": "Add",
+      "noSkills": "No skills selected for this role.",
+      "skillApprovedBadge": "approved",
+      "skillSearchPlaceholder": "Search approved skills…",
+      "skillPickerClose": "Close skill picker",
+      "noAddableSkills": "No other approved skills. Run a skill trial in the Skill Square to approve one."
     },
     "validation": {
       "valid": "Flow is valid — ready to launch.",
@@ -1904,7 +1916,8 @@
       "selfLoop": "A role cannot hand off to itself",
       "cycle": "Handoffs contain a cycle (circular dependency)",
       "noStart": "The flow has no starting role",
-      "orphan": "Role is not connected to the flow (isolated)"
+      "orphan": "Role is not connected to the flow (isolated)",
+      "unknownSkill": "Role uses a skill that is not assembled or has not passed a trial"
     },
     "launch": {
       "target": "Evaluation target",
@@ -1956,7 +1969,70 @@
         "completed": "Completed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "filterTarget": "Target keyword",
+      "filterTargetPlaceholder": "Code or name fragment",
+      "filterFrom": "From",
+      "filterTo": "To",
+      "filterSearch": "Search",
+      "filterClear": "Clear",
+      "skillColumn": "Skill"
+    },
+    "teams": {
+      "saveTitle": "Save as my team",
+      "updateTitle": "Update my team",
+      "saveHint": "Saved teams are only visible to you on this machine. Built-in presets are never modified.",
+      "close": "Close",
+      "name": "Team name (required)",
+      "description": "When to use this team (optional)",
+      "nameRequired": "Team name must not be empty",
+      "descriptionTooLong": "Description must be at most {{number}} characters",
+      "cancel": "Cancel",
+      "save": "Save",
+      "update": "Update in place",
+      "saving": "Saving…",
+      "saveAs": "Save as my team",
+      "updateShort": "Save changes",
+      "delete": "Delete team",
+      "deleteConfirm": "Delete this custom team? Historical evaluation snapshots are not affected.",
+      "loadError": "Failed to load custom teams.",
+      "saveFailed": "Failed to save the custom team.",
+      "deleteFailed": "Failed to delete the custom team."
+    },
+    "skills": {
+      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
+      "loading": "Loading skills…",
+      "loadError": "Failed to load the skill catalog.",
+      "catalogTitle": "Assembled skills",
+      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
+      "catalogEmpty": "No skills are assembled.",
+      "approved": "Approved",
+      "approvedHint": "Passed at least one standalone trial",
+      "sourceBundled": "built-in",
+      "sourceUser": "imported",
+      "trial": "Trial",
+      "trialTitle": "Run a standalone skill trial",
+      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
+      "trialSkillPlaceholder": "Skill name",
+      "trialTargetPlaceholder": "Evaluation target (code / name)",
+      "trialQuestionPlaceholder": "Research question",
+      "trialLaunch": "Launch trial",
+      "trialFailed": "Failed to launch the skill trial.",
+      "trialsLoadError": "Failed to load trial history.",
+      "adminTitle": "Skill package administration (operator only)",
+      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
+      "import": "Import zip",
+      "importing": "Importing…",
+      "importDone": "Successfully installed {{number}} skill package(s).",
+      "importFailed": "Skill package import failed.",
+      "sync": "Sync now",
+      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "Skill sync failed.",
+      "syncAdded": "Added: {{number}}",
+      "syncUpdated": "Updated: {{number}}",
+      "syncRemoved": "Removed: {{number}}",
+      "syncRejected": "Rejected: {{number}}",
+      "trialsHistoryTitle": "My skill trial history"
     }
   }
 }

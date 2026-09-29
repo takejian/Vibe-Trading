@@ -456,6 +456,9 @@ class AgentTuningConfig(_EnvBase):
     vibe_trading_enable_scheduler: EnvBool = Field(
         alias="VIBE_TRADING_ENABLE_SCHEDULER", default=False,
     )
+    vibe_trading_enable_skill_admin: EnvBool = Field(
+        alias="VIBE_TRADING_ENABLE_SKILL_ADMIN", default=False,
+    )
     vibe_contextual_identity_constraints: EnvBool = Field(
         alias="VIBE_CONTEXTUAL_IDENTITY_CONSTRAINTS", default=True,
     )
@@ -511,6 +514,9 @@ class PathConfig(_EnvBase):
     vibe_trading_playbook_dir: str = Field(alias="VIBE_TRADING_PLAYBOOK_DIR", default="")
     vibe_trading_swarm_agent_config: str = Field(
         alias="VIBE_TRADING_SWARM_AGENT_CONFIG", default="",
+    )
+    vibe_trading_skill_sync_source: str = Field(
+        alias="VIBE_TRADING_SKILL_SYNC_SOURCE", default="",
     )
     allow_session_mcp_servers: EnvBool = Field(alias="ALLOW_SESSION_MCP_SERVERS", default=False)
     vibe_trading_theme: str = Field(alias="VIBE_TRADING_THEME", default="")

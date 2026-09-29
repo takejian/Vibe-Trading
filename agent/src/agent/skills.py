@@ -94,7 +94,20 @@ def _load_skill_dir(dir_path: Path) -> Optional[Skill]:
     )
 
 
-USER_SKILLS_DIR = Path.home() / ".vibe-trading" / "skills" / "user"
+def _default_user_skills_dir() -> Path:
+    """Resolve the user skills directory via config (honors VIBE_TRADING_HOME)."""
+    try:
+        from src.config.paths import get_user_skills_dir
+
+        return get_user_skills_dir()
+    except Exception:
+        # Config must stay optional for standalone/unit use of this module.
+        return Path.home() / ".vibe-trading" / "skills" / "user"
+
+
+#: Resolved once at import; honors ``VIBE_TRADING_HOME`` via config when
+#: available, falling back to ``~/.vibe-trading/skills/user``.
+USER_SKILLS_DIR = _default_user_skills_dir()
 
 
 class SkillsLoader:
@@ -113,7 +126,7 @@ class SkillsLoader:
             user_skills_dir: User-created skills directory; defaults to ~/.vibe-trading/skills/user/.
         """
         self.skills_dir = skills_dir or Path(__file__).resolve().parents[1] / "skills"
-        self._user_skills_dir = user_skills_dir or USER_SKILLS_DIR
+        self._user_skills_dir = user_skills_dir or _default_user_skills_dir()
         self.skills: List[Skill] = []
         self._load()
 

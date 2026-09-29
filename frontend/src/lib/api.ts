@@ -385,15 +385,20 @@ async function errorFromResponse(res: Response): Promise<ApiError> {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const { headers, ...rest } = options ?? {};
+  const { headers, body, ...rest } = options ?? {};
   const mergedHeaders: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
   if (headers) {
     new Headers(headers).forEach((value, key) => {
       mergedHeaders[key] = value;
     });
   }
+  // Let the browser set the multipart boundary for FormData uploads.
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    delete mergedHeaders["Content-Type"];
+  }
   const res = await fetch(`${BASE}${path}`, {
     ...rest,
+    body: body as BodyInit | null | undefined,
     headers: mergedHeaders,
   });
   if (!res.ok) {
@@ -572,18 +577,88 @@ export const api = {
     preset_name: string,
     user_vars: Record<string, string>,
     custom?: CustomSpecPayload,
+    skillTrial?: SkillTrialRequest,
   ) =>
-    request<{ id: string; status: string }>("/swarm/runs", {
-      method: "POST",
-      body: JSON.stringify({ preset_name, user_vars, ...(custom ? { custom } : {}) }),
-    }),
-  listSwarmRuns: () => request<SwarmRunSummary[]>("/swarm/runs"),
+    request<{ id: string; status: string; kind?: string; trial_skill?: string | null }>(
+      "/swarm/runs",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          preset_name,
+          user_vars,
+          ...(custom ? { custom } : {}),
+          ...(skillTrial ? { skill_trial: skillTrial } : {}),
+        }),
+      },
+    ),
+  listSwarmRuns: (options?: SwarmRunListOptions) => {
+    const params = new URLSearchParams();
+    if (options?.kind && options.kind !== "team") params.set("kind", options.kind);
+    if (options?.target) params.set("target", options.target);
+    if (options?.from) params.set("from", options.from);
+    if (options?.to) params.set("to", options.to);
+    if (options?.skillName) params.set("skill_name", options.skillName);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request<SwarmRunSummary[]>(`/swarm/runs${query ? `?${query}` : ""}`);
+  },
   getSwarmRun: (id: string) => request<SwarmRunDetail>(`/swarm/runs/${id}`),
   swarmSseUrl: (id: string) => withAuthTicket(`${BASE}/swarm/runs/${id}/events`),
   cancelSwarmRun: (id: string) =>
     request<{ status: string }>(`/swarm/runs/${id}/cancel`, { method: "POST" }),
   retrySwarmRun: (id: string) =>
     request<{ id: string; status: string; preset_name: string }>(`/swarm/runs/${id}/retry`, { method: "POST" }),
+
+  // Personal custom teams ("my teams")
+  listCustomTeams: () => request<CustomTeamSummary[]>("/swarm/custom-teams"),
+  getCustomTeam: (id: string) =>
+    request<CustomTeam>(`/swarm/custom-teams/${encodeURIComponent(id)}`),
+  createCustomTeam: (body: CustomTeamRequest) =>
+    request<{ id: string; name: string; updated_at: string }>("/swarm/custom-teams", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCustomTeam: (id: string, body: CustomTeamRequest) =>
+    request<{ id: string; name: string; updated_at: string }>(
+      `/swarm/custom-teams/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  deleteCustomTeam: (id: string) =>
+    request<{ status: string }>(`/swarm/custom-teams/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+
+  // Skill Square
+  getSkillCapabilities: () => request<SkillCapabilities>("/swarm/skills/capabilities"),
+  getSkillCatalog: () =>
+    request<{ skills: SkillCatalogEntry[] }>("/swarm/skills/catalog"),
+  createSkillTrial: (body: SkillTrialRequest) =>
+    request<{ id: string; status: string; kind: string; trial_skill: string }>(
+      "/swarm/skill-trials",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  listSkillTrials: (options?: Omit<SwarmRunListOptions, "kind">) => {
+    const params = new URLSearchParams();
+    if (options?.target) params.set("target", options.target);
+    if (options?.from) params.set("from", options.from);
+    if (options?.to) params.set("to", options.to);
+    if (options?.skillName) params.set("skill_name", options.skillName);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request<SwarmRunSummary[]>(
+      `/swarm/skill-trials${query ? `?${query}` : ""}`,
+    );
+  },
+  importSkillPackage: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<SkillImportResult>("/swarm/skills/import", {
+      method: "POST",
+      body: form,
+    });
+  },
+  syncSkills: () =>
+    request<SkillSyncResult>("/swarm/skills/sync", { method: "POST" }),
   getLLMSettings: () => request<LLMSettings>("/settings/llm"),
   updateLLMSettings: (settings: UpdateLLMSettingsRequest) =>
     request<LLMSettings>("/settings/llm", {
@@ -851,6 +926,93 @@ export interface SwarmRunSummary {
   research_target?: string | null;
   research_question?: string | null;
   final_report_excerpt?: string | null;
+  /** "team" (default/old records) or "skill_trial". */
+  kind?: string;
+  trial_skill?: string | null;
+}
+
+export interface SwarmRunListOptions {
+  /** "team" (default), "skill_trial" or "all". */
+  kind?: "team" | "skill_trial" | "all";
+  target?: string;
+  /** ISO date prefix, inclusive (YYYY-MM-DD). */
+  from?: string;
+  to?: string;
+  skillName?: string;
+  limit?: number;
+}
+
+export interface CustomTeamSummary {
+  id: string;
+  name: string;
+  description: string;
+  source_preset: string;
+  role_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomTeam {
+  id: string;
+  name: string;
+  description: string;
+  source_preset: string;
+  nodes: CustomTeamNode[];
+  edges: { upstream: string; downstream: string }[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomTeamNode {
+  id: string;
+  role: string;
+  duty: string;
+  tools: string[];
+  skills?: string[] | null;
+  timeout_seconds: number;
+  source_task_id?: string | null;
+  is_new: boolean;
+}
+
+export interface CustomTeamRequest {
+  name: string;
+  description?: string;
+  source_preset: string;
+  nodes: CustomTeamNode[];
+  edges: { upstream: string; downstream: string }[];
+}
+
+export interface SkillCatalogEntry {
+  name: string;
+  description: string;
+  category: string;
+  /** "bundled" ships with Vibe Trading; "user" was imported/synced. */
+  source: "bundled" | "user";
+  /** Globally approved after at least one successful Skill Square trial. */
+  approved: boolean;
+}
+
+export interface SkillCapabilities {
+  admin_enabled: boolean;
+  sync_source_configured: boolean;
+}
+
+export interface SkillTrialRequest {
+  skill_name: string;
+  target: string;
+  question: string;
+}
+
+export interface SkillImportResult {
+  installed: Array<{ name: string; slug: string }>;
+  rejected: Array<{ package?: string; reasons: string[] }>;
+}
+
+export interface SkillSyncResult {
+  added: string[];
+  updated: string[];
+  removed: string[];
+  rejected: Array<{ package?: string; reasons: string[] }>;
 }
 
 export interface SwarmRunAgent {
@@ -891,6 +1053,8 @@ export interface SwarmRunDetail {
   customized?: boolean;
   research_target?: string | null;
   research_question?: string | null;
+  kind?: string;
+  trial_skill?: string | null;
 }
 
 export interface LLMProviderOption {

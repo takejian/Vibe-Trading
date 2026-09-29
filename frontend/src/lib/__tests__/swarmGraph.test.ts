@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeLayers,
+  draftFromCustomTeam,
   draftFromPresetDetail,
   edgesFromRunTasks,
   isLaunchable,
@@ -18,6 +19,7 @@ function node(id: string, overrides: Partial<FlowNodeDraft> = {}): FlowNodeDraft
     role: id,
     duty: `duty of ${id}`,
     tools: ["get_market_data"],
+    skills: [],
     timeoutSeconds: 300,
     isNew: false,
     ...overrides,
@@ -230,5 +232,116 @@ describe("nextNodeId", () => {
   it("returns the first free node_N id", () => {
     expect(nextNodeId([])).toBe("node_1");
     expect(nextNodeId([node("node_1")])).toBe("node_2");
+  });
+});
+
+describe("skill whitelist validation", () => {
+  it("does not check skills when no whitelist is provided", () => {
+    const issues = validateGraph(
+      [node("a", { skills: ["anything-goes"] })],
+      [],
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags skills outside the preset ∪ approved whitelist", () => {
+    const issues = validateGraph(
+      [node("a", { skills: ["known-skill", "mystery-skill"] })],
+      [],
+      ["known-skill"],
+    );
+    const unknown = issues.find((i) => i.code === "unknownSkill");
+    expect(unknown).toBeDefined();
+    expect(unknown!.nodeIds).toEqual(["a"]);
+    expect(isLaunchable(issues)).toBe(false);
+  });
+
+  it("accepts whitelisted skills (including iterables other than arrays)", () => {
+    const issues = validateGraph(
+      [node("a", { skills: ["s1", "s2"] })],
+      [],
+      new Set(["s1", "s2", "s3"]),
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
+describe("skills in payloads and drafts", () => {
+  it("serializes node skills sorted into the custom payload", () => {
+    const payload = toCustomPayload(
+      [node("a", { skills: ["zeta-skill", "alpha-skill"] })],
+      [],
+      "t",
+      "q",
+    );
+    expect(payload.nodes[0].skills).toEqual(["alpha-skill", "zeta-skill"]);
+  });
+
+  it("rebuilds a draft from a saved custom team, defaulting missing skills", () => {
+    const draft = draftFromCustomTeam({
+      source_preset: "investment_committee",
+      nodes: [
+        {
+          id: "a",
+          role: "Analyst",
+          duty: "duty",
+          tools: ["get_market_data"],
+          timeout_seconds: 300,
+          source_task_id: "task-a",
+          is_new: false,
+        },
+        {
+          id: "b",
+          role: "Manager",
+          duty: "decide",
+          tools: [],
+          skills: ["strategy-generate"],
+          timeout_seconds: 600,
+          source_task_id: null,
+          is_new: true,
+        },
+      ],
+      edges: [
+        { upstream: "a", downstream: "b" },
+        { upstream: "a", downstream: "b" },
+      ],
+    });
+    expect(draft.nodes.map((n) => n.skills)).toEqual([[], ["strategy-generate"]]);
+    expect(draft.nodes[1].isNew).toBe(true);
+    expect(draft.edges).toHaveLength(1);
+  });
+
+  it("carries preset agent skills into the draft", () => {
+    const detail: SwarmPresetDetail = {
+      name: "p",
+      title: "P",
+      description: "",
+      variables: [],
+      agents: [
+        {
+          id: "a",
+          role: "Analyst",
+          system_prompt: "duty",
+          tools: [],
+          skills: ["behavioral-finance", "asset-allocation"],
+          max_iterations: 25,
+          timeout_seconds: 300,
+        },
+      ],
+      tasks: [
+        {
+          id: "task-a",
+          agent_id: "a",
+          prompt_template: "go",
+          depends_on: [],
+          input_from: {},
+        },
+      ],
+      tool_catalog: [],
+      skill_catalog: ["behavioral-finance", "asset-allocation"],
+      layers: [["task-a"]],
+    };
+    const draft = draftFromPresetDetail(detail);
+    expect(draft.nodes[0].skills).toEqual(["behavioral-finance", "asset-allocation"]);
   });
 });

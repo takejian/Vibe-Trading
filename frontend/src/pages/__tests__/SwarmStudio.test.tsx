@@ -100,6 +100,7 @@ const IC_DETAIL = {
     },
   ],
   tool_catalog: ["backtest", "bash", "get_market_data", "load_skill", "read_file", "write_file"],
+  skill_catalog: ["strategy-generate", "asset-allocation"],
   layers: [
     ["task-bull", "task-bear"],
     ["task-risk"],
@@ -132,6 +133,15 @@ const getSwarmPresetDetail = vi.fn();
 const createSwarmRun = vi.fn();
 const listSwarmRuns = vi.fn();
 const getSwarmRun = vi.fn();
+const listCustomTeams = vi.fn();
+const getCustomTeam = vi.fn();
+const createCustomTeam = vi.fn();
+const updateCustomTeam = vi.fn();
+const deleteCustomTeam = vi.fn();
+const getSkillCatalog = vi.fn();
+const getSkillCapabilities = vi.fn();
+const createSkillTrial = vi.fn();
+const listSkillTrials = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -143,6 +153,17 @@ vi.mock("@/lib/api", async () => {
       createSwarmRun: (...args: unknown[]) => createSwarmRun(...args),
       listSwarmRuns: (...args: unknown[]) => listSwarmRuns(...args),
       getSwarmRun: (...args: unknown[]) => getSwarmRun(...args),
+      listCustomTeams: (...args: unknown[]) => listCustomTeams(...args),
+      getCustomTeam: (...args: unknown[]) => getCustomTeam(...args),
+      createCustomTeam: (...args: unknown[]) => createCustomTeam(...args),
+      updateCustomTeam: (...args: unknown[]) => updateCustomTeam(...args),
+      deleteCustomTeam: (...args: unknown[]) => deleteCustomTeam(...args),
+      getSkillCatalog: (...args: unknown[]) => getSkillCatalog(...args),
+      getSkillCapabilities: (...args: unknown[]) => getSkillCapabilities(...args),
+      createSkillTrial: (...args: unknown[]) => createSkillTrial(...args),
+      listSkillTrials: (...args: unknown[]) => listSkillTrials(...args),
+      importSkillPackage: vi.fn(),
+      syncSkills: vi.fn(),
       swarmSseUrl: vi.fn(async () => "http://test/events"),
       cancelSwarmRun: vi.fn(async () => ({ status: "cancelled" })),
     },
@@ -156,6 +177,57 @@ beforeEach(() => {
   createSwarmRun.mockResolvedValue({ id: "swarm-123", status: "pending" });
   listSwarmRuns.mockResolvedValue([]);
   getSwarmRun.mockResolvedValue(COMPLETED_RUN);
+  listCustomTeams.mockResolvedValue([]);
+  getSkillCatalog.mockResolvedValue({
+    skills: [
+      {
+        name: "behavioral-finance",
+        description: "Behavioral finance analysis",
+        category: "analysis",
+        source: "bundled",
+        approved: true,
+      },
+      {
+        name: "cookbook",
+        description: "recipes",
+        category: "other",
+        source: "user",
+        approved: false,
+      },
+    ],
+  });
+  getSkillCapabilities.mockResolvedValue({
+    admin_enabled: false,
+    sync_source_configured: false,
+  });
+  createSkillTrial.mockResolvedValue({
+    id: "swarm-trial-1",
+    status: "pending",
+    kind: "skill_trial",
+    trial_skill: "behavioral-finance",
+  });
+  listSkillTrials.mockResolvedValue([]);
+  createCustomTeam.mockResolvedValue({
+    id: "team-abc123",
+    name: "My Team",
+    updated_at: "2026-09-25T00:00:00+00:00",
+  });
+  updateCustomTeam.mockResolvedValue({
+    id: "team-abc123",
+    name: "My Team",
+    updated_at: "2026-09-25T00:00:00+00:00",
+  });
+  deleteCustomTeam.mockResolvedValue({ status: "deleted" });
+  getCustomTeam.mockResolvedValue({
+    id: "team-abc123",
+    name: "My Team",
+    description: "mine",
+    source_preset: "investment_committee",
+    nodes: [],
+    edges: [],
+    created_at: "2026-09-25T00:00:00+00:00",
+    updated_at: "2026-09-25T00:00:00+00:00",
+  });
 });
 
 describe("SwarmStudio", () => {
@@ -220,5 +292,109 @@ describe("SwarmStudio", () => {
     expect(screen.getByTestId("final-decision-content")).toHaveTextContent(
       "倾向做多",
     );
+  });
+
+  it("saves the canvas as a personal custom team", async () => {
+    render(<SwarmStudio />);
+    await waitFor(() =>
+      expect(screen.getByTestId("preset-card-investment_committee")).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByTestId("preset-card-investment_committee"));
+    await screen.findByTestId("swarm-edit-view");
+
+    await userEvent.click(screen.getByTestId("save-team-btn"));
+    await screen.findByTestId("save-team-dialog");
+    await userEvent.type(screen.getByTestId("team-name-input"), "我的宏观团队");
+    await userEvent.type(screen.getByTestId("team-description-input"), "宏观场景");
+    await userEvent.click(screen.getByTestId("team-save-confirm"));
+
+    await waitFor(() => expect(createCustomTeam).toHaveBeenCalledTimes(1));
+    const body = createCustomTeam.mock.calls[0][0];
+    expect(body.name).toBe("我的宏观团队");
+    expect(body.description).toBe("宏观场景");
+    expect(body.source_preset).toBe("investment_committee");
+    expect(body.nodes).toHaveLength(4);
+    const pmNode = body.nodes.find((n: { id: string }) => n.id === "portfolio_manager");
+    expect(pmNode.skills).toEqual(
+      expect.arrayContaining(["strategy-generate"]),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("save-team-dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("renders the Skill Square and launches a standalone trial", async () => {
+    render(<SwarmStudio />);
+    await waitFor(() =>
+      expect(screen.getByTestId("preset-card-investment_committee")).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByTestId("tab-skills"));
+    const square = await screen.findByTestId("skill-square");
+    expect(square).toBeInTheDocument();
+    expect(screen.getByTestId("skill-card-behavioral-finance")).toBeInTheDocument();
+    // Admin zone must stay hidden while the feature flag is off.
+    expect(screen.queryByTestId("skill-admin-zone")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("skill-trial-set-behavioral-finance"));
+    await userEvent.type(screen.getByTestId("trial-target-input"), "600519.SH");
+    await userEvent.type(screen.getByTestId("trial-question-input"), "适合做多吗");
+    await userEvent.click(screen.getByTestId("trial-launch-btn"));
+
+    await waitFor(() => expect(createSkillTrial).toHaveBeenCalledTimes(1));
+    expect(createSkillTrial.mock.calls[0][0]).toEqual({
+      skill_name: "behavioral-finance",
+      target: "600519.SH",
+      question: "适合做多吗",
+    });
+    await waitFor(() => expect(screen.getByTestId("run-view")).toBeInTheDocument());
+  });
+
+  it("loads a saved custom team from the gallery", async () => {
+    listCustomTeams.mockResolvedValue([
+      {
+        id: "team-abc123",
+        name: "我的团队",
+        description: "简介",
+        source_preset: "investment_committee",
+        role_count: 4,
+        created_at: "2026-09-25T00:00:00+00:00",
+        updated_at: "2026-09-25T00:00:00+00:00",
+      },
+    ]);
+    getCustomTeam.mockResolvedValue({
+      id: "team-abc123",
+      name: "我的团队",
+      description: "简介",
+      source_preset: "investment_committee",
+      nodes: IC_DETAIL.agents.map((a) => ({
+        id: a.id,
+        role: a.role,
+        duty: a.system_prompt,
+        tools: a.tools,
+        skills: a.skills,
+        timeout_seconds: a.timeout_seconds,
+        source_task_id: null,
+        is_new: false,
+      })),
+      edges: [
+        { upstream: "bull_advocate", downstream: "risk_officer" },
+        { upstream: "bear_advocate", downstream: "risk_officer" },
+        { upstream: "risk_officer", downstream: "portfolio_manager" },
+      ],
+      created_at: "2026-09-25T00:00:00+00:00",
+      updated_at: "2026-09-25T00:00:00+00:00",
+    });
+
+    render(<SwarmStudio />);
+    const card = await screen.findByTestId("custom-team-card-team-abc123");
+    await userEvent.click(card);
+
+    await waitFor(() => expect(getCustomTeam).toHaveBeenCalledWith("team-abc123"));
+    await screen.findByTestId("swarm-edit-view");
+    expect(screen.getByTestId("canvas-node-bull_advocate")).toBeInTheDocument();
+    // Editing an existing team shows update/delete instead of a second save-as.
+    expect(screen.getByTestId("update-team-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-team-btn")).toBeInTheDocument();
   });
 });

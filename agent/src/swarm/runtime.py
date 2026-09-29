@@ -293,6 +293,7 @@ class SwarmRuntime:
         include_shell_tools: bool = False,
         resume_from: SwarmRun | None = None,
         custom_spec: dict | None = None,
+        skill_trial: dict | None = None,
     ) -> SwarmRun:
         """Start a swarm run. Returns immediately, execution happens in background.
 
@@ -331,7 +332,17 @@ class SwarmRuntime:
 
         if resume_from is not None and custom_spec is not None:
             raise ValueError("custom_spec and resume_from are mutually exclusive")
-        if custom_spec is not None:
+        if skill_trial is not None and (custom_spec is not None or resume_from is not None):
+            raise ValueError("skill_trial is mutually exclusive with custom_spec/resume_from")
+        if skill_trial is not None:
+            from src.swarm.skill_trials import build_skill_trial_run
+
+            run = build_skill_trial_run(
+                str(skill_trial.get("skill_name", "")),
+                str(skill_trial.get("target", "")),
+                str(skill_trial.get("question", "")),
+            )
+        elif custom_spec is not None:
             from src.swarm.custom_spec import build_run_from_custom_spec
 
             run = build_run_from_custom_spec(preset_name, custom_spec, user_vars)
@@ -665,6 +676,20 @@ class SwarmRuntime:
 
         self._store.update_run(run)
         self._emit_event(run_id, self._make_event("run_completed", data={"status": final_status.value}))
+
+        # Skill Square admission: one successful standalone trial approves the
+        # skill globally. Later failures never revoke an existing approval.
+        if run.kind == "skill_trial" and run.trial_skill:
+            try:
+                from src.swarm.skill_approvals import SkillApprovalStore
+                from src.swarm.skill_trials import trial_succeeded
+
+                if trial_succeeded(run):
+                    SkillApprovalStore().mark_approved(
+                        run.trial_skill, source_run_id=run.id
+                    )
+            except Exception:
+                logger.warning("Skill approval update failed for %s", run.trial_skill, exc_info=True)
 
         # Cleanup cancel event and live callback
         with self._lock:

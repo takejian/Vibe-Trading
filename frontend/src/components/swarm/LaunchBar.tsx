@@ -25,6 +25,7 @@ const ISSUE_ORDER: GraphIssue["code"][] = [
   "emptyRole",
   "emptyDuty",
   "invalidTimeout",
+  "unknownSkill",
 ];
 
 export function LaunchBar({

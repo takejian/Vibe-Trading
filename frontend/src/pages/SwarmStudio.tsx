@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { History, Plus, Users } from "lucide-react";
-import { api, type SwarmPreset, type SwarmRunSummary } from "@/lib/api";
+import { Bookmark, History, Plus, Save, Trash2, Users } from "lucide-react";
+import {
+  api,
+  type CustomTeamSummary,
+  type SkillCatalogEntry,
+  type SwarmPreset,
+  type SwarmRunSummary,
+} from "@/lib/api";
 import {
   computeLayers,
+  draftFromCustomTeam,
   draftFromPresetDetail,
   isLaunchable,
   nextNodeId,
@@ -18,10 +25,13 @@ import { FlowCanvas } from "@/components/swarm/FlowCanvas";
 import { NodeEditorPanel } from "@/components/swarm/NodeEditorPanel";
 import { LaunchBar } from "@/components/swarm/LaunchBar";
 import { RunView } from "@/components/swarm/RunView";
-import { HistoryList } from "@/components/swarm/HistoryList";
+import { HistoryList, type HistoryFilters } from "@/components/swarm/HistoryList";
+import { SaveTeamDialog } from "@/components/swarm/SaveTeamDialog";
+import { SkillSquare } from "@/components/swarm/SkillSquare";
 
-type Tab = "studio" | "history";
+type Tab = "studio" | "history" | "skills";
 type View = "gallery" | "edit" | "run";
+type RunOrigin = "studio" | "skills" | "history";
 
 export function SwarmStudio() {
   const { t } = useTranslation();
@@ -31,6 +41,13 @@ export function SwarmStudio() {
   const [presets, setPresets] = useState<SwarmPreset[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [galleryError, setGalleryError] = useState("");
+
+  const [teams, setTeams] = useState<CustomTeamSummary[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [teamsError, setTeamsError] = useState("");
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+
+  const [skillCatalogEntries, setSkillCatalogEntries] = useState<SkillCatalogEntry[]>([]);
 
   const [presetName, setPresetName] = useState("");
   const [detail, setDetail] = useState<SwarmPresetDetail | null>(null);
@@ -42,19 +59,39 @@ export function SwarmStudio() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState("");
   const [activeRunId, setActiveRunId] = useState("");
+  const [runOrigin, setRunOrigin] = useState<RunOrigin>("studio");
+
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [teamDialogMode, setTeamDialogMode] = useState<"create" | "update">("create");
+  const [teamSaving, setTeamSaving] = useState(false);
+  const [teamSaveError, setTeamSaveError] = useState("");
 
   const [historyRuns, setHistoryRuns] = useState<SwarmRunSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [historyRunId, setHistoryRunId] = useState("");
 
+  const loadTeams = useCallback(() => {
+    setTeamsLoading(true);
+    setTeamsError("");
+    api
+      .listCustomTeams()
+      .then(setTeams)
+      .catch(() => setTeamsError(t("swarmStudio.teams.loadError")))
+      .finally(() => setTeamsLoading(false));
+  }, [t]);
+
   useEffect(() => {
     let cancelled = false;
     setGalleryLoading(true);
-    api
-      .listSwarmPresets()
-      .then((res) => {
-        if (!cancelled) setPresets(res);
+    Promise.all([
+      api.listSwarmPresets(),
+      api.getSkillCatalog().catch(() => ({ skills: [] as SkillCatalogEntry[] })),
+    ])
+      .then(([presetRes, catalogRes]) => {
+        if (cancelled) return;
+        setPresets(presetRes);
+        setSkillCatalogEntries(catalogRes.skills);
       })
       .catch(() => {
         if (!cancelled) setGalleryError(t("swarmStudio.gallery.loadError"));
@@ -62,40 +99,83 @@ export function SwarmStudio() {
       .finally(() => {
         if (!cancelled) setGalleryLoading(false);
       });
+    loadTeams();
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [t, loadTeams]);
+
+  const applyPreset = useCallback((presetDetail: SwarmPresetDetail) => {
+    setDetail(presetDetail);
+    setPresetName(presetDetail.name);
+    const draft = draftFromPresetDetail(presetDetail);
+    setNodes(draft.nodes);
+    setEdges(draft.edges);
+    setSelectedId(draft.nodes[0]?.id ?? null);
+  }, []);
 
   const loadPreset = useCallback(
     async (name: string) => {
       const presetDetail = await api.getSwarmPresetDetail(name);
-      setDetail(presetDetail);
-      setPresetName(name);
-      const draft = draftFromPresetDetail(presetDetail);
-      setNodes(draft.nodes);
-      setEdges(draft.edges);
-      setSelectedId(draft.nodes[0]?.id ?? null);
+      applyPreset(presetDetail);
+      setEditingTeamId(null);
       setTarget("");
       setQuestion("");
       setLaunchError("");
       setView("edit");
     },
-    [],
+    [applyPreset],
   );
 
-  const loadHistory = useCallback(() => {
-    setTab("history");
-    setHistoryLoading(true);
-    setHistoryError("");
-    api
-      .listSwarmRuns()
-      .then(setHistoryRuns)
-      .catch(() => setHistoryError(t("swarmStudio.history.loadError")))
-      .finally(() => setHistoryLoading(false));
-  }, [t]);
+  const loadCustomTeam = useCallback(
+    async (teamId: string) => {
+      const team = await api.getCustomTeam(teamId);
+      const presetDetail = await api.getSwarmPresetDetail(team.source_preset);
+      applyPreset(presetDetail);
+      const draft = draftFromCustomTeam(team);
+      setNodes(draft.nodes);
+      setEdges(draft.edges);
+      setSelectedId(draft.nodes[0]?.id ?? null);
+      setEditingTeamId(team.id);
+      setTarget("");
+      setQuestion("");
+      setLaunchError("");
+      setView("edit");
+    },
+    [applyPreset],
+  );
 
-  const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges]);
+  const loadHistory = useCallback(
+    (filters?: HistoryFilters) => {
+      setTab("history");
+      setHistoryLoading(true);
+      setHistoryError("");
+      api
+        .listSwarmRuns({
+          kind: "team",
+          target: filters?.target || undefined,
+          from: filters?.from || undefined,
+          to: filters?.to || undefined,
+          limit: 100,
+        })
+        .then(setHistoryRuns)
+        .catch(() => setHistoryError(t("swarmStudio.history.loadError")))
+        .finally(() => setHistoryLoading(false));
+    },
+    [t],
+  );
+
+  const availableSkills = useMemo(() => {
+    const approved = skillCatalogEntries
+      .filter((entry) => entry.approved)
+      .map((entry) => entry.name);
+    return new Set([...(detail?.skill_catalog ?? []), ...approved]);
+  }, [detail, skillCatalogEntries]);
+
+  const issues = useMemo(
+    () => validateGraph(nodes, edges, availableSkills),
+    [nodes, edges, availableSkills],
+  );
   const graphValid = isLaunchable(issues);
   const finalLayerIds = useMemo(() => {
     if (nodes.length === 0) return new Set<string>();
@@ -122,6 +202,7 @@ export function SwarmStudio() {
       role: "",
       duty: "",
       tools: [],
+      skills: [],
       timeoutSeconds: 300,
       sourceTaskId: null,
       isNew: true,
@@ -156,6 +237,7 @@ export function SwarmStudio() {
     try {
       const payload = toCustomPayload(nodes, edges, target, question);
       const run = await api.createSwarmRun(presetName, { target: payload.target }, payload);
+      setRunOrigin("studio");
       setActiveRunId(run.id);
       setView("run");
     } catch (err) {
@@ -166,6 +248,60 @@ export function SwarmStudio() {
       setLaunching(false);
     }
   };
+
+  const buildTeamRequestBody = (name: string, description: string) => {
+    const payload = toCustomPayload(nodes, edges, target || "_", question || "_");
+    return {
+      name,
+      description,
+      source_preset: presetName,
+      nodes: payload.nodes,
+      edges: payload.edges,
+    };
+  };
+
+  const handleSaveTeam = async (name: string, description: string) => {
+    if (!presetName) return;
+    setTeamSaving(true);
+    setTeamSaveError("");
+    const body = buildTeamRequestBody(name, description);
+    try {
+      if (teamDialogMode === "update" && editingTeamId) {
+        const updated = await api.updateCustomTeam(editingTeamId, body);
+        setEditingTeamId(updated.id);
+      } else {
+        const created = await api.createCustomTeam(body);
+        setEditingTeamId(created.id);
+      }
+      setTeamDialogOpen(false);
+      loadTeams();
+    } catch (err) {
+      setTeamSaveError(
+        err instanceof Error ? err.message : t("swarmStudio.teams.saveFailed"),
+      );
+    } finally {
+      setTeamSaving(false);
+    }
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!editingTeamId) return;
+    const confirmed = window.confirm(t("swarmStudio.teams.deleteConfirm"));
+    if (!confirmed) return;
+    try {
+      await api.deleteCustomTeam(editingTeamId);
+      setEditingTeamId(null);
+      loadTeams();
+      setView("gallery");
+    } catch (err) {
+      setLaunchError(err instanceof Error ? err.message : t("swarmStudio.teams.deleteFailed"));
+    }
+  };
+
+  const editingTeam = useMemo(
+    () => teams.find((team) => team.id === editingTeamId) ?? null,
+    [teams, editingTeamId],
+  );
 
   const canvasNodes = nodes.map((n) => ({
     id: n.id,
@@ -183,13 +319,60 @@ export function SwarmStudio() {
         <RunView
           runId={activeRunId}
           onBack={() => {
+            const origin = runOrigin;
             setView("gallery");
+            setTab(origin);
             setActiveRunId("");
+            if (origin === "skills") loadTeams();
           }}
         />
       </div>
     );
   }
+
+  const tabNav = (active: Tab) => (
+    <nav className="flex gap-2 text-sm">
+      <button
+        type="button"
+        onClick={() => setTab("studio")}
+        data-testid="tab-studio"
+        className={
+          active === "studio"
+            ? "inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
+            : "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
+        }
+      >
+        <Users className="h-4 w-4" />
+        {t("swarmStudio.tabs.studio")}
+      </button>
+      <button
+        type="button"
+        onClick={() => loadHistory()}
+        data-testid="tab-history"
+        className={
+          active === "history"
+            ? "inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
+            : "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
+        }
+      >
+        <History className="h-4 w-4" />
+        {t("swarmStudio.tabs.history")}
+      </button>
+      <button
+        type="button"
+        onClick={() => setTab("skills")}
+        data-testid="tab-skills"
+        className={
+          active === "skills"
+            ? "inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
+            : "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
+        }
+      >
+        <Bookmark className="h-4 w-4" />
+        {t("swarmStudio.tabs.skills")}
+      </button>
+    </nav>
+  );
 
   if (tab === "history") {
     if (historyRunId) {
@@ -214,30 +397,39 @@ export function SwarmStudio() {
               {t("swarmStudio.subtitle")}
             </p>
           </div>
+          {tabNav("history")}
         </header>
-        <nav className="mt-4 flex gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => setTab("studio")}
-            className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
-          >
-            <Users className="h-4 w-4" />
-            {t("swarmStudio.tabs.studio")}
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
-            aria-current="page"
-          >
-            <History className="h-4 w-4" />
-            {t("swarmStudio.tabs.history")}
-          </button>
-        </nav>
         <HistoryList
           runs={historyRuns}
           loading={historyLoading}
           error={historyError}
+          onSearch={loadHistory}
           onOpen={setHistoryRunId}
+        />
+      </div>
+    );
+  }
+
+  if (tab === "skills") {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-8" data-testid="swarm-studio-page">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="font-serif text-2xl text-foreground">
+              {t("swarmStudio.title")}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("swarmStudio.skills.pageHint")}
+            </p>
+          </div>
+          {tabNav("skills")}
+        </header>
+        <SkillSquare
+          onOpenRun={(runId) => {
+            setRunOrigin("skills");
+            setActiveRunId(runId);
+            setView("run");
+          }}
         />
       </div>
     );
@@ -250,25 +442,7 @@ export function SwarmStudio() {
           <h1 className="font-serif text-2xl text-foreground">{t("swarmStudio.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("swarmStudio.subtitle")}</p>
         </div>
-        <nav className="flex gap-2 text-sm">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
-            aria-current="page"
-          >
-            <Users className="h-4 w-4" />
-            {t("swarmStudio.tabs.studio")}
-          </button>
-          <button
-            type="button"
-            onClick={loadHistory}
-            className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
-            data-testid="history-tab-btn"
-          >
-            <History className="h-4 w-4" />
-            {t("swarmStudio.tabs.history")}
-          </button>
-        </nav>
+        {tabNav("studio")}
       </header>
 
       {view === "gallery" && (
@@ -280,8 +454,14 @@ export function SwarmStudio() {
             presets={presets}
             loading={galleryLoading}
             error={galleryError}
+            teams={teams}
+            teamsLoading={teamsLoading}
+            teamsError={teamsError}
             onSelect={(name) => {
               void loadPreset(name);
+            }}
+            onSelectTeam={(teamId) => {
+              void loadCustomTeam(teamId);
             }}
           />
         </section>
@@ -292,11 +472,13 @@ export function SwarmStudio() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold text-foreground">
-                {detail.title || presetName}
+                {editingTeam?.name || detail.title || presetName}
               </h2>
-              <p className="text-xs text-muted-foreground">{detail.description}</p>
+              <p className="text-xs text-muted-foreground">
+                {editingTeam?.description || detail.description}
+              </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setView("gallery")}
@@ -313,6 +495,45 @@ export function SwarmStudio() {
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t("swarmStudio.editor.addNode")}
+              </button>
+              {editingTeamId ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTeamDialogMode("update");
+                      setTeamSaveError("");
+                      setTeamDialogOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs hover:bg-accent"
+                    data-testid="update-team-btn"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {t("swarmStudio.teams.updateShort")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteTeam()}
+                    className="inline-flex items-center gap-1.5 rounded border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40"
+                    data-testid="delete-team-btn"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t("swarmStudio.teams.delete")}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setTeamDialogMode("create");
+                  setTeamSaveError("");
+                  setTeamDialogOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-xs text-background"
+                data-testid="save-team-btn"
+              >
+                <Bookmark className="h-3.5 w-3.5" />
+                {t("swarmStudio.teams.saveAs")}
               </button>
             </div>
           </div>
@@ -332,6 +553,8 @@ export function SwarmStudio() {
               nodes={nodes}
               edges={edges}
               toolCatalog={detail.tool_catalog}
+              skillCatalog={detail.skill_catalog}
+              approvedSkills={skillCatalogEntries.filter((entry) => entry.approved)}
               onUpdateNode={updateNode}
               onDeleteNode={deleteNode}
               onDeleteEdge={deleteEdge}
@@ -356,6 +579,19 @@ export function SwarmStudio() {
           )}
         </section>
       )}
+
+      <SaveTeamDialog
+        open={teamDialogOpen}
+        mode={teamDialogMode}
+        initialName={teamDialogMode === "update" ? editingTeam?.name ?? "" : ""}
+        initialDescription={
+          teamDialogMode === "update" ? editingTeam?.description ?? "" : ""
+        }
+        saving={teamSaving}
+        error={teamSaveError}
+        onSave={(name, description) => void handleSaveTeam(name, description)}
+        onClose={() => setTeamDialogOpen(false)}
+      />
     </div>
   );
 }

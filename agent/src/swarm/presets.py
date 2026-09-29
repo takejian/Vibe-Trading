@@ -330,6 +330,7 @@ def get_preset_detail(name: str) -> dict:
             for task in run.tasks
         ],
         "tool_catalog": catalog,
+        "skill_catalog": sorted({skill for agent in run.agents for skill in agent.skills}),
         "layers": [list(layer) for layer in layers],
     }
 

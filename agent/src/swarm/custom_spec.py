@@ -78,6 +78,26 @@ def _preset_index(preset_data: dict) -> tuple[dict[str, dict], dict[str, dict], 
     return agents_by_id, tasks_by_agent, catalog
 
 
+def validate_custom_spec_graph(preset_name: str, graph: dict) -> None:
+    """Validate only the graph half of a custom spec (used when saving a team).
+
+    "Save as my team" is legal exactly when the same graph would launch; the
+    evaluation target/question are not part of a saved team, so non-empty
+    placeholders stand in for them (they only feed prompt text).
+
+    Raises:
+        ValueError: Any structural/element/skill violation.
+        FileNotFoundError: The source preset does not exist.
+    """
+    spec = {
+        "nodes": graph.get("nodes", []),
+        "edges": graph.get("edges", []),
+        "target": "_",
+        "question": "_",
+    }
+    build_run_from_custom_spec(preset_name, spec)
+
+
 def build_run_from_custom_spec(
     preset_name: str,
     spec: dict,
@@ -120,6 +140,23 @@ def build_run_from_custom_spec(
 
     preset_data = load_preset(preset_name)
     preset_agents, preset_tasks, tool_catalog = _preset_index(preset_data)
+
+    # Skills allowed on nodes of THIS customization:
+    #   preset skill union  ∪  globally approved skills  ∩  actually assembled
+    # Unknown/delisted skills are a HARD error (unlike out-of-catalog tools,
+    # which are silently stripped): the canvas highlights such references and
+    # the launch must be blocked until the user removes/replaces them.
+    from src.swarm.skill_approvals import SkillApprovalStore
+    from src.swarm.skill_catalog import assembled_skill_names
+
+    preset_skill_union = {
+        skill
+        for agent_data in preset_agents.values()
+        for skill in agent_data.get("skills", [])
+        if isinstance(skill, str)
+    }
+    assembled = assembled_skill_names()
+    allowed_skills = (preset_skill_union | SkillApprovalStore().approved_names()) & assembled
 
     # --- Normalize + validate nodes -------------------------------------
     node_ids: set[str] = set()
@@ -166,6 +203,27 @@ def build_run_from_custom_spec(
             }
         )
 
+        raw_skills = raw.get("skills")
+        if raw_skills is None:
+            skills_override: list[str] | None = None
+        elif not isinstance(raw_skills, list):
+            raise ValueError(f"节点 {node_id!r} 的使用技能必须为列表")
+        else:
+            skills_override = []
+            seen_skills: set[str] = set()
+            for skill in raw_skills:
+                if not isinstance(skill, str) or not skill.strip():
+                    raise ValueError(f"节点 {node_id!r} 的技能名称不合法: {skill!r}")
+                name = skill.strip()
+                if name not in allowed_skills:
+                    raise ValueError(
+                        f"节点 {node_id!r} 引用了不可用的技能 {name!r}"
+                        "（不在本团队技能目录中，或该技能未通过试运行/已下架）"
+                    )
+                if name not in seen_skills:
+                    seen_skills.add(name)
+                    skills_override.append(name)
+
         is_new = bool(raw.get("is_new", node_id not in preset_agents))
         source_agent = preset_agents.get(node_id)
         source_task = preset_tasks.get(node_id)
@@ -187,6 +245,7 @@ def build_run_from_custom_spec(
                 "duty": duty,
                 "timeout": timeout,
                 "tools": tools,
+                "skills_override": skills_override,
                 "is_new": is_new,
                 "source_agent": source_agent,
                 "source_task": source_task,
@@ -269,7 +328,6 @@ def build_run_from_custom_spec(
         if is_new or source_task is None:
             prompt_template = _NEW_NODE_TEMPLATE
             max_iterations = _NEW_NODE_MAX_ITERATIONS
-            skills: list[str] = []
             model_name = None
             max_retries = 2
         else:
@@ -277,9 +335,17 @@ def build_run_from_custom_spec(
             max_iterations = int(
                 (source_agent or {}).get("max_iterations", _NEW_NODE_MAX_ITERATIONS)
             )
-            skills = list((source_agent or {}).get("skills", []))
             model_name = (source_agent or {}).get("model_name")
             max_retries = int((source_agent or {}).get("max_retries", 2))
+
+        # Explicit per-node skills from the canvas win; otherwise keep the
+        # source agent's preset skills (new nodes without an override get []).
+        if node["skills_override"] is not None:
+            skills = list(node["skills_override"])
+        elif is_new or source_task is None:
+            skills = []
+        else:
+            skills = list((source_agent or {}).get("skills", []))
 
         prompt_template = (
             f"{prompt_template}\n\nResearch question: {escaped_question}"

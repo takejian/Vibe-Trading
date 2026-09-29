@@ -49,6 +49,26 @@ def get_swarm_runs_dir() -> Path:
     return get_runtime_root() / "swarm" / "runs"
 
 
+def get_custom_teams_dir() -> Path:
+    """Return the user-level directory holding saved custom team definitions."""
+    return get_runtime_root() / "swarm" / "custom_teams"
+
+
+def get_user_skills_dir() -> Path:
+    """Return the user-level directory holding installed (imported) skills."""
+    return get_runtime_root() / "skills" / "user"
+
+
+def get_skill_approvals_file() -> Path:
+    """Return the JSON file tracking globally approved skills."""
+    return get_runtime_root() / "skills" / "approvals.json"
+
+
+def get_skill_sync_manifest_file() -> Path:
+    """Return the JSON manifest recording packages installed by skill sync."""
+    return get_runtime_root() / "skills" / "sync-manifest.json"
+
+
 def get_uploads_dir() -> Path:
     """Return the user-level directory holding uploaded files."""
     return get_runtime_root() / "uploads"

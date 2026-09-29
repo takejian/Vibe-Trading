@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
+import type { SkillCatalogEntry } from "@/lib/api";
 import {
   MAX_TIMEOUT_SECONDS,
   MIN_TIMEOUT_SECONDS,
@@ -13,6 +14,10 @@ interface NodeEditorPanelProps {
   nodes: FlowNodeDraft[];
   edges: FlowEdge[];
   toolCatalog: string[];
+  /** Skills selectable by default (the preset skill union). */
+  skillCatalog: string[];
+  /** Globally approved skills offered through the "add" popover. */
+  approvedSkills: SkillCatalogEntry[];
   onUpdateNode: (id: string, patch: Partial<FlowNodeDraft>) => void;
   onDeleteNode: (id: string) => void;
   onDeleteEdge: (edge: FlowEdge) => void;
@@ -24,6 +29,8 @@ export function NodeEditorPanel({
   nodes,
   edges,
   toolCatalog,
+  skillCatalog,
+  approvedSkills,
   onUpdateNode,
   onDeleteNode,
   onDeleteEdge,
@@ -32,6 +39,8 @@ export function NodeEditorPanel({
   const { t } = useTranslation();
   const [upstream, setUpstream] = useState("");
   const [downstream, setDownstream] = useState("");
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [skillQuery, setSkillQuery] = useState("");
 
   const incident = useMemo(() => {
     if (!node) return { incoming: [] as FlowEdge[], outgoing: [] as FlowEdge[] };
@@ -40,6 +49,27 @@ export function NodeEditorPanel({
       outgoing: edges.filter((e) => e.upstream === node.id),
     };
   }, [edges, node]);
+
+  // The checkbox group always shows preset skills, plus any extra approved
+  // skills the role already carries (e.g. loaded from a saved custom team).
+  const listedSkills = useMemo(
+    () => [...new Set([...skillCatalog, ...(node?.skills ?? [])])].sort(),
+    [skillCatalog, node?.skills],
+  );
+  const presetSkillSet = useMemo(() => new Set(skillCatalog), [skillCatalog]);
+  // "Add" popover: globally approved skills not part of the preset union.
+  const addableSkills = useMemo(() => {
+    const query = skillQuery.trim().toLowerCase();
+    return approvedSkills
+      .filter((entry) => !presetSkillSet.has(entry.name))
+      .filter(
+        (entry) =>
+          !query ||
+          entry.name.toLowerCase().includes(query) ||
+          entry.description.toLowerCase().includes(query),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [approvedSkills, presetSkillSet, skillQuery]);
 
   if (!node) {
     return (
@@ -60,6 +90,14 @@ export function NodeEditorPanel({
       ? [...new Set([...node.tools, tool])]
       : node.tools.filter((t) => t !== tool);
     onUpdateNode(node.id, { tools: next });
+  };
+
+  const toggleSkill = (skill: string, checked: boolean) => {
+    const current = node.skills ?? [];
+    const next = checked
+      ? [...new Set([...current, skill])]
+      : current.filter((s) => s !== skill);
+    onUpdateNode(node.id, { skills: next });
   };
 
   const edgeKey = (e: FlowEdge) => `${e.upstream}->${e.downstream}`;
@@ -141,6 +179,100 @@ export function NodeEditorPanel({
               </label>
             ))}
           </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="flex items-center justify-between gap-2 text-xs font-medium text-foreground">
+            <span>{t("swarmStudio.editor.skills")}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSkillQuery("");
+                setSkillPickerOpen((open) => !open);
+              }}
+              data-testid="add-skill-btn"
+              className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] font-normal hover:bg-accent"
+            >
+              <Plus className="h-3 w-3" />
+              {t("swarmStudio.editor.addSkill")}
+            </button>
+          </legend>
+          <div
+            className="mt-1 grid max-h-44 grid-cols-1 gap-1 overflow-y-auto rounded border border-border bg-background p-2"
+            data-testid="node-skills-list"
+          >
+            {listedSkills.length === 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                {t("swarmStudio.editor.noSkills")}
+              </span>
+            )}
+            {listedSkills.map((skill) => (
+              <label key={skill} className="flex items-center gap-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={(node.skills ?? []).includes(skill)}
+                  onChange={(e) => toggleSkill(skill, e.target.checked)}
+                  data-testid={`skill-checkbox-${skill}`}
+                />
+                <code className="truncate">{skill}</code>
+                {!presetSkillSet.has(skill) && (
+                  <span className="rounded bg-foreground/10 px-1 text-[10px] text-muted-foreground">
+                    {t("swarmStudio.editor.skillApprovedBadge")}
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+          {skillPickerOpen && (
+            <div
+              className="mt-1 rounded border border-border bg-background p-2"
+              data-testid="skill-picker"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  value={skillQuery}
+                  onChange={(e) => setSkillQuery(e.target.value)}
+                  placeholder={t("swarmStudio.editor.skillSearchPlaceholder")}
+                  data-testid="skill-picker-search"
+                  className="w-full rounded border border-border bg-card px-2 py-1 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSkillPickerOpen(false)}
+                  aria-label={t("swarmStudio.editor.skillPickerClose")}
+                  className="rounded p-1 hover:bg-accent"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-1 max-h-40 overflow-y-auto">
+                {addableSkills.length === 0 && (
+                  <p className="py-2 text-[11px] text-muted-foreground">
+                    {t("swarmStudio.editor.noAddableSkills")}
+                  </p>
+                )}
+                {addableSkills.map((entry) => (
+                  <label
+                    key={entry.name}
+                    className="flex items-start gap-2 py-1 text-xs text-foreground"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(node.skills ?? []).includes(entry.name)}
+                      onChange={(e) => toggleSkill(entry.name, e.target.checked)}
+                      data-testid={`skill-picker-item-${entry.name}`}
+                    />
+                    <span>
+                      <code>{entry.name}</code>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {entry.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </fieldset>
 
         <label className="block">

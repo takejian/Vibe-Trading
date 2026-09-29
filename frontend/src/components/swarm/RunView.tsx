@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ArrowLeft, Loader2, XCircle } from "lucide-react";
 import { api, type SwarmRunDetail } from "@/lib/api";
 import {
@@ -310,7 +311,9 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
               </p>
               {selectedTask?.summary && (
                 <div className="mt-3 max-h-[40vh] overflow-y-auto rounded bg-background p-2 text-xs text-foreground">
-                  <ReactMarkdown>{selectedTask.summary}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {selectedTask.summary}
+                  </ReactMarkdown>
                 </div>
               )}
               {selectedTask?.error && (
@@ -354,7 +357,7 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
             className="mt-2 max-h-[50vh] overflow-y-auto text-sm text-foreground"
             data-testid="final-decision-content"
           >
-            <ReactMarkdown>{finalReport}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{finalReport}</ReactMarkdown>
           </div>
         ) : active ? (
           <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">

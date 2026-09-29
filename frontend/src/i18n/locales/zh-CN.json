@@ -1859,7 +1859,8 @@
     "subtitle": "选择内置团队，按本次评估需要调整角色分工与协作关系后一键发起；调整仅对本次评估生效。",
     "tabs": {
       "studio": "团队编排",
-      "history": "我的评估"
+      "history": "我的评估",
+      "skills": "技能广场"
     },
     "gallery": {
       "sectionTitle": "第 1 步：选择内置团队预设",
@@ -1867,7 +1868,11 @@
       "loadError": "团队预设加载失败。",
       "noDescription": "暂无适用场景说明。",
       "roleCount": "{{number}} 个角色",
-      "empty": "暂无可用的团队预设。"
+      "empty": "暂无可用的团队预设。",
+      "myTeamsSection": "我的自定义团队",
+      "builtinSection": "内置团队预设",
+      "myTeamsNoDescription": "未填写适用场景简介。",
+      "myTeamsEmpty": "还没有保存的自定义团队。在画布上调整预设后，点击“另存为我的团队”即可。"
     },
     "canvas": {
       "layer": "第 {{index}} 层",
@@ -1890,7 +1895,14 @@
       "noEdges": "该角色尚未连接任何协作关系。",
       "upstream": "上游角色",
       "downstream": "下游角色",
-      "addEdge": "添加连线"
+      "addEdge": "添加连线",
+      "skills": "角色使用的技能",
+      "addSkill": "新增",
+      "noSkills": "该角色尚未选择技能。",
+      "skillApprovedBadge": "已通过",
+      "skillSearchPlaceholder": "搜索已通过的技能…",
+      "skillPickerClose": "关闭技能选择",
+      "noAddableSkills": "没有其他已通过的技能。可在技能广场对技能发起试运行。"
     },
     "validation": {
       "valid": "流程合法，可以发起评估。",
@@ -1904,7 +1916,8 @@
       "selfLoop": "角色不能与自身相连",
       "cycle": "协作关系存在循环依赖",
       "noStart": "流程缺少起点角色",
-      "orphan": "存在未纳入协作流程的孤立角色"
+      "orphan": "存在未纳入协作流程的孤立角色",
+      "unknownSkill": "角色引用了未装配或未通过试运行的技能"
     },
     "launch": {
       "target": "评估标的",
@@ -1956,7 +1969,70 @@
         "completed": "已完成",
         "failed": "失败",
         "cancelled": "已取消"
-      }
+      },
+      "filterTarget": "标的关键字",
+      "filterTargetPlaceholder": "代码或名称片段",
+      "filterFrom": "开始日期",
+      "filterTo": "结束日期",
+      "filterSearch": "查询",
+      "filterClear": "清除",
+      "skillColumn": "技能"
+    },
+    "teams": {
+      "saveTitle": "另存为我的团队",
+      "updateTitle": "更新我的团队",
+      "saveHint": "保存的团队仅在本机对本人可见；内置预设不会被修改。",
+      "close": "关闭",
+      "name": "团队名称（必填）",
+      "description": "适用场景简介（选填）",
+      "nameRequired": "团队名称不能为空",
+      "descriptionTooLong": "简介不能超过 {{number}} 个字符",
+      "cancel": "取消",
+      "save": "保存",
+      "update": "原地更新",
+      "saving": "保存中…",
+      "saveAs": "另存为我的团队",
+      "updateShort": "保存修改",
+      "delete": "删除团队",
+      "deleteConfirm": "确定删除这个自定义团队吗？历史评估快照不受影响。",
+      "loadError": "加载自定义团队失败。",
+      "saveFailed": "保存自定义团队失败。",
+      "deleteFailed": "删除自定义团队失败。"
+    },
+    "skills": {
+      "pageHint": "已装配的金融技能、单技能试运行，以及仅运维管理员可用的技能包管理。",
+      "loading": "正在加载技能…",
+      "loadError": "加载技能目录失败。",
+      "catalogTitle": "已装配技能",
+      "catalogHint": "任一次独立试运行成功后，该技能即全局标记为“已通过”，可在画布上为角色新增勾选。",
+      "catalogEmpty": "当前没有已装配的技能。",
+      "approved": "已通过",
+      "approvedHint": "至少有一次试运行成功",
+      "sourceBundled": "内置",
+      "sourceUser": "导入",
+      "trial": "试运行",
+      "trialTitle": "发起单技能试运行",
+      "trialHint": "填写评估标的与研究问题。试运行历史仅本人可见；任一次成功即全局标记该技能通过。",
+      "trialSkillPlaceholder": "技能名称",
+      "trialTargetPlaceholder": "评估标的（代码 / 名称）",
+      "trialQuestionPlaceholder": "研究问题",
+      "trialLaunch": "启动试运行",
+      "trialFailed": "发起技能试运行失败。",
+      "trialsLoadError": "加载试运行历史失败。",
+      "adminTitle": "技能包管理（仅运维管理员）",
+      "adminHint": "手动导入第三方金融技能 zip 包，或从已配置的同步源一键同步；非金融或要素不完整的包将被拒绝。",
+      "import": "导入 zip 包",
+      "importing": "导入中…",
+      "importDone": "成功装配 {{number}} 个技能包。",
+      "importFailed": "技能包导入失败。",
+      "sync": "一键同步",
+      "syncNotConfigured": "未配置同步源（VIBE_TRADING_SKILL_SYNC_SOURCE）。",
+      "syncFailed": "技能同步失败。",
+      "syncAdded": "新增：{{number}}",
+      "syncUpdated": "更新：{{number}}",
+      "syncRemoved": "下架：{{number}}",
+      "syncRejected": "拒绝：{{number}}",
+      "trialsHistoryTitle": "我的试运行历史"
     }
   }
 }

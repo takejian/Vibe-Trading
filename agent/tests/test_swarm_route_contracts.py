@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -293,3 +295,321 @@ def test_swarm_run_list_and_detail_carry_customization_fields(
     assert detail["customized"] is True
     assert detail["research_target"] == "600519.SH"
     assert detail["research_question"] == "做多还是做空"
+
+
+# ---------------------------------------------------------------------------
+# Run list filtering: kind / target / created-date window
+# ---------------------------------------------------------------------------
+
+
+def _stored_run(
+    store: SwarmStore,
+    run_id: str,
+    *,
+    kind: str = "team",
+    trial_skill: str | None = None,
+    target: str = "600519.SH 贵州茅台",
+    created_at: str = "2026-07-15T08:00:00+00:00",
+) -> SwarmRun:
+    run = SwarmRun(
+        id=run_id,
+        preset_name=f"skill:{trial_skill}" if trial_skill else "investment_committee",
+        status=RunStatus.completed,
+        created_at=created_at,
+        completed_at=created_at,
+        research_target=target,
+        kind=kind,
+        trial_skill=trial_skill,
+    )
+    store.create_run(run)
+    return run
+
+
+def test_run_list_defaults_to_team_kind(swarm_store: SwarmStore) -> None:
+    _stored_run(swarm_store, "team-1")
+    _stored_run(
+        swarm_store,
+        "trial-1",
+        kind="skill_trial",
+        trial_skill="behavioral-finance",
+    )
+
+    rows = _client().get("/swarm/runs").json()
+    ids = {row["id"] for row in rows}
+    assert ids == {"team-1"}
+    assert rows[0]["kind"] == "team"
+    assert rows[0]["trial_skill"] is None
+
+
+def test_run_list_filters_trial_kind_and_skill(swarm_store: SwarmStore) -> None:
+    _stored_run(swarm_store, "team-1")
+    _stored_run(
+        swarm_store,
+        "trial-1",
+        kind="skill_trial",
+        trial_skill="behavioral-finance",
+    )
+    _stored_run(
+        swarm_store,
+        "trial-2",
+        kind="skill_trial",
+        trial_skill="commodity-analysis",
+        target="GCX 黄金",
+        created_at="2026-07-16T08:00:00+00:00",
+    )
+
+    rows = _client().get("/swarm/runs?kind=skill_trial").json()
+    assert {row["id"] for row in rows} == {"trial-1", "trial-2"}
+
+    all_rows = _client().get("/swarm/runs?kind=all").json()
+    assert {row["id"] for row in all_rows} == {"team-1", "trial-1", "trial-2"}
+
+    trials = _client().get("/swarm/skill-trials?skill_name=commodity-analysis").json()
+    assert [row["id"] for row in trials] == ["trial-2"]
+
+
+def test_run_list_filters_target_fuzzy(swarm_store: SwarmStore) -> None:
+    _stored_run(swarm_store, "team-1", target="600519.SH 贵州茅台")
+    _stored_run(
+        swarm_store,
+        "team-2",
+        target="000001.SZ 平安银行",
+        created_at="2026-07-16T08:00:00+00:00",
+    )
+
+    rows = _client().get("/swarm/runs?target=茅台").json()
+    assert [row["id"] for row in rows] == ["team-1"]
+    rows = _client().get("/swarm/runs?target=000001").json()
+    assert [row["id"] for row in rows] == ["team-2"]
+    assert _client().get("/swarm/runs?target=nonexistent").json() == []
+
+
+def test_run_list_filters_created_date_window(swarm_store: SwarmStore) -> None:
+    _stored_run(swarm_store, "old", created_at="2026-07-10T08:00:00+00:00")
+    _stored_run(
+        swarm_store, "mid", created_at="2026-07-16T08:00:00+00:00"
+    )
+    _stored_run(
+        swarm_store, "edge", created_at="2026-07-20T08:00:00+00:00"
+    )
+
+    rows = _client().get("/swarm/runs?from=2026-07-16&to=2026-07-20").json()
+    assert {row["id"] for row in rows} == {"mid", "edge"}
+
+
+def test_run_list_rejects_unknown_kind(swarm_store: SwarmStore) -> None:
+    assert _client().get("/swarm/runs?kind=bogus").status_code == 422
+
+
+def test_run_detail_carries_kind_and_trial_skill(swarm_store: SwarmStore) -> None:
+    _stored_run(
+        swarm_store,
+        "trial-9",
+        kind="skill_trial",
+        trial_skill="behavioral-finance",
+    )
+    detail = _client().get("/swarm/runs/trial-9").json()
+    assert detail["kind"] == "skill_trial"
+    assert detail["trial_skill"] == "behavioral-finance"
+
+
+# ---------------------------------------------------------------------------
+# Custom teams
+# ---------------------------------------------------------------------------
+
+
+def _team_body() -> dict:
+    return {
+        "name": "路由测试团队",
+        "description": "契约测试",
+        "source_preset": "investment_committee",
+        "nodes": [node for node in (
+            {
+                "id": node_id,
+                "role": node_id,
+                "duty": f"duty {node_id}",
+                "tools": ["load_skill"],
+                "timeout_seconds": 300,
+                "is_new": False,
+            }
+            for node_id in (
+                "bull_advocate",
+                "bear_advocate",
+                "risk_officer",
+                "portfolio_manager",
+            )
+        )],
+        "edges": [
+            {"upstream": "bull_advocate", "downstream": "risk_officer"},
+            {"upstream": "bear_advocate", "downstream": "risk_officer"},
+            {"upstream": "risk_officer", "downstream": "portfolio_manager"},
+        ],
+    }
+
+
+def test_custom_team_crud_lifecycle(swarm_store: SwarmStore) -> None:
+    client = _client()
+
+    created = client.post("/swarm/custom-teams", json=_team_body())
+    assert created.status_code == 200, created.text
+    team_id = created.json()["id"]
+
+    listing = client.get("/swarm/custom-teams").json()
+    assert any(team["id"] == team_id and team["role_count"] == 4 for team in listing)
+
+    detail = client.get(f"/swarm/custom-teams/{team_id}").json()
+    assert detail["name"] == "路由测试团队"
+    assert len(detail["nodes"]) == 4
+
+    body = _team_body()
+    body["name"] = "路由测试团队-改"
+    updated = client.put(f"/swarm/custom-teams/{team_id}", json=body)
+    assert updated.status_code == 200
+    assert client.get(f"/swarm/custom-teams/{team_id}").json()["name"] == "路由测试团队-改"
+
+    assert client.delete(f"/swarm/custom-teams/{team_id}").status_code == 200
+    assert client.get(f"/swarm/custom-teams/{team_id}").status_code == 404
+
+
+def test_custom_team_duplicate_name_is_409(swarm_store: SwarmStore) -> None:
+    client = _client()
+    assert client.post("/swarm/custom-teams", json=_team_body()).status_code == 200
+    assert client.post("/swarm/custom-teams", json=_team_body()).status_code == 409
+
+
+def test_custom_team_invalid_payload_is_400_and_missing_is_404(
+    swarm_store: SwarmStore,
+) -> None:
+    client = _client()
+    bad = _team_body()
+    bad["name"] = "  "
+    assert client.post("/swarm/custom-teams", json=bad).status_code == 400
+    assert client.get("/swarm/custom-teams/team-nope").status_code == 404
+    assert client.delete("/swarm/custom-teams/team-nope").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Skill Square catalog / capabilities / trials
+# ---------------------------------------------------------------------------
+
+
+def test_skill_catalog_and_capabilities(swarm_store: SwarmStore) -> None:
+    client = _client()
+    catalog = client.get("/swarm/skills/catalog").json()["skills"]
+    entry = next(item for item in catalog if item["name"] == "behavioral-finance")
+    assert entry["source"] == "bundled"
+    assert entry["approved"] is False
+
+    caps = client.get("/swarm/skills/capabilities").json()
+    assert caps["admin_enabled"] is False
+
+
+class _FakeTrialRuntime:
+    def __init__(self, store: SwarmStore) -> None:
+        self._store = store
+        self.captured: dict | None = None
+
+    def start_run(self, preset_name, user_vars, *, include_shell_tools=False,
+                  skill_trial=None, **kwargs):
+        self.captured = skill_trial
+        from src.swarm.skill_trials import build_skill_trial_run
+
+        return build_skill_trial_run(
+            skill_trial["skill_name"],
+            skill_trial["target"],
+            skill_trial["question"],
+        )
+
+
+def test_skill_trial_launch_route(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _FakeTrialRuntime(swarm_store)
+    monkeypatch.setattr(swarm_routes, "_swarm_runtime", fake)
+
+    response = _client().post(
+        "/swarm/skill-trials",
+        json={
+            "skill_name": "behavioral-finance",
+            "target": "600519.SH",
+            "question": "适合做多吗",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["kind"] == "skill_trial"
+    assert body["trial_skill"] == "behavioral-finance"
+    assert fake.captured["target"] == "600519.SH"
+
+
+def test_skill_trial_launch_route_rejects_unknown_skill(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(swarm_routes, "_swarm_runtime", _FakeTrialRuntime(swarm_store))
+    response = _client().post(
+        "/swarm/skill-trials",
+        json={"skill_name": "ghost-skill", "target": "AAPL", "question": "q"},
+    )
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Operator-only package administration
+# ---------------------------------------------------------------------------
+
+
+def _skill_zip() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "macro-radar/SKILL.md",
+            "---\n"
+            "name: macro-radar\n"
+            "description: 股票宏观流动性分析\n"
+            "---\n\n"
+            "# 宏观雷达\n\n跟踪利率变化辅助股票择时。\n",
+        )
+    return buffer.getvalue()
+
+
+def test_skill_admin_routes_forbidden_when_disabled(swarm_store: SwarmStore) -> None:
+    client = _client()
+    response = client.post(
+        "/swarm/skills/import",
+        files={"file": ("p.zip", _skill_zip(), "application/zip")},
+    )
+    assert response.status_code == 403
+    assert client.post("/swarm/skills/sync").status_code == 403
+
+
+def test_skill_import_when_enabled(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(swarm_routes, "_skill_admin_enabled", lambda: True)
+    response = _client().post(
+        "/swarm/skills/import",
+        files={"file": ("p.zip", _skill_zip(), "application/zip")},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["installed"][0]["name"] == "macro-radar"
+
+    # A non-finance / broken package is refused with 400.
+    bad = io.BytesIO()
+    with zipfile.ZipFile(bad, "w") as archive:
+        archive.writestr(
+            "cookbook/SKILL.md",
+            "---\nname: cookbook\ndescription: recipes\n---\n\nbake cake\n",
+        )
+    refused = _client().post(
+        "/swarm/skills/import",
+        files={"file": ("bad.zip", bad.getvalue(), "application/zip")},
+    )
+    assert refused.status_code == 400
+
+
+def test_skill_sync_without_source_is_409(
+    swarm_store: SwarmStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(swarm_routes, "_skill_admin_enabled", lambda: True)
+    response = _client().post("/swarm/skills/sync")
+    assert response.status_code == 409
