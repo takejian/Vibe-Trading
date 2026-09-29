@@ -45,7 +45,8 @@ test-cov: ## Like 'test', additionally write coverage.xml
 
 serve: ## Start API server via harness lifecycle script (HOST/PORT overridable)
 	bash harness/scripts/start-server.sh
-
+reserve: ## Start API server via harness lifecycle script (HOST/PORT overridable)
+	fuser -k 8899/tcp && bash harness/scripts/start-server.sh
 db-init: ## Populate local DuckDB warehouse (~/.vibe-trading/data/market.duckdb)
 	cd agent && $(PY) scripts/local_db/init_local_db.py
 

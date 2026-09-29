@@ -7,14 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT"
 
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8899}"
 VIBE_HOME="${VIBE_TRADING_HOME:-$HOME/.vibe-trading}"
 LOG_DIR="$VIBE_HOME/logs"
 PIDFILE="$LOG_DIR/harness-server.pid"
 LOGFILE="$LOG_DIR/harness-server.log"
 VIBE_BIN="$ROOT/.venv/bin/vibe-trading"
-PROBE_URL="http://127.0.0.1:$PORT/live"
+PROBE_URL="http://HOST:$PORT/live"
 
 mkdir -p "$LOG_DIR"
 

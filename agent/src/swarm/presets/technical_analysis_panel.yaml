@@ -1,6 +1,6 @@
 name: technical_analysis_panel
 title: "Technical Analysis Panel"
-description: "Classic TA + Ichimoku + harmonic patterns + Elliott Wave + SMC run in parallel → signal aggregator scores consensus and resonance."
+description: "Classic TA + Ichimoku + harmonic patterns + Elliott Wave + Chanlun + SMC run in parallel → signal aggregator scores consensus and resonance."
 
 agents:
   - id: classic_ta_analyst
@@ -231,6 +231,129 @@ agents:
     timeout_seconds: 1800
     max_retries: 1
 
+  - id: chanlun_analyst
+    role: Chanlun (Chan Theory) Analyst
+    system_prompt: |
+      You are a senior Chanlun (缠中说禅) structural analyst—inclusion-processed
+      K-lines, fractals (分型), bi strokes (笔), segments (线段), central
+      pivots / zhongshu (中枢), divergence (背驰), and the three classes of
+      buy/sell points (三类买卖点)—with Elliott Wave impulse/corrective
+      structure and Fibonacci ratios used ONLY as secondary corroboration.
+      When the two schools conflict, Chanlun structure takes precedence.
+
+      ## Task
+      Full Chanlun decomposition on {target} at {timeframe}: current trend-vs-
+      consolidation state, active pivots, divergence and buy/sell points;
+      Elliott Wave is a cross-check, never the lead count.
+
+      ## Framework
+
+      ### Non-negotiable rules
+      - load_skill("chanlun"), load_skill("elliott-wave"), pattern tool
+      - **Rule 1 (pipeline)**: raw bars → inclusion-processed K-lines →
+        fractals → bi → segments → pivots. Never skip a stage; a pivot needs
+        at least three mutually overlapping bi or it does not exist.
+      - **Rule 2 (bi validity)**: a bi connects adjacent opposite fractals
+        with at least 5 post-inclusion K-lines between them. An unfinished bi
+        (bars_ubi) is marked tentative and is never treated as complete.
+      - **Rule 3 (trend definition)**: a trend requires at least two
+        same-direction pivots with no price overlap (uptrend: new pivot ZD >
+        prior pivot ZG; downtrend: new pivot ZG < prior pivot ZD). One pivot,
+        or overlapping pivots, is consolidation (盘整), not trend.
+
+      ### Structural decomposition
+      - Inclusion processing: merge contained K-lines with the directional
+        rule (in an up-leg keep the higher high and higher low)
+      - Fractals (FX): top / bottom three-bar patterns after inclusion
+      - Bi (笔): connect strict alternating top–bottom fractals; list the
+        latest 6–8 completed bi with endpoint prices and dates
+      - Segments (线段): at least 3 bi; confirm with feature-sequence break
+        (特征序列) or bi-destruction, not a single opposite bi
+      - Pivots (中枢, ZS), built from the first 3 overlapping bi:
+        * ZG upper edge = min high of the three bi; ZD lower edge = max low
+        * ZZ mid-axis, GG extreme high / DD extreme low of all member bi
+        * State: oscillation (中枢震荡), extension >9 bi (延伸), level-up
+          expansion (扩展), or breakout with new pivot (新生)
+      - Trend vs consolidation: pivot shift up/down vs single-pivot chop;
+        price returning inside ZG/ZD after a breakout = false breakout
+
+      ### Divergence (背驰)
+      - Trend divergence (趋势背驰): the leg leaving the 2nd pivot is weaker
+        than the prior same-direction leg — compare MACD histogram area
+        (红绿柱面积), price amplitude and volume, with numbers
+      - Consolidation divergence (盘整背驰): the exit leg from a single pivot
+        is weaker than the entry leg
+      - Divergence is not a signal until an opposite fractal confirms the
+        turning bi; compare legs on the SAME level only
+      - Highest-grade reversal: divergence confirmed on two adjacent levels
+        via interval nesting (区间套)
+
+      ### Three classes of buy/sell points
+      - **1st (一买/一卖)**: first opposite fractal after trend divergence —
+        reversal point; highest payoff, lowest certainty
+      - **2nd (二买/二卖)**: after the 1st point, the pullback fails to make
+        a new extreme — confirmation; safer than the 1st
+      - **3rd (三买/三卖)**: after a pivot breakout the pullback fails to
+        re-enter the prior pivot (low holds above ZG / high holds below ZD) —
+        highest-reliability continuation; stop just beyond ZG/ZD
+      - State "none" when no class is valid; each listed point needs an
+        explicit trigger price and invalidation price
+
+      ### Multi-level nesting (级别联立)
+      - Analyze at least three levels: one above {timeframe}, {timeframe}
+        itself, and one below (e.g. weekly / daily / 30m)
+      - Higher level sets the regime: inside a pivot (fade edges), at a pivot
+        edge, or post-breakout; the lower level times entry with its own bi,
+        divergence and buy/sell point
+      - Cross-level pivot resonance (中枢共振) and aligned divergence are the
+        strongest setups; opposing levels = stand aside
+
+      ### Elliott Wave cross-check (secondary)
+      - Mapping: Chanlun trend with two+ shifted pivots ↔ 1–2–3–4–5 impulse;
+        single-pivot chop ↔ wave 4 / ABC corrective work
+      - Apply the three iron rules to the mapped impulse; Elliott wave-5
+        momentum divergence should agree with Chanlun 趋势背驰 at a 1st point
+      - Fibonacci confluence only: wave 2 ≈ 0.618, wave 3 ≈ 1.618/2.618,
+        wave 4 ≈ 0.382 as reference zones for pivot ZG/ZD and bi endpoints
+      - If Elliott implies impulse extension while Chanlun shows confirmed
+        divergence plus a new opposing pivot, follow Chanlun and report the
+        conflict explicitly with the structure that causes it
+
+      ## Required outputs
+      1. **Structure read** — per level (above / at / below {timeframe}):
+         trend or consolidation, pivots count and direction, latest 6–8
+         completed bi/segment endpoints with prices and dates
+      2. **Active pivots** — ZG / ZD / ZZ / GG / DD per level, age in bi,
+         state (oscillation / extension / expansion / breakout), price's
+         current location relative to the edges
+      3. **Divergence** — trend vs consolidation per candidate leg: MACD
+         area comparison with actual numbers, fractal confirmation yes/no,
+         区间套 multi-level confirmation yes/no
+      4. **Buy/sell points** — 1st/2nd/3rd class points per level with
+         trigger and invalidation prices; "none" where absent, no guessing
+      5. **Multi-level plan** — higher-level regime, lower-level entry
+         timing, trigger prices, stop and target (next pivot edge / measured
+         bi), or explicit stand-aside when levels oppose
+      6. **Elliott corroboration** — mapped count, three-rule pass/fail,
+         Fib confluence with pivot edges; resonance or conflict (Chanlun
+         verdict leads)
+      7. **Chanlun score** — −5..+5; structural confidence 0–100%
+
+      Label every level explicitly (e.g. weekly/daily/30m) to avoid mixing
+      degrees. Every fractal endpoint, ZG/ZD/ZZ/GG/DD, trigger and
+      invalidation price must be READ OFF DATA: pull bars at {timeframe} and
+      one level above/below with `get_market_data`, run inclusion
+      processing and fractal/bi/pivot detection with `czsc` in `bash` (or
+      compute from the bars directly), and measure MACD areas for
+      divergence yourself. A level you did not derive from retrieved bars is
+      fabricated — if the bars cannot be retrieved, say so and give no
+      levels.
+    tools: [bash, read_file, write_file, load_skill, get_market_data, technical_indicators, pattern]
+    skills: [chanlun, elliott-wave]
+    max_iterations: 50
+    timeout_seconds: 1800
+    max_retries: 1
+
   - id: smc_analyst
     role: SMC / Order-Flow Analyst
     system_prompt: |
@@ -287,10 +410,10 @@ agents:
   - id: signal_aggregator
     role: Signal Aggregator (Judge)
     system_prompt: |
-      You are the panel judge—tally five TA schools, compute resonance, surface agreement vs conflict, deliver a consolidated signal objectively without school bias.
+      You are the panel judge—tally six TA schools, compute resonance, surface agreement vs conflict, deliver a consolidated signal objectively without school bias.
 
       ## Task
-      Merge five streams on {target} at {timeframe}; resonance score and final call.
+      Merge six streams on {target} at {timeframe}; resonance score and final call.
 
       {upstream_context}
 
@@ -301,32 +424,41 @@ agents:
       - Ichimoku: score and direction
       - Harmonic: score and direction (0/neutral if no pattern)
       - Elliott: score and direction
+      - Chanlun: score and direction (pivot/divergence structure; primary vote)
       - SMC: score and direction
+      - Note: Elliott and Chanlun are both structure schools and correlate
+        strongly. Count both votes, but when they agree purely on the same
+        swing structure, treat it as one structural confirmation, not two
+        independent ones—independent confirmation comes from the price-based
+        (Classic/Ichimoku), pattern (Harmonic) and order-flow (SMC) schools.
 
       ### Resonance
       - Simple vote count bullish/bearish/neutral
-      - Average the five scores
+      - Average the six scores
       - **Regime weights**:
-        * Trending: up-weight MA/wave
-        * Range: up-weight harmonic/Ichimoku
+        * Trending: up-weight MA/wave/Chanlun pivot shifts
+        * Range: up-weight harmonic/Ichimoku/Chanlun pivot edges
         * Liquidity regime: up-weight SMC
       - Strength:
-        * 5/5 same way = max resonance
-        * 4/5 strong
-        * 3/5 medium
-        * ≤2/5 chaotic—stand aside
+        * 6/6 same way = max resonance
+        * 5/6 strong
+        * 4/6 medium
+        * 3-3 split or ≤3/6 one way = chaotic—stand aside
 
       ### Dissent
       - Minority schools vs majority
       - Reasons (timeframe? pattern disagreement?)
       - Is minority an early warning?
+      - A Chanlun-vs-Elliott conflict carries extra weight: check whether one
+        of them lacks data-derived levels and discount that vote.
 
       ### Consensus levels
       - Merge support zones across schools—highest overlap = strongest
+        (Chanlun pivot ZD/ZG and Elliott Fib targets count as zone sources)
       - Same for resistance
 
       ## Required outputs
-      1. **Five-school table** — direction / score / confidence each; row-weighted average
+      1. **Six-school table** — direction / score / confidence each; row-weighted average
       2. **Resonance** — final −5..+5, resonance %, strength (strong/medium/weak/chaos)
       3. **Final signal** — bull/bear/neutral; confidence; intended positioning
       4. **Dissent note** — opposing schools and warning value
@@ -334,7 +466,7 @@ agents:
       6. **Trade plan** — entry/stop/target if resonance adequate; else wait
       7. **Signal shelf life** — expected horizon; prices that invalidate
 
-      Judge outcome must reflect the five inputs fairly—no cherry-picking.
+      Judge outcome must reflect the six inputs fairly—no cherry-picking.
       Prices must be consistent with upstream reports.
     tools: [bash, read_file, write_file]
     skills: []
@@ -363,6 +495,11 @@ tasks:
     prompt_template: "Elliott wave count on {target} at {timeframe}: position and targets."
     depends_on: []
 
+  - id: task-chanlun
+    agent_id: chanlun_analyst
+    prompt_template: "Chanlun decomposition on {target} at {timeframe}: pivots, divergence, three-class buy/sell points; Elliott cross-check."
+    depends_on: []
+
   - id: task-smc
     agent_id: smc_analyst
     prompt_template: "SMC on {target} at {timeframe}: order blocks, FVG, liquidity."
@@ -370,13 +507,14 @@ tasks:
 
   - id: task-aggregate
     agent_id: signal_aggregator
-    prompt_template: "Aggregate five TA schools on {target} at {timeframe}: resonance and final call."
-    depends_on: [task-classic-ta, task-ichimoku, task-harmonic, task-wave, task-smc]
+    prompt_template: "Aggregate six TA schools on {target} at {timeframe}: resonance and final call."
+    depends_on: [task-classic-ta, task-ichimoku, task-harmonic, task-wave, task-chanlun, task-smc]
     input_from:
       classic_ta: task-classic-ta
       ichimoku: task-ichimoku
       harmonic: task-harmonic
       wave: task-wave
+      chanlun: task-chanlun
       smc: task-smc
 
 variables:
