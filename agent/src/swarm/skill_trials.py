@@ -89,8 +89,8 @@ def build_skill_trial_run(skill_name: str, target: str, question: str) -> SwarmR
         system_prompt=system_prompt,
         tools=list(preset_tool_union()),
         skills=[skill_name],
-        max_iterations=25,
-        timeout_seconds=300,
+        max_iterations=40,
+        timeout_seconds=900,
     )
     task = SwarmTask(
         id=_TRIAL_TASK_ID,

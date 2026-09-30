@@ -1092,6 +1092,7 @@ export interface RoleProfile {
   approved: boolean;
   created_at?: string;
   updated_at?: string;
+  derived_from?: string | null;
 }
 
 export interface CustomRoleRequest {
@@ -1102,6 +1103,8 @@ export interface CustomRoleRequest {
   skills: string[];
   max_iterations: number;
   timeout_seconds: number;
+  /** Approved role ref used as the derivation template. */
+  template_ref?: string;
 }
 
 export interface RoleRunRequest {

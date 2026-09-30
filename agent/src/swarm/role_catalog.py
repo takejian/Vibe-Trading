@@ -162,6 +162,7 @@ def _builtin_profile(role_ref: str) -> dict:
                 "max_iterations": int(agent.get("max_iterations", 25)),
                 "timeout_seconds": int(agent.get("timeout_seconds", 300)),
                 "approved": True,
+                "derived_from": None,
             }
     raise ValueError(f"内置角色不存在: {role_ref!r}")
 
@@ -179,6 +180,7 @@ def _custom_profile(role_ref: str, store: RoleStore) -> dict:
         "max_iterations": role.max_iterations,
         "timeout_seconds": role.timeout_seconds,
         "approved": role.approved,
+        "derived_from": role.derived_from,
     }
 
 

@@ -700,18 +700,26 @@ def register_swarm_routes(
 
     @app.post("/swarm/roles", dependencies=[Depends(require_auth)])
     async def create_role(payload: dict):
-        """Create a new unapproved custom role from a blank definition."""
+        """Create a new unapproved custom role.
+
+        Optional ``template_ref`` must point at a currently approved
+        role; it is recorded as the derivation lineage.
+        """
         from src.swarm.roles import RoleStore
 
         fields = _role_request_fields(payload)
+        template_ref = str(payload.get("template_ref", "") or "").strip() or None
         try:
-            role = RoleStore().create_role(**fields)
+            role = RoleStore().create_role(
+                template_ref=template_ref, **fields
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         return {
             "id": role.id,
             "name": role.name,
             "approved": role.approved,
+            "derived_from": role.derived_from,
             "updated_at": role.updated_at,
         }
 

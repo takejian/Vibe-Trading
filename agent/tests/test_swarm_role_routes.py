@@ -147,6 +147,34 @@ def test_create_role_route_rejects_duplicate(ctx) -> None:
     assert response.status_code == 400
 
 
+def test_create_role_from_template_route(ctx) -> None:
+    response = ctx["client"].post(
+        "/swarm/roles",
+        json=_role_payload(template_ref="investment_committee:bull_advocate"),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["derived_from"] == "investment_committee:bull_advocate"
+    assert body["approved"] is False
+
+
+def test_create_role_rejects_unapproved_template(ctx) -> None:
+    parent = ctx["roles"].create_role(**_role_payload(name="未通过模板"))
+    response = ctx["client"].post(
+        "/swarm/roles", json=_role_payload(template_ref=parent.id)
+    )
+    assert response.status_code == 400
+    assert "仅可派生自已通过角色" in response.json()["detail"]
+
+
+def test_create_role_rejects_missing_template(ctx) -> None:
+    response = ctx["client"].post(
+        "/swarm/roles", json=_role_payload(template_ref="role-ghost")
+    )
+    assert response.status_code == 400
+    assert "模板角色" in response.json()["detail"]
+
+
 def test_update_role_route(ctx) -> None:
     role = ctx["roles"].create_role(**_role_payload())
     response = ctx["client"].put(

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   BadgeCheck,
@@ -11,6 +11,7 @@ import {
 import {
   api,
   type RoleGroup,
+  type RoleGroupItem,
   type RoleProfile,
   type SkillCatalogEntry,
   type SwarmRunSummary,
@@ -69,6 +70,11 @@ interface RoleFormProps {
   skillCatalog: SkillCatalogEntry[];
   saving: boolean;
   error: string;
+  isCreating: boolean;
+  templates: RoleGroupItem[];
+  templateRef: string;
+  applyingTemplate: boolean;
+  onSelectTemplate: (ref: string) => void;
   onChange: (next: RoleFormState) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -80,6 +86,11 @@ function RoleForm({
   skillCatalog,
   saving,
   error,
+  isCreating,
+  templates,
+  templateRef,
+  applyingTemplate,
+  onSelectTemplate,
   onChange,
   onSubmit,
   onCancel,
@@ -104,6 +115,35 @@ function RoleForm({
 
   return (
     <div className="space-y-4" data-testid="role-form">
+      {isCreating && (
+        <div data-testid="role-template-picker">
+          <label className="block">
+            <span className="text-xs font-medium text-foreground">
+              {t("roleSquare.form.template")}
+            </span>
+            <select
+              value={templateRef}
+              disabled={applyingTemplate}
+              onChange={(e) => onSelectTemplate(e.target.value)}
+              data-testid="role-form-template"
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+            >
+              <option value="">{t("roleSquare.form.templateNone")}</option>
+              {templates.map((item) => (
+                <option key={item.ref} value={item.ref}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {applyingTemplate
+              ? t("roleSquare.form.templateApplying")
+              : t("roleSquare.form.templateHint")}
+          </p>
+        </div>
+      )}
+
       <label className="block">
         <span className="text-xs font-medium text-foreground">
           {t("roleSquare.form.name")}
@@ -389,6 +429,8 @@ export function RoleSquare() {
   const [form, setForm] = useState<RoleFormState>(blankForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [templateRef, setTemplateRef] = useState("");
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   const [runTarget, setRunTarget] = useState("");
   const [runQuestion, setRunQuestion] = useState("");
@@ -428,6 +470,18 @@ export function RoleSquare() {
     void loadList();
   }, [loadList]);
 
+  // Flat picker list: every built-in role plus approved custom roles.
+  const templates = useMemo<RoleGroupItem[]>(() => {
+    const items: RoleGroupItem[] = [];
+    for (const group of groups) {
+      for (const role of group.roles) {
+        if (group.kind === "builtin" || role.approved) items.push(role);
+      }
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    return items;
+  }, [groups]);
+
   const openDetail = useCallback(
     async (ref: string) => {
       try {
@@ -438,6 +492,8 @@ export function RoleSquare() {
         setEditing(false);
         setCreating(false);
         setFormError("");
+        setTemplateRef("");
+        setApplyingTemplate(false);
         setRunTarget("");
         setRunQuestion("");
         setRunError("");
@@ -482,9 +538,46 @@ export function RoleSquare() {
     setCreating(true);
     setEditing(true);
     setProfile(null);
+    setTemplateRef("");
+    setApplyingTemplate(false);
     setView("detail");
     setDetailTab("profile");
   };
+
+  const applyTemplate = useCallback(
+    async (ref: string) => {
+      setTemplateRef(ref);
+      if (!ref) return;
+      setApplyingTemplate(true);
+      setFormError("");
+      try {
+        const detail = await api.getRoleDetail(ref);
+        // Only carry over tools/skills still available in this deployment.
+        const allowedTools = new Set(toolCatalog);
+        const allowedSkills = new Set(skillCatalog.map((entry) => entry.name));
+        // The name is intentionally never copied: a derived role needs a
+        // new, globally unique name.
+        setForm((current) => ({
+          ...current,
+          purpose: detail.purpose,
+          systemPrompt: detail.system_prompt,
+          tools: detail.tools.filter((tool) => allowedTools.has(tool)),
+          skills: detail.skills.filter((skill) => allowedSkills.has(skill)),
+          maxIterations: detail.max_iterations,
+          timeoutSeconds: detail.timeout_seconds,
+        }));
+      } catch (err) {
+        setFormError(
+          err instanceof Error
+            ? err.message
+            : t("roleSquare.form.templateLoadFailed"),
+        );
+      } finally {
+        setApplyingTemplate(false);
+      }
+    },
+    [toolCatalog, skillCatalog, t],
+  );
 
   const submitForm = async () => {
     setSaving(true);
@@ -497,6 +590,7 @@ export function RoleSquare() {
       skills: form.skills,
       max_iterations: form.maxIterations,
       timeout_seconds: form.timeoutSeconds,
+      ...(creating && templateRef ? { template_ref: templateRef } : {}),
     };
     try {
       if (creating) {
@@ -711,6 +805,11 @@ export function RoleSquare() {
               skillCatalog={skillCatalog}
               saving={saving}
               error={formError}
+              isCreating={creating}
+              templates={templates}
+              templateRef={templateRef}
+              applyingTemplate={applyingTemplate}
+              onSelectTemplate={(ref) => void applyTemplate(ref)}
               onChange={setForm}
               onSubmit={() => void submitForm()}
               onCancel={() => {
@@ -733,6 +832,18 @@ export function RoleSquare() {
                   </dt>
                   <dd className="mt-1 text-foreground">{profile.purpose || "—"}</dd>
                 </div>
+                {profile.derived_from && (
+                  <div data-testid="role-derived-from">
+                    <dt className="text-xs font-medium text-muted-foreground">
+                      {t("roleSquare.form.derivedFrom")}
+                    </dt>
+                    <dd className="mt-1 text-foreground">
+                      <code className="rounded bg-foreground/10 px-1.5 py-0.5 text-[11px]">
+                        {profile.derived_from}
+                      </code>
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">
                     {t("roleSquare.form.systemPrompt")}

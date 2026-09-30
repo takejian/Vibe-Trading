@@ -53,6 +53,7 @@ class CustomRole(BaseModel):
     timeout_seconds: int = 300
     approved: bool = False
     approved_at: str | None = None
+    derived_from: str | None = None
     created_at: str
     updated_at: str
 
@@ -227,6 +228,36 @@ class RoleStore:
         }
 
     # ------------------------------------------------------------------
+    def _resolve_template(self, template_ref: str | None) -> str | None:
+        """Validate a derivation template; return the normalized ref.
+
+        Only roles that still exist and are currently approved may serve
+        as templates. Imported lazily: ``role_catalog`` imports this
+        module at package import time.
+        """
+        ref = (template_ref or "").strip()
+        if not ref:
+            return None
+        from src.swarm.role_catalog import resolve_role
+
+        try:
+            template = resolve_role(ref, self)
+        except FileNotFoundError:
+            raise ValueError(
+                f"模板角色已删除，无法派生: {ref!r}，请重新选择模板"
+            ) from None
+        except ValueError:
+            raise ValueError(
+                f"模板角色不存在或引用不合法: {ref!r}，请重新选择模板"
+            ) from None
+        if not template.get("approved"):
+            raise ValueError(
+                "仅可派生自已通过角色；该模板未通过或已被取消通过，"
+                "请重新选择模板"
+            )
+        return str(template["ref"])
+
+    # ------------------------------------------------------------------
     def create_role(
         self,
         *,
@@ -237,12 +268,19 @@ class RoleStore:
         skills: list[str],
         max_iterations: int,
         timeout_seconds: int,
+        template_ref: str | None = None,
     ) -> CustomRole:
-        """Create a new unapproved custom role."""
+        """Create a new unapproved custom role.
+
+        When ``template_ref`` is given it must point at a currently
+        approved role; it is recorded as the lineage but never supplies
+        the (mandatory, globally unique) name.
+        """
         fields = self._validate_payload(
             name, purpose, system_prompt, tools, skills,
             max_iterations, timeout_seconds,
         )
+        derived_from = self._resolve_template(template_ref)
         if fields["name"] in builtin_role_names():
             raise ValueError(
                 f"角色名称与内置角色重名: {fields['name']!r}，请更换名称"
@@ -256,6 +294,7 @@ class RoleStore:
             id=f"role-{uuid.uuid4().hex[:12]}",
             approved=False,
             approved_at=None,
+            derived_from=derived_from,
             created_at=now,
             updated_at=now,
             **fields,

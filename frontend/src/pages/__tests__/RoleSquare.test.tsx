@@ -217,6 +217,57 @@ describe("RoleSquare create", () => {
       expect(screen.getByTestId("role-profile-view")).toBeInTheDocument(),
     );
   });
+
+  it("derives a new role from an approved template", async () => {
+    const template = {
+      kind: "builtin" as const,
+      ref: "investment_committee:bull_advocate",
+      name: "多头代理人",
+      purpose: "论证多头逻辑",
+      system_prompt: "You argue the bull case with evidence.",
+      tools: ["get_market_data"],
+      skills: [],
+      max_iterations: 30,
+      timeout_seconds: 420,
+      approved: true,
+    };
+    getRoleDetail.mockResolvedValue(template);
+
+    render(<RoleSquare />);
+    await screen.findByTestId("role-groups");
+    await userEvent.click(screen.getByTestId("create-role-btn"));
+
+    const picker = screen.getByTestId("role-form-template") as HTMLSelectElement;
+    const optionValues = Array.from(picker.options).map((option) => option.value);
+    expect(optionValues).toContain("investment_committee:bull_advocate");
+    // Unapproved custom roles are not usable as templates.
+    expect(optionValues).not.toContain(ROLE_REF);
+
+    await userEvent.selectOptions(
+      picker,
+      "investment_committee:bull_advocate",
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("role-form-prompt")).toHaveValue(
+        template.system_prompt,
+      ),
+    );
+    // The name is never carried over; it must be entered anew.
+    expect(screen.getByTestId("role-form-name")).toHaveValue("");
+    expect(screen.getByTestId("role-form-iterations")).toHaveValue(30);
+    expect(screen.getByTestId("role-form-timeout")).toHaveValue(420);
+
+    await userEvent.type(screen.getByTestId("role-form-name"), "多头代理人二代");
+    await userEvent.click(screen.getByTestId("role-form-submit"));
+
+    await waitFor(() => expect(createCustomRole).toHaveBeenCalledTimes(1));
+    expect(createCustomRole.mock.calls[0][0]).toMatchObject({
+      name: "多头代理人二代",
+      template_ref: "investment_committee:bull_advocate",
+      timeout_seconds: 420,
+    });
+  });
 });
 
 describe("RoleSquare standalone run", () => {

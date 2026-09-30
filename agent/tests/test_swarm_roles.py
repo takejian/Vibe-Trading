@@ -138,6 +138,46 @@ def test_rename_into_existing_name_rejected(store: RoleStore) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Derivation
+# ---------------------------------------------------------------------------
+
+
+def test_derive_from_builtin_records_lineage(store: RoleStore) -> None:
+    role = store.create_role(
+        template_ref="investment_committee:bull_advocate", **_payload()
+    )
+
+    assert role.derived_from == "investment_committee:bull_advocate"
+    assert role.approved is False
+    assert store.get_role(role.id).derived_from == role.derived_from
+
+
+def test_derive_from_approved_custom_role(store: RoleStore) -> None:
+    parent = store.create_role(**_payload(name="景气度跟踪员"))
+    store.approve(parent.id)
+
+    child = store.create_role(
+        template_ref=parent.id, **_payload(name="景气度跟踪员二代")
+    )
+    assert child.derived_from == parent.id
+
+    # Revoking the template blocks new derivations but not the existing child.
+    store.unapprove(parent.id)
+    assert store.get_role(child.id).derived_from == parent.id
+    with pytest.raises(ValueError, match="仅可派生自已通过角色"):
+        store.create_role(
+            template_ref=parent.id, **_payload(name="景气度跟踪员三代")
+        )
+
+
+def test_derive_template_must_exist(store: RoleStore) -> None:
+    with pytest.raises(ValueError, match="模板角色"):
+        store.create_role(template_ref="role-ghost", **_payload())
+    with pytest.raises(ValueError, match="模板角色"):
+        store.create_role(template_ref="bad ref", **_payload())
+
+
+# ---------------------------------------------------------------------------
 # Approval
 # ---------------------------------------------------------------------------
 
