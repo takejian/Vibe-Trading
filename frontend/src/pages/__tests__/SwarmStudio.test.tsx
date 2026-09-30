@@ -340,31 +340,14 @@ describe("SwarmStudio", () => {
     );
   });
 
-  it("renders the Skill Square and launches a standalone trial", async () => {
+  it("renders only the studio/history tabs (no skill plaza tab)", async () => {
     render(<SwarmStudio />);
     await waitFor(() =>
       expect(screen.getByTestId("preset-card-investment_committee")).toBeInTheDocument(),
     );
-
-    await userEvent.click(screen.getByTestId("tab-skills"));
-    const square = await screen.findByTestId("skill-square");
-    expect(square).toBeInTheDocument();
-    expect(screen.getByTestId("skill-card-behavioral-finance")).toBeInTheDocument();
-    // Admin zone must stay hidden while the feature flag is off.
-    expect(screen.queryByTestId("skill-admin-zone")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByTestId("skill-trial-set-behavioral-finance"));
-    await userEvent.type(screen.getByTestId("trial-target-input"), "600519.SH");
-    await userEvent.type(screen.getByTestId("trial-question-input"), "适合做多吗");
-    await userEvent.click(screen.getByTestId("trial-launch-btn"));
-
-    await waitFor(() => expect(createSkillTrial).toHaveBeenCalledTimes(1));
-    expect(createSkillTrial.mock.calls[0][0]).toEqual({
-      skill_name: "behavioral-finance",
-      target: "600519.SH",
-      question: "适合做多吗",
-    });
-    await waitFor(() => expect(screen.getByTestId("run-view")).toBeInTheDocument());
+    expect(screen.getByTestId("tab-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("tab-history")).toBeInTheDocument();
+    expect(screen.queryByTestId("tab-skills")).not.toBeInTheDocument();
   });
 
   it("loads a saved custom team from the gallery", async () => {

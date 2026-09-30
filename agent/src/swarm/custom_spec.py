@@ -142,12 +142,12 @@ def build_run_from_custom_spec(
     preset_agents, preset_tasks, tool_catalog = _preset_index(preset_data)
 
     # Skills allowed on nodes of THIS customization:
-    #   preset skill union  ∪  globally approved skills  ∩  actually assembled
+    #   preset skill union  ∪  globally approved skills (assembled packages
+    #   and operator-approved personal custom skills, all physically present)
     # Unknown/delisted skills are a HARD error (unlike out-of-catalog tools,
     # which are silently stripped): the canvas highlights such references and
     # the launch must be blocked until the user removes/replaces them.
-    from src.swarm.skill_approvals import SkillApprovalStore
-    from src.swarm.skill_catalog import assembled_skill_names
+    from src.swarm.skill_catalog import list_approved_skill_names
 
     preset_skill_union = {
         skill
@@ -155,8 +155,7 @@ def build_run_from_custom_spec(
         for skill in agent_data.get("skills", [])
         if isinstance(skill, str)
     }
-    assembled = assembled_skill_names()
-    allowed_skills = (preset_skill_union | SkillApprovalStore().approved_names()) & assembled
+    allowed_skills = preset_skill_union | set(list_approved_skill_names())
 
     # --- Normalize + validate nodes -------------------------------------
     node_ids: set[str] = set()

@@ -31,7 +31,8 @@
     "about": "关于",
     "macroAnalysis": "宏观经济分析",
     "swarmStudio": "智能体团队",
-    "roleSquare": "角色广场"
+    "roleSquare": "角色广场",
+    "skillPlaza": "技能广场"
   },
   "runtime": {
     "monitorBadge": "交易监控",
@@ -1860,8 +1861,7 @@
     "subtitle": "选择内置团队，按本次评估需要调整角色分工与协作关系后一键发起；调整仅对本次评估生效。",
     "tabs": {
       "studio": "团队编排",
-      "history": "我的评估",
-      "skills": "技能广场"
+      "history": "我的评估"
     },
     "gallery": {
       "sectionTitle": "第 1 步：选择内置团队预设",
@@ -2000,41 +2000,6 @@
       "loadError": "加载自定义团队失败。",
       "saveFailed": "保存自定义团队失败。",
       "deleteFailed": "删除自定义团队失败。"
-    },
-    "skills": {
-      "pageHint": "已装配的金融技能、单技能试运行，以及仅运维管理员可用的技能包管理。",
-      "loading": "正在加载技能…",
-      "loadError": "加载技能目录失败。",
-      "catalogTitle": "已装配技能",
-      "catalogHint": "任一次独立试运行成功后，该技能即全局标记为“已通过”，可在画布上为角色新增勾选。",
-      "catalogEmpty": "当前没有已装配的技能。",
-      "approved": "已通过",
-      "approvedHint": "至少有一次试运行成功",
-      "sourceBundled": "内置",
-      "sourceUser": "导入",
-      "trial": "试运行",
-      "trialTitle": "发起单技能试运行",
-      "trialHint": "填写评估标的与研究问题。试运行历史仅本人可见；任一次成功即全局标记该技能通过。",
-      "trialSkillPlaceholder": "技能名称",
-      "trialTargetPlaceholder": "评估标的（代码 / 名称）",
-      "trialQuestionPlaceholder": "研究问题",
-      "trialLaunch": "启动试运行",
-      "trialFailed": "发起技能试运行失败。",
-      "trialsLoadError": "加载试运行历史失败。",
-      "adminTitle": "技能包管理（仅运维管理员）",
-      "adminHint": "手动导入第三方金融技能 zip 包，或从已配置的同步源一键同步；非金融或要素不完整的包将被拒绝。",
-      "import": "导入 zip 包",
-      "importing": "导入中…",
-      "importDone": "成功装配 {{number}} 个技能包。",
-      "importFailed": "技能包导入失败。",
-      "sync": "一键同步",
-      "syncNotConfigured": "未配置同步源（VIBE_TRADING_SKILL_SYNC_SOURCE）。",
-      "syncFailed": "技能同步失败。",
-      "syncAdded": "新增：{{number}}",
-      "syncUpdated": "更新：{{number}}",
-      "syncRemoved": "下架：{{number}}",
-      "syncRejected": "拒绝：{{number}}",
-      "trialsHistoryTitle": "我的试运行历史"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "搜索角色名称或用途",
       "loading": "正在加载…",
       "empty": "没有可选角色"
+    }
+  },
+  "skillPlaza": {
+    "title": "技能广场",
+    "subtitle": "所有可复用的金融技能：内置技能只读；自建技能经运维管理员放开通过后才进入全员可选清单。",
+    "tabs": {
+      "plaza": "技能广场",
+      "evaluations": "我的评估",
+      "profile": "技能档案",
+      "run": "试运行",
+      "history": "试运行历史"
+    },
+    "groups": {
+      "builtin": "内置技能",
+      "builtinHint": "系统全部已装配的内置与全局技能，全员可见。",
+      "custom": "自建技能",
+      "customHint": "本人创建的技能：已通过后全员可选，未通过仅本人可见。"
+    },
+    "list": {
+      "create": "＋ 创建技能",
+      "groupSearch": "在本组内搜索",
+      "approved": "已通过",
+      "approvedMine": "已通过·我创建",
+      "unapprovedMine": "未通过·我创建",
+      "noMatchInGroup": "本组内没有匹配的技能",
+      "emptyGroup": "本组暂无技能",
+      "loading": "正在加载技能…",
+      "loadError": "技能列表加载失败",
+      "retry": "重试"
+    },
+    "personal": {
+      "button": "⬆ 导入 zip 技能包",
+      "importDone": "成功导入 {{number}} 个个人技能。",
+      "importFailed": "个人技能包导入失败。"
+    },
+    "admin": {
+      "title": "技能包管理（仅运维管理员）",
+      "hint": "手动导入第三方金融技能 zip 包，或从已配置的同步源一键同步；与金融无关或要素不完整的包将被拒绝。",
+      "import": "导入 zip 包",
+      "importing": "导入中…",
+      "importDone": "成功装配 {{number}} 个技能包。",
+      "importFailed": "技能包导入失败。",
+      "sync": "一键同步",
+      "syncNotConfigured": "未配置同步源（VIBE_TRADING_SKILL_SYNC_SOURCE）。",
+      "syncFailed": "技能同步失败。",
+      "syncAdded": "新增：{{number}}",
+      "syncUpdated": "更新：{{number}}",
+      "syncRemoved": "下架：{{number}}",
+      "syncRejected": "拒绝：{{number}}"
+    },
+    "detail": {
+      "backToList": "返回技能广场",
+      "createTitle": "新建技能",
+      "edit": "编辑技能",
+      "delete": "删除技能",
+      "deleteConfirm": "删除后该技能将立即退出全部角色与团队可选清单；已保存角色与团队中的引用将高亮待校正，历史快照与试运行记录原样保留。确认删除？",
+      "deleteFailed": "删除失败",
+      "derive": "另存为新建技能",
+      "derivedFrom": "派生来源",
+      "approve": "放开通过",
+      "unapprove": "取消通过",
+      "approvePrerequisite": "该技能尚无合格的试运行记录，须先取得至少一次合格试运行成果后才能放开通过。",
+      "approveFailed": "放开/取消通过失败",
+      "assembledReadonly": "内置与管理员装配技能只读，仍可发起试运行或另存为新的自建技能。"
+    },
+    "form": {
+      "name": "技能名称（全局唯一）",
+      "nameInvalid": "名称必填、不超过 {{number}} 个字符，且不得与内置或其他自建技能重名。",
+      "purpose": "业务用途简介",
+      "methodology": "方法论与操作说明",
+      "methodologyInvalid": "方法论与操作说明必填，且不超过 {{number}} 个字符。",
+      "inputs": "输入要求",
+      "outputs": "输出约定",
+      "template": "派生模板（可选）",
+      "templateNone": "不使用模板，从空白创建",
+      "templateApplying": "正在读取模板内容…",
+      "templateHint": "仅可选择已通过技能；选中后自动预填用途简介、方法论、输入要求与输出约定，技能名称需重新填写。",
+      "templateLoadFailed": "读取模板内容失败，请重试或更换模板",
+      "cancel": "取消",
+      "save": "保存技能",
+      "saveAs": "保存为新技能",
+      "saving": "保存中…",
+      "saveFailed": "保存失败"
+    },
+    "run": {
+      "hint": "以单个技能对指定标的与研究问题发起一次独立试运行；合格结论是运维管理员放开通过的硬性前置。",
+      "targetPlaceholder": "评估标的，如 600519.SH / COMEX黄金",
+      "questionPlaceholder": "本次试运行的研究问题",
+      "launch": "开始试运行",
+      "launchFailed": "发起试运行失败"
+    },
+    "history": {
+      "loadError": "试运行历史加载失败",
+      "scopeAll": "查看全部人员的试运行记录（运维审核）"
+    },
+    "evaluations": {
+      "loadError": "评估记录加载失败",
+      "loading": "正在加载评估记录…",
+      "filterSkill": "技能名",
+      "filterSkillPlaceholder": "技能名称片段",
+      "filterTarget": "标的关键字",
+      "filterTargetPlaceholder": "代码或名称片段",
+      "filterFrom": "开始日期",
+      "filterTo": "结束日期",
+      "search": "查询",
+      "clear": "清空",
+      "columnSkill": "技能名",
+      "empty": "暂无评估记录。"
     }
   }
 }

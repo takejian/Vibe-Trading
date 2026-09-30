@@ -31,7 +31,8 @@
     "about": "소개",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "스킬 광장"
   },
   "runtime": {
     "monitorBadge": "거래 모니터",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "스킬 광장",
+    "subtitle": "재사용 가능한 모든 금융 스킬: 내장 스킬은 읽기 전용이며, 직접 만든 스킬은 운영 관리자가 승인한 뒤에야 모든 사용자가 선택할 수 있습니다.",
+    "tabs": {
+      "plaza": "스킬 광장",
+      "evaluations": "내 평가",
+      "profile": "스킬 프로필",
+      "run": "시범 운영",
+      "history": "시범 운영 이력"
+    },
+    "groups": {
+      "builtin": "내장 스킬",
+      "builtinHint": "시스템에 조립된 모든 내장/전역 스킬(모든 사용자에게 표시).",
+      "custom": "내 커스텀 스킬",
+      "customHint": "본인이 만든 스킬: 승인되면 모두 선택 가능하고, 미승인은 본인에게만 표시됩니다."
+    },
+    "list": {
+      "create": "＋ 스킬 만들기",
+      "groupSearch": "이 그룹 내 검색",
+      "approved": "승인됨",
+      "approvedMine": "승인됨·내가 생성",
+      "unapprovedMine": "미승인·내가 생성",
+      "noMatchInGroup": "이 그룹에 일치하는 스킬이 없습니다",
+      "emptyGroup": "이 그룹에는 아직 스킬이 없습니다",
+      "loading": "스킬을 불러오는 중…",
+      "loadError": "스킬 목록을 불러오지 못했습니다",
+      "retry": "다시 시도"
+    },
+    "personal": {
+      "button": "⬆ zip 스킬 패키지 가져오기",
+      "importDone": "개인 스킬 {{number}}개를 가져왔습니다.",
+      "importFailed": "개인 스킬 패키지 가져오기에 실패했습니다."
+    },
+    "admin": {
+      "title": "스킬 패키지 관리(운영 관리자 전용)",
+      "hint": "제3자 금융 스킬 zip을 가져오거나 설정된 소스에서 금융 스킬을 동기화합니다. 금융과 무관하거나 요소가 불완전한 패키지는 거부됩니다.",
+      "import": "zip 패키지 가져오기",
+      "importing": "가져오는 중…",
+      "importDone": "스킬 패키지 {{number}}개를 설치했습니다.",
+      "importFailed": "스킬 패키지 가져오기에 실패했습니다.",
+      "sync": "지금 동기화",
+      "syncNotConfigured": "동기화 소스가 설정되지 않았습니다(VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "스킬 동기화에 실패했습니다.",
+      "syncAdded": "추가: {{number}}",
+      "syncUpdated": "업데이트: {{number}}",
+      "syncRemoved": "제거: {{number}}",
+      "syncRejected": "거부: {{number}}"
+    },
+    "detail": {
+      "backToList": "스킬 광장으로 돌아가기",
+      "createTitle": "새 스킬",
+      "edit": "편집",
+      "delete": "삭제",
+      "deleteConfirm": "삭제하면 이 스킬은 모든 역할/팀 선택 목록에서 즉시 제거됩니다. 저장된 역할과 팀의 참조는 수정 대상으로 강조 표시되고, 과거 스냅샷과 실행 기록은 그대로 보존됩니다. 삭제하시겠습니까?",
+      "deleteFailed": "삭제 실패",
+      "derive": "새 스킬로 저장",
+      "derivedFrom": "파생 출처",
+      "approve": "승인하여 공개",
+      "unapprove": "승인 취소",
+      "approvePrerequisite": "이 스킬에는 통과한 시범 운영 기록이 아직 없습니다. 최소 한 번의 합격한 시범 운영 결과가 필요합니다.",
+      "approveFailed": "승인/취소 실패",
+      "assembledReadonly": "내장/관리자 설치 스킬은 읽기 전용입니다. 시범 운영이나 새 커스텀 스킬로 저장은 가능합니다."
+    },
+    "form": {
+      "name": "스킬 이름(전역 고유)",
+      "nameInvalid": "이름은 필수이며 {{number}}자 이내여야 하고, 내장 또는 다른 커스텀 스킬과 중복될 수 없습니다.",
+      "purpose": "업무 용도(요약)",
+      "methodology": "방법론 및 운영 지침",
+      "methodologyInvalid": "방법론은 필수이며 {{number}}자 이내여야 합니다.",
+      "inputs": "입력 요구사항",
+      "outputs": "출력 규칙",
+      "template": "파생 템플릿(선택)",
+      "templateNone": "템플릿 없이 빈 상태로 시작",
+      "templateApplying": "템플릿 내용을 불러오는 중…",
+      "templateHint": "승인된 스킬만 템플릿으로 사용할 수 있습니다. 선택하면 용도, 방법론, 입력, 출력이 자동으로 채워지며, 스킬 이름은 새로 입력해야 합니다.",
+      "templateLoadFailed": "템플릿 내용을 불러오지 못했습니다. 다시 시도하거나 다른 템플릿을 선택하세요",
+      "cancel": "취소",
+      "save": "저장",
+      "saveAs": "새 스킬로 저장",
+      "saving": "저장 중…",
+      "saveFailed": "저장 실패"
+    },
+    "run": {
+      "hint": "대상과 연구 질문으로 이 스킬을 한 번 독립적으로 시범 운영합니다. 합격한 결론이 운영 관리자 승인의 전제 조건입니다.",
+      "targetPlaceholder": "평가 대상(예: 600519.SH / COMEX 금)",
+      "questionPlaceholder": "이번 연구 질문",
+      "launch": "시범 운영 시작",
+      "launchFailed": "시범 운영 시작에 실패했습니다"
+    },
+    "history": {
+      "loadError": "시범 운영 이력을 불러오지 못했습니다",
+      "scopeAll": "모든 투자자의 시범 운영 기록 보기(운영 검토)"
+    },
+    "evaluations": {
+      "loadError": "평가 기록을 불러오지 못했습니다",
+      "loading": "평가 기록을 불러오는 중…",
+      "filterSkill": "스킬 이름",
+      "filterSkillPlaceholder": "스킬 이름 일부",
+      "filterTarget": "대상 키워드",
+      "filterTargetPlaceholder": "코드 또는 이름 일부",
+      "filterFrom": "시작일",
+      "filterTo": "종료일",
+      "search": "조회",
+      "clear": "지우기",
+      "columnSkill": "스킬",
+      "empty": "평가 기록이 없습니다."
     }
   }
 }

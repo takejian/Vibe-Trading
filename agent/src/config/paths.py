@@ -59,6 +59,11 @@ def get_roles_dir() -> Path:
     return get_runtime_root() / "swarm" / "roles"
 
 
+def get_custom_skills_dir() -> Path:
+    """Return the user-level directory holding user-created custom skills."""
+    return get_runtime_root() / "swarm" / "skills"
+
+
 def get_user_skills_dir() -> Path:
     """Return the user-level directory holding installed (imported) skills."""
     return get_runtime_root() / "skills" / "user"

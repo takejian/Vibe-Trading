@@ -643,10 +643,54 @@ export const api = {
     if (options?.from) params.set("from", options.from);
     if (options?.to) params.set("to", options.to);
     if (options?.skillName) params.set("skill_name", options.skillName);
+    if (options?.scope) params.set("scope", options.scope);
     if (options?.limit) params.set("limit", String(options.limit));
     const query = params.toString();
     return request<SwarmRunSummary[]>(
       `/swarm/skill-trials${query ? `?${query}` : ""}`,
+    );
+  },
+  getSkillDetail: (skillRef: string) =>
+    request<SkillProfile>(
+      `/swarm/skills/${encodeURIComponent(skillRef)}/detail`,
+    ),
+  createCustomSkill: (body: CustomSkillRequest) =>
+    request<{
+      id: string;
+      name: string;
+      approved: boolean;
+      derived_from?: string | null;
+      updated_at: string;
+    }>("/swarm/skills/custom", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCustomSkill: (skillId: string, body: CustomSkillRequest) =>
+    request<{ id: string; name: string; approved: boolean; updated_at: string }>(
+      `/swarm/skills/custom/${encodeURIComponent(skillId)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  deleteCustomSkill: (skillId: string) =>
+    request<{ status: string }>(
+      `/swarm/skills/custom/${encodeURIComponent(skillId)}`,
+      { method: "DELETE" },
+    ),
+  approveCustomSkill: (skillId: string) =>
+    request<{ id: string; approved: boolean; approved_at?: string | null }>(
+      `/swarm/skills/custom/${encodeURIComponent(skillId)}/approve`,
+      { method: "POST" },
+    ),
+  unapproveCustomSkill: (skillId: string) =>
+    request<{ id: string; approved: boolean }>(
+      `/swarm/skills/custom/${encodeURIComponent(skillId)}/unapprove`,
+      { method: "POST" },
+    ),
+  importPersonalSkillPackage: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ installed: { id: string; name: string }[] }>(
+      "/swarm/skills/import-personal",
+      { method: "POST", body: form },
     );
   },
   importSkillPackage: (file: File) => {
@@ -979,6 +1023,8 @@ export interface SwarmRunSummary {
   research_target?: string | null;
   research_question?: string | null;
   final_report_excerpt?: string | null;
+  /** Server-side qualified-result verdict for skill_trial rows. */
+  qualified?: boolean;
   /** "team" (default/old records), "skill_trial" or "role_run". */
   kind?: string;
   trial_skill?: string | null;
@@ -993,6 +1039,8 @@ export interface SwarmRunListOptions {
   from?: string;
   to?: string;
   skillName?: string;
+  /** "mine" (default) or "all" (operator view; admin-gated server-side). */
+  scope?: "mine" | "all";
   limit?: number;
 }
 
@@ -1042,10 +1090,41 @@ export interface SkillCatalogEntry {
   name: string;
   description: string;
   category: string;
-  /** "bundled" ships with Vibe Trading; "user" was imported/synced. */
+  /** "bundled" ships with Vibe Trading; "user" was imported/synced/materialized. */
   source: "bundled" | "user";
+  /** "bundled"/"user" assembled package, or "custom" personal skill. */
+  kind: "bundled" | "user" | "custom";
+  /** Stable reference: "assembled:<name>" or the custom skill id. */
+  ref: string;
   /** Globally approved after at least one successful Skill Square trial. */
   approved: boolean;
+  /** For custom skills derived via "save as new": the source skill ref. */
+  derived_from?: string | null;
+}
+
+export interface SkillProfile {
+  kind: "assembled" | "custom";
+  ref: string;
+  name: string;
+  purpose: string;
+  methodology: string;
+  inputs: string;
+  outputs: string;
+  category: string;
+  approved: boolean;
+  derived_from?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomSkillRequest {
+  name: string;
+  purpose?: string;
+  methodology: string;
+  inputs?: string;
+  outputs?: string;
+  /** Approved skill ref used as the "save as new" derivation template. */
+  template_ref?: string;
 }
 
 export interface SkillCapabilities {

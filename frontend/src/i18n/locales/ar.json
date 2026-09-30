@@ -31,7 +31,8 @@
     "about": "حول",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "ساحة المهارات"
   },
   "runtime": {
     "monitorBadge": "مراقبة التداول",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "ساحة المهارات",
+    "subtitle": "جميع المهارات المالية القابلة لإعادة الاستخدام: المهارات المدمجة للقراءة فقط؛ ولا تصبح المهارات التي تنشئها شخصيةً متاحة للجميع إلا بعد اعتمادها من مدير التشغيل.",
+    "tabs": {
+      "plaza": "ساحة المهارات",
+      "evaluations": "تقييماتي",
+      "profile": "ملف المهارة",
+      "run": "تشغيل تجريبي",
+      "history": "سجل التجارب"
+    },
+    "groups": {
+      "builtin": "المهارات المضمنة",
+      "builtinHint": "جميع المهارات المضمنة والمثبتة عامةً، مرئية للجميع.",
+      "custom": "مهاراتي المخصصة",
+      "customHint": "المهارات التي أنشأتها: المعتمدة منها متاحة للجميع، وغير المعتمدة مرئية لك وحدك."
+    },
+    "list": {
+      "create": "＋ إنشاء مهارة",
+      "groupSearch": "ابحث داخل هذه المجموعة",
+      "approved": "معتمدة",
+      "approvedMine": "معتمدة · من إنشائي",
+      "unapprovedMine": "غير معتمدة · من إنشائي",
+      "noMatchInGroup": "لا توجد مهارة مطابقة في هذه المجموعة",
+      "emptyGroup": "لا توجد مهارات في هذه المجموعة بعد",
+      "loading": "جارٍ تحميل المهارات…",
+      "loadError": "تعذّر تحميل قائمة المهارات",
+      "retry": "إعادة المحاولة"
+    },
+    "personal": {
+      "button": "⬆ استيراد حزمة مهارة zip",
+      "importDone": "تم استيراد {{number}} مهارة شخصية.",
+      "importFailed": "تعذّر استيراد الحزمة الشخصية."
+    },
+    "admin": {
+      "title": "إدارة حزم المهارات (لمديري التشغيل فقط)",
+      "hint": "استيراد حزم مهارات مالية من طرف خارجي أو مزامنة المهارات المالية من المصدر المهيّأ. تُرفض الحزم غير المالية أو الناقصة.",
+      "import": "استيراد حزمة zip",
+      "importing": "جارٍ الاستيراد…",
+      "importDone": "تم تثبيت {{number}} حزمة مهارات.",
+      "importFailed": "تعذّر استيراد الحزمة.",
+      "sync": "مزامنة الآن",
+      "syncNotConfigured": "لم تتم تهيئة مصدر المزامنة (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "تعذّرت مزامنة المهارات.",
+      "syncAdded": "مضافة: {{number}}",
+      "syncUpdated": "محدَّثة: {{number}}",
+      "syncRemoved": "مزالة: {{number}}",
+      "syncRejected": "مرفوضة: {{number}}"
+    },
+    "detail": {
+      "backToList": "العودة إلى ساحة المهارات",
+      "createTitle": "إنشاء مهارة",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "deleteConfirm": "عند الحذف تخرج المهارة فورًا من جميع قوائم اختيار الأدوار/الفرق؛ وسيتم تمييز المراجع في الأدوار والفرق المحفوظة للتصحيح، مع الاحتفاظ بلقطات السجل وسجلات التشغيل. تأكيد الحذف؟",
+      "deleteFailed": "تعذّر الحذف",
+      "derive": "حفظ كمهارة جديدة",
+      "derivedFrom": "مشتقة من",
+      "approve": "اعتماد ونشر",
+      "unapprove": "إلغاء الاعتماد",
+      "approvePrerequisite": "لا توجد لهذه المهارة تجربة ناجحة بعد؛ يلزم تشغيل تجريبي مؤهَّل واحد على الأقل.",
+      "approveFailed": "تعذّر الاعتماد/الإلغاء",
+      "assembledReadonly": "المهارات المضمنة أو المثبتة من المدير للقراءة فقط؛ يظل بإمكانك تجربتها أو حفظها كمهارة جديدة."
+    },
+    "form": {
+      "name": "اسم المهارة (فريد عالميًا)",
+      "nameInvalid": "الاسم مطلوب، وبحد أقصى {{number}} حرفًا، ويجب ألا يطابق مهارة مضمنة أو مهارة مخصصة أخرى.",
+      "purpose": "الغرض التجاري (موجز)",
+      "methodology": "المنهجية وتعليمات التشغيل",
+      "methodologyInvalid": "المنهجية مطلوبة وبحد أقصى {{number}} حرفًا.",
+      "inputs": "متطلبات الإدخال",
+      "outputs": "اصطلاحات الإخراج",
+      "template": "قالب الاشتقاق (اختياري)",
+      "templateNone": "بدون قالب، ابدأ من صفحة فارغة",
+      "templateApplying": "جارٍ تحميل محتوى القالب…",
+      "templateHint": "المهارات المعتمدة فقط يمكن استخدامها كقالب. عند الاختيار تُعبَّأ الأغراض والمنهجية والمدخلات والمخرجات تلقائيًا، ويجب إدخال اسم جديد.",
+      "templateLoadFailed": "تعذّر تحميل محتوى القالب؛ أعد المحاولة أو اختر قالبًا آخر",
+      "cancel": "إلغاء",
+      "save": "حفظ",
+      "saveAs": "حفظ كمهارة جديدة",
+      "saving": "جارٍ الحفظ…",
+      "saveFailed": "تعذّر الحفظ"
+    },
+    "run": {
+      "hint": "شغّل تجربةً مستقلة واحدة لهذه المهارة بهدف وسؤال بحث؛ النتيجة المؤهلة شرط أساسي لاعتماد مدير التشغيل.",
+      "targetPlaceholder": "هدف التقييم، مثل 600519.SH / ذهب COMEX",
+      "questionPlaceholder": "سؤال البحث لهذه التجربة",
+      "launch": "بدء التشغيل التجريبي",
+      "launchFailed": "تعذّر بدء التجربة"
+    },
+    "history": {
+      "loadError": "تعذّر تحميل سجل التجارب",
+      "scopeAll": "عرض سجلات التجارب لجميع المستثمرين (مراجعة التشغيل)"
+    },
+    "evaluations": {
+      "loadError": "تعذّر تحميل التقييمات",
+      "loading": "جارٍ تحميل التقييمات…",
+      "filterSkill": "اسم المهارة",
+      "filterSkillPlaceholder": "جزء من اسم المهارة",
+      "filterTarget": "كلمة الهدف",
+      "filterTargetPlaceholder": "جزء من الرمز أو الاسم",
+      "filterFrom": "تاريخ البداية",
+      "filterTo": "تاريخ النهاية",
+      "search": "بحث",
+      "clear": "مسح",
+      "columnSkill": "المهارة",
+      "empty": "لا توجد سجلات تقييم بعد."
     }
   }
 }

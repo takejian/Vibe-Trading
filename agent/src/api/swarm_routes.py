@@ -55,6 +55,11 @@ def _run_created_date(run: Any) -> date | None:
 
 def _run_summary_item(runtime: Any, reconciled: Any) -> dict:
     excerpt = (reconciled.final_report or "")[:280]
+    qualified = False
+    if (getattr(reconciled, "kind", None) or "team") == "skill_trial":
+        from src.swarm.skill_trials import trial_succeeded
+
+        qualified = trial_succeeded(reconciled)
     return {
         "id": reconciled.id,
         "preset_name": reconciled.preset_name,
@@ -73,6 +78,7 @@ def _run_summary_item(runtime: Any, reconciled: Any) -> dict:
         "trial_skill": getattr(reconciled, "trial_skill", None),
         "trial_role": getattr(reconciled, "trial_role", None),
         "final_report_excerpt": excerpt or None,
+        "qualified": qualified,
     }
 
 
@@ -187,30 +193,40 @@ def register_swarm_routes(
         date_from: date | None,
         date_to: date | None,
         limit: int,
+        trial_skill: str | None = None,
     ) -> list[dict]:
         runtime = _get_swarm_runtime()
-        runs = runtime._store.list_runs(limit=limit)
-        items: list[dict] = []
+        # Scan the full run history for static fields before truncating:
+        # filtering a mixed-kind window of only the newest N rows starved
+        # older skill trials out of "My evaluations". Reconciliation (which
+        # also finalizes zombie "running" rows) is applied to the matched
+        # rows actually returned.
+        runs = runtime._store.list_runs(limit=10_000)
+        needle = (target or "").strip().lower()
+        wanted_skill = (trial_skill or "").strip()
+        matched: list = []
         for r in runs:
-            # Reconcile each row: a zombie running run will be auto-finalized so
-            # the dashboard never shows a "running" stuck row.
-            reconciled = runtime._store.reconcile_run(r, write=True)
-            row_kind = getattr(reconciled, "kind", "team") or "team"
+            row_kind = getattr(r, "kind", "team") or "team"
             if kind != "all" and row_kind != kind:
                 continue
-            needle = (target or "").strip().lower()
+            if wanted_skill and getattr(r, "trial_skill", None) != wanted_skill:
+                continue
             if needle:
-                haystack = (getattr(reconciled, "research_target", None) or "").lower()
+                haystack = (getattr(r, "research_target", None) or "").lower()
                 if needle not in haystack:
                     continue
             if date_from is not None or date_to is not None:
-                created = _run_created_date(reconciled)
+                created = _run_created_date(r)
                 if created is None:
                     continue
                 if date_from is not None and created < date_from:
                     continue
                 if date_to is not None and created > date_to:
                     continue
+            matched.append(r)
+        items: list[dict] = []
+        for reconciled in matched[:limit]:
+            reconciled = runtime._store.reconcile_run(reconciled, write=True)
             items.append(_run_summary_item(runtime, reconciled))
         return items
 
@@ -511,10 +527,208 @@ def register_swarm_routes(
 
     @app.get("/swarm/skills/catalog", dependencies=[Depends(require_auth)])
     async def list_skill_catalog():
-        """All assembled skills with global approval state."""
+        """All assembled skills with approval state (incl. custom skills)."""
         from src.swarm.skill_catalog import list_assembled_skills
 
         return {"skills": list_assembled_skills()}
+
+    # ------------------------------------------------------------------
+    # Standalone Skill Plaza (M14): skill detail, personal custom skills
+    # ------------------------------------------------------------------
+
+    import re as _skill_re
+
+    _SKILL_REF_RE = _skill_re.compile(r"^[A-Za-z0-9_\u4e00-\u9fff][A-Za-z0-9_.:\u4e00-\u9fff-]{0,120}$")
+    _CUSTOM_SKILL_ID_RE = _skill_re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+    def _validate_skill_ref(ref: str) -> str:
+        ref = (ref or "").strip()
+        if not _SKILL_REF_RE.match(ref) or "/" in ref:
+            raise HTTPException(status_code=400, detail="技能引用不合法")
+        return ref
+
+    def _custom_skill_id(skill_id: str) -> str:
+        skill_id = (skill_id or "").strip()
+        if not _CUSTOM_SKILL_ID_RE.match(skill_id):
+            raise HTTPException(status_code=400, detail="自建技能标识不合法")
+        return skill_id
+
+    def _custom_skill_fields(payload: dict) -> dict:
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="body must be an object")
+        return {
+            "name": str(payload.get("name", "") or ""),
+            "purpose": str(payload.get("purpose", "") or ""),
+            "methodology": str(payload.get("methodology", "") or ""),
+            "inputs": str(payload.get("inputs", "") or ""),
+            "outputs": str(payload.get("outputs", "") or ""),
+        }
+
+    def _custom_skill_has_qualified_trial(skill_name: str) -> bool:
+        """Whether the custom skill has at least one successful trial."""
+        from src.swarm.skill_trials import trial_succeeded
+
+        runtime = _get_swarm_runtime()
+        # Scan the full history (not just the newest 100 mixed runs) so an
+        # older qualified run still satisfies the approval prerequisite.
+        for raw in runtime._store.list_runs(limit=10_000):
+            run = runtime._store.reconcile_run(raw, write=False)
+            if getattr(run, "kind", None) != "skill_trial":
+                continue
+            if getattr(run, "trial_skill", None) != skill_name:
+                continue
+            if trial_succeeded(run):
+                return True
+        return False
+
+    @app.get(
+        "/swarm/skills/{skill_ref}/detail",
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_skill_detail(skill_ref: str):
+        """Full profile of one skill (assembled package or custom skill)."""
+        skill_ref = _validate_skill_ref(skill_ref)
+        from src.swarm.skill_catalog import resolve_skill
+
+        try:
+            return resolve_skill(skill_ref)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/swarm/skills/custom", dependencies=[Depends(require_auth)])
+    async def create_custom_skill(payload: dict):
+        """Create a new unapproved personal custom skill.
+
+        Optional ``template_ref`` must point at a currently approved skill
+        (``assembled:<name>`` or a custom skill id).
+        """
+        from src.swarm.custom_skills import CustomSkillStore
+
+        fields = _custom_skill_fields(payload)
+        template_ref = str(payload.get("template_ref", "") or "").strip() or None
+        try:
+            if template_ref:
+                _validate_skill_ref(template_ref)
+            skill = CustomSkillStore().create_skill(
+                template_ref=template_ref, **fields
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "id": skill.id,
+            "name": skill.name,
+            "approved": skill.approved,
+            "derived_from": skill.derived_from,
+            "updated_at": skill.updated_at,
+        }
+
+    @app.put(
+        "/swarm/skills/custom/{skill_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def update_custom_skill(skill_id: str, payload: dict):
+        """Replace one custom skill definition in place (approval preserved)."""
+        from src.swarm.custom_skills import CustomSkillStore
+
+        skill_id = _custom_skill_id(skill_id)
+        fields = _custom_skill_fields(payload)
+        try:
+            skill = CustomSkillStore().update_skill(skill_id, **fields)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "id": skill.id,
+            "name": skill.name,
+            "approved": skill.approved,
+            "updated_at": skill.updated_at,
+        }
+
+    @app.delete(
+        "/swarm/skills/custom/{skill_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    async def delete_custom_skill(skill_id: str):
+        """Delete one custom skill (package + record); trial history kept."""
+        from src.swarm.custom_skills import CustomSkillStore
+
+        skill_id = _custom_skill_id(skill_id)
+        try:
+            CustomSkillStore().delete_skill(skill_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return {"status": "deleted"}
+
+    @app.post(
+        "/swarm/skills/custom/{skill_id}/approve",
+        dependencies=[Depends(require_auth)],
+    )
+    async def approve_custom_skill(skill_id: str):
+        """Operator action: approve a custom skill after a qualified trial."""
+        if not _skill_admin_enabled():
+            raise HTTPException(
+                status_code=403, detail="Skill administration is disabled"
+            )
+        from src.swarm.custom_skills import CustomSkillStore
+
+        skill_id = _custom_skill_id(skill_id)
+        store = CustomSkillStore()
+        try:
+            skill = store.get_skill(skill_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        if not _custom_skill_has_qualified_trial(skill.name):
+            raise HTTPException(
+                status_code=409,
+                detail="该技能尚无合格的试运行记录，无法放开通过",
+            )
+        approved = store.approve(skill_id)
+        return {
+            "id": approved.id,
+            "approved": approved.approved,
+            "approved_at": approved.approved_at,
+        }
+
+    @app.post(
+        "/swarm/skills/custom/{skill_id}/unapprove",
+        dependencies=[Depends(require_auth)],
+    )
+    async def unapprove_custom_skill(skill_id: str):
+        """Operator action: revoke a custom skill approval."""
+        if not _skill_admin_enabled():
+            raise HTTPException(
+                status_code=403, detail="Skill administration is disabled"
+            )
+        from src.swarm.custom_skills import CustomSkillStore
+
+        skill_id = _custom_skill_id(skill_id)
+        try:
+            skill = CustomSkillStore().unapprove(skill_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return {"id": skill.id, "approved": skill.approved}
+
+    @app.post(
+        "/swarm/skills/import-personal",
+        dependencies=[Depends(require_auth)],
+    )
+    async def import_personal_skill_package(file: UploadFile = File(...)):
+        """Any user may import a zip as personal unapproved custom skill(s)."""
+        from src.swarm.custom_skills import CustomSkillStore
+        from src.swarm.skill_packages import SkillPackageError
+
+        payload = await file.read()
+        try:
+            created = CustomSkillStore().import_zip_bytes(payload)
+        except SkillPackageError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=e.reasons if len(e.reasons) > 1 else e.reasons[0],
+            )
+        return {"installed": [{"id": item.id, "name": item.name} for item in created]}
 
     @app.post("/swarm/skill-trials", dependencies=[Depends(require_auth)])
     async def create_skill_trial(payload: dict, http_request: Request):
@@ -549,18 +763,25 @@ def register_swarm_routes(
         date_from: date | None = Query(None, alias="from"),
         date_to: date | None = Query(None, alias="to"),
         skill_name: str = Query("", max_length=100),
+        scope: str = Query("mine", pattern="^(mine|all)$"),
     ):
-        """Trial history (runs of kind=skill_trial), newest first."""
+        """Trial history (runs of kind=skill_trial), newest first.
+
+        ``scope=all`` (every investor's records from the operator review
+        perspective) requires the skill-administration switch.
+        """
+        if scope == "all" and not _skill_admin_enabled():
+            raise HTTPException(
+                status_code=403, detail="Skill administration is disabled"
+            )
         items = _list_runs_filtered(
             kind="skill_trial",
             target=target,
             date_from=date_from,
             date_to=date_to,
             limit=limit,
+            trial_skill=skill_name or None,
         )
-        wanted = (skill_name or "").strip()
-        if wanted:
-            items = [item for item in items if item.get("trial_skill") == wanted]
         return items
 
     # ------------------------------------------------------------------
@@ -762,7 +983,9 @@ def register_swarm_routes(
         from src.swarm.role_runs import role_run_succeeded
 
         runtime = _get_swarm_runtime()
-        for raw in runtime._store.list_runs(limit=100):
+        # Scan the full history (not just the newest 100 mixed runs) so an
+        # older qualified run still satisfies the approval prerequisite.
+        for raw in runtime._store.list_runs(limit=10_000):
             run = runtime._store.reconcile_run(raw, write=False)
             if getattr(run, "kind", None) != "role_run":
                 continue

@@ -36,7 +36,8 @@
     "portfolio": "Portfolio",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "Skill-Marktplatz"
   },
   "runtime": {
     "monitorBadge": "Runtime-Monitor",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "Skill-Marktplatz",
+    "subtitle": "Alle wiederverwendbaren Finance-Skills: eingebaute Skills sind schreibgeschützt; eigene Skills werden erst nach Freigabe durch einen Betriebsadministrator für alle wählbar.",
+    "tabs": {
+      "plaza": "Skill-Marktplatz",
+      "evaluations": "Meine Auswertungen",
+      "profile": "Skill-Profil",
+      "run": "Probelauf",
+      "history": "Probelauf-Verlauf"
+    },
+    "groups": {
+      "builtin": "Eingebaute Skills",
+      "builtinHint": "Alle eingebauten und vom Administrator installierten Skills, für alle sichtbar.",
+      "custom": "Meine eigenen Skills",
+      "customHint": "Von Ihnen erstellte Skills: freigegebene sind für alle wählbar, nicht freigegebene nur für Sie sichtbar."
+    },
+    "list": {
+      "create": "＋ Skill erstellen",
+      "groupSearch": "In dieser Gruppe suchen",
+      "approved": "Freigegeben",
+      "approvedMine": "Freigegeben · von mir erstellt",
+      "unapprovedMine": "Nicht freigegeben · von mir erstellt",
+      "noMatchInGroup": "Kein passender Skill in dieser Gruppe",
+      "emptyGroup": "Diese Gruppe enthält noch keine Skills",
+      "loading": "Skills werden geladen…",
+      "loadError": "Skill-Liste konnte nicht geladen werden",
+      "retry": "Erneut versuchen"
+    },
+    "personal": {
+      "button": "⬆ Skill-zip-Paket importieren",
+      "importDone": "{{number}} persönliche(s) Skill(s) importiert.",
+      "importFailed": "Import des persönlichen Skill-Pakets fehlgeschlagen."
+    },
+    "admin": {
+      "title": "Skill-Paketverwaltung (nur Betriebsadministratoren)",
+      "hint": "Finanz-Skill-zip-Pakete von Dritten importieren oder Finanz-Skills von der konfigurierten Quelle synchronisieren. Nicht-finanzielle oder unvollständige Pakete werden abgelehnt.",
+      "import": "zip-Paket importieren",
+      "importing": "Import läuft…",
+      "importDone": "{{number}} Skill-Paket(e) installiert.",
+      "importFailed": "Skill-Paket-Import fehlgeschlagen.",
+      "sync": "Jetzt synchronisieren",
+      "syncNotConfigured": "Keine Synchronisationsquelle konfiguriert (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "Skill-Synchronisation fehlgeschlagen.",
+      "syncAdded": "Hinzugefügt: {{number}}",
+      "syncUpdated": "Aktualisiert: {{number}}",
+      "syncRemoved": "Entfernt: {{number}}",
+      "syncRejected": "Abgelehnt: {{number}}"
+    },
+    "detail": {
+      "backToList": "Zurück zum Skill-Marktplatz",
+      "createTitle": "Neuen Skill erstellen",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "deleteConfirm": "Nach dem Löschen verschwindet der Skill sofort aus allen Rollen-/Team-Auswahllisten; Referenzen in gespeicherten Rollen und Teams werden zur Korrektur markiert, historische Snapshots und Laufaufzeichnungen bleiben erhalten. Löschen bestätigen?",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "derive": "Als neuen Skill speichern",
+      "derivedFrom": "Abgeleitet von",
+      "approve": "Freigeben",
+      "unapprove": "Freigabe widerrufen",
+      "approvePrerequisite": "Dieser Skill hat noch keinen bestandenen Probelauf. Mindestens ein qualifizierter Probelauf ist erforderlich.",
+      "approveFailed": "Freigabe/Widerruf fehlgeschlagen",
+      "assembledReadonly": "Eingebaute und vom Administrator installierte Skills sind schreibgeschützt; Probelauf und „Als neuen Skill speichern“ sind weiterhin möglich."
+    },
+    "form": {
+      "name": "Skill-Name (global eindeutig)",
+      "nameInvalid": "Der Name ist erforderlich, darf höchstens {{number}} Zeichen lang sein und darf keinem eingebauten oder anderen eigenen Skill entsprechen.",
+      "purpose": "Geschäftszweck (Kurzform)",
+      "methodology": "Methodik und Bedienungsanleitung",
+      "methodologyInvalid": "Die Methodik ist erforderlich und darf höchstens {{number}} Zeichen lang sein.",
+      "inputs": "Eingabevoraussetzungen",
+      "outputs": "Ausgabevorgaben",
+      "template": "Ableitungsvorlage (optional)",
+      "templateNone": "Ohne Vorlage, neu beginnen",
+      "templateApplying": "Vorlageninhalt wird geladen…",
+      "templateHint": "Nur freigegebene Skills können als Vorlage dienen. Bei Auswahl werden Zweck, Methodik, Ein- und Ausgaben vorausgefüllt; der Name muss neu vergeben werden.",
+      "templateLoadFailed": "Vorlageninhalt konnte nicht geladen werden. Erneut versuchen oder andere Vorlage wählen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "saveAs": "Als neuen Skill speichern",
+      "saving": "Wird gespeichert…",
+      "saveFailed": "Speichern fehlgeschlagen"
+    },
+    "run": {
+      "hint": "Ein einmaliger unabhängiger Probelauf dieses Skills mit Ziel und Forschungsfrage. Eine qualifizierte Schlussfolgerung ist die Voraussetzung für die Administratorfreigabe.",
+      "targetPlaceholder": "Auswertungsziel, z. B. 600519.SH / COMEX-Gold",
+      "questionPlaceholder": "Forschungsfrage für diesen Probelauf",
+      "launch": "Probelauf starten",
+      "launchFailed": "Probelauf konnte nicht gestartet werden"
+    },
+    "history": {
+      "loadError": "Probelauf-Verlauf konnte nicht geladen werden",
+      "scopeAll": "Probelauf-Aufzeichnungen aller Anleger ansehen (Betriebsprüfung)"
+    },
+    "evaluations": {
+      "loadError": "Auswertungen konnten nicht geladen werden",
+      "loading": "Auswertungen werden geladen…",
+      "filterSkill": "Skill-Name",
+      "filterSkillPlaceholder": "Teil des Skill-Namens",
+      "filterTarget": "Ziel-Schlüsselwort",
+      "filterTargetPlaceholder": "Code- oder Namensfragment",
+      "filterFrom": "Von Datum",
+      "filterTo": "Bis Datum",
+      "search": "Suchen",
+      "clear": "Leeren",
+      "columnSkill": "Skill",
+      "empty": "Noch keine Auswertungen."
     }
   }
 }

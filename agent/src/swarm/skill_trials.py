@@ -126,3 +126,22 @@ def trial_succeeded(run: SwarmRun) -> bool:
         if task.status == TaskStatus.completed and (task.summary or "").strip()
     ]
     return bool(terminal) or bool((run.final_report or "").strip())
+
+
+def trial_qualifies_for_global_approval(run: SwarmRun) -> bool:
+    """Whether a successful trial flips the *global* package approval bit.
+
+    Only assembled (built-in/operator-installed) skills auto-approve on a
+    qualified trial. Personal custom skills follow the manual operator
+    approval path; a deleted in-flight custom skill must not leave a stale
+    global approval for its name either.
+    """
+    from src.swarm.skill_catalog import (
+        assembled_skill_names,
+        is_custom_skill_name,
+    )
+
+    name = getattr(run, "trial_skill", None)
+    if not name or not trial_succeeded(run):
+        return False
+    return name in assembled_skill_names() and not is_custom_skill_name(name)

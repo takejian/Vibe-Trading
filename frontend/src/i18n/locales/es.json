@@ -36,7 +36,8 @@
     "about": "Acerca de",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "Plaza de habilidades"
   },
   "runtime": {
     "monitorBadge": "Monitor de Runtime",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "Plaza de habilidades",
+    "subtitle": "Todas las habilidades financieras reutilizables: las integradas son de solo lectura; las habilidades propias pasan a estar disponibles para todos solo tras la aprobación del administrador operativo.",
+    "tabs": {
+      "plaza": "Plaza de habilidades",
+      "evaluations": "Mis evaluaciones",
+      "profile": "Ficha de habilidad",
+      "run": "Prueba",
+      "history": "Historial de pruebas"
+    },
+    "groups": {
+      "builtin": "Habilidades integradas",
+      "builtinHint": "Todas las habilidades integradas e instaladas globalmente, visibles para todos.",
+      "custom": "Mis habilidades personalizadas",
+      "customHint": "Habilidades creadas por usted: las aprobadas son seleccionables por todos; las no aprobadas solo son visibles para usted."
+    },
+    "list": {
+      "create": "＋ Crear habilidad",
+      "groupSearch": "Buscar en este grupo",
+      "approved": "Aprobada",
+      "approvedMine": "Aprobada · creada por mí",
+      "unapprovedMine": "No aprobada · creada por mí",
+      "noMatchInGroup": "Ninguna habilidad coincide en este grupo",
+      "emptyGroup": "Aún no hay habilidades en este grupo",
+      "loading": "Cargando habilidades…",
+      "loadError": "Error al cargar la lista de habilidades",
+      "retry": "Reintentar"
+    },
+    "personal": {
+      "button": "⬆ Importar paquete zip de habilidad",
+      "importDone": "Se importaron {{number}} habilidades personales.",
+      "importFailed": "Error al importar el paquete personal."
+    },
+    "admin": {
+      "title": "Administración de paquetes de habilidades (solo administradores operativos)",
+      "hint": "Importe paquetes zip de habilidades financieras de terceros o sincronice habilidades financieras desde la fuente configurada. Se rechazan los paquetes no financieros o incompletos.",
+      "import": "Importar paquete zip",
+      "importing": "Importando…",
+      "importDone": "Se ensamblaron {{number}} paquetes de habilidades.",
+      "importFailed": "Error al importar el paquete.",
+      "sync": "Sincronizar ahora",
+      "syncNotConfigured": "Fuente de sincronización no configurada (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "Error de sincronización de habilidades.",
+      "syncAdded": "Añadidas: {{number}}",
+      "syncUpdated": "Actualizadas: {{number}}",
+      "syncRemoved": "Retiradas: {{number}}",
+      "syncRejected": "Rechazadas: {{number}}"
+    },
+    "detail": {
+      "backToList": "Volver a la plaza de habilidades",
+      "createTitle": "Crear habilidad",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "deleteConfirm": "Al eliminar, la habilidad desaparecerá de inmediato de todos los selectores de roles/equipos; las referencias en roles y equipos guardados se marcarán para corrección, y las instantáneas históricas y registros de ejecución se conservan. ¿Confirmar eliminación?",
+      "deleteFailed": "Error al eliminar",
+      "derive": "Guardar como habilidad nueva",
+      "derivedFrom": "Derivada de",
+      "approve": "Aprobar y publicar",
+      "unapprove": "Revocar aprobación",
+      "approvePrerequisite": "Esta habilidad aún no tiene ninguna prueba superada; se requiere al menos un resultado de prueba calificado.",
+      "approveFailed": "Error al aprobar/revocar",
+      "assembledReadonly": "Las habilidades integradas o instaladas por el administrador son de solo lectura; puede probarlas o guardarlas como una habilidad nueva."
+    },
+    "form": {
+      "name": "Nombre de la habilidad (único a nivel global)",
+      "nameInvalid": "El nombre es obligatorio, debe tener máximo {{number}} caracteres y no coincidir con una habilidad integrada u otra personalizada.",
+      "purpose": "Propósito comercial (resumen)",
+      "methodology": "Metodología e instrucciones operativas",
+      "methodologyInvalid": "La metodología es obligatoria y no debe superar los {{number}} caracteres.",
+      "inputs": "Requisitos de entrada",
+      "outputs": "Convenciones de salida",
+      "template": "Plantilla de derivación (opcional)",
+      "templateNone": "Sin plantilla, empezar desde cero",
+      "templateApplying": "Cargando contenido de la plantilla…",
+      "templateHint": "Solo las habilidades aprobadas pueden servir como plantilla. Al seleccionar se rellenan el propósito, metodología, entradas y salidas; debe escribir un nombre nuevo.",
+      "templateLoadFailed": "No se pudo cargar la plantilla; reintente o elija otra",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saveAs": "Guardar como habilidad nueva",
+      "saving": "Guardando…",
+      "saveFailed": "Error al guardar"
+    },
+    "run": {
+      "hint": "Ejecute una prueba independiente de esta habilidad con un objetivo y una pregunta; una conclusión calificada es el requisito previo para la aprobación del administrador.",
+      "targetPlaceholder": "Objetivo de evaluación, p. ej. 600519.SH / oro COMEX",
+      "questionPlaceholder": "Pregunta de investigación de esta prueba",
+      "launch": "Iniciar prueba",
+      "launchFailed": "Error al iniciar la prueba"
+    },
+    "history": {
+      "loadError": "Error al cargar el historial de pruebas",
+      "scopeAll": "Ver los registros de prueba de todos los inversores (revisión operativa)"
+    },
+    "evaluations": {
+      "loadError": "Error al cargar las evaluaciones",
+      "loading": "Cargando evaluaciones…",
+      "filterSkill": "Nombre de habilidad",
+      "filterSkillPlaceholder": "Fragmento del nombre",
+      "filterTarget": "Palabra clave del objetivo",
+      "filterTargetPlaceholder": "Fragmento de código o nombre",
+      "filterFrom": "Fecha inicial",
+      "filterTo": "Fecha final",
+      "search": "Consultar",
+      "clear": "Limpiar",
+      "columnSkill": "Habilidad",
+      "empty": "Aún no hay registros de evaluación."
     }
   }
 }

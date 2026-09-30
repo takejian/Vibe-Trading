@@ -695,14 +695,22 @@ class SwarmRuntime:
         self._store.update_run(run)
         self._emit_event(run_id, self._make_event("run_completed", data={"status": final_status.value}))
 
-        # Skill Square admission: one successful standalone trial approves the
-        # skill globally. Later failures never revoke an existing approval.
+        # Skill Square admission: one successful standalone trial approves
+        # an *assembled* (built-in/operator-installed) skill globally.
+        # Personal custom skills follow the manual operator-approval path
+        # (a qualified trial is only the prerequisite), so never flip their
+        # approval bit here — including when the custom record (or its
+        # materialized directory) was deleted while the trial was in flight,
+        # which must not leave a stale global approval behind. Later failures
+        # never revoke an approval either.
         if run.kind == "skill_trial" and run.trial_skill:
             try:
                 from src.swarm.skill_approvals import SkillApprovalStore
-                from src.swarm.skill_trials import trial_succeeded
+                from src.swarm.skill_trials import (
+                    trial_qualifies_for_global_approval,
+                )
 
-                if trial_succeeded(run):
+                if trial_qualifies_for_global_approval(run):
                     SkillApprovalStore().mark_approved(
                         run.trial_skill, source_run_id=run.id
                     )

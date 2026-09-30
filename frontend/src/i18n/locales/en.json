@@ -36,7 +36,8 @@
     "about": "About",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "Skill Plaza"
   },
   "runtime": {
     "monitorBadge": "Runtime Monitor",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "Skill Plaza",
+    "subtitle": "Every reusable finance skill: assembled skills are read-only; personal custom skills become selectable for everyone only after an operator approves them.",
+    "tabs": {
+      "plaza": "Skill Plaza",
+      "evaluations": "My Evaluations",
+      "profile": "Skill Profile",
+      "run": "Trial Run",
+      "history": "Trial History"
+    },
+    "groups": {
+      "builtin": "Built-in Skills",
+      "builtinHint": "All assembled built-in and operator-installed skills, visible to everyone.",
+      "custom": "My Custom Skills",
+      "customHint": "Skills you created; approved ones are selectable for everyone, unapproved ones are visible only to you."
+    },
+    "list": {
+      "create": "＋ Create skill",
+      "groupSearch": "Search within this group",
+      "approved": "Approved",
+      "approvedMine": "Approved · created by me",
+      "unapprovedMine": "Unapproved · created by me",
+      "noMatchInGroup": "No matching skill in this group",
+      "emptyGroup": "No skills in this group yet",
+      "loading": "Loading skills…",
+      "loadError": "Failed to load skills",
+      "retry": "Retry"
+    },
+    "personal": {
+      "button": "⬆ Import zip skill package",
+      "importDone": "Imported {{number}} personal skill(s).",
+      "importFailed": "Personal skill package import failed."
+    },
+    "admin": {
+      "title": "Skill package administration (operators only)",
+      "hint": "Import third-party finance skill zips or sync finance skills from the configured source. Non-finance or incomplete packages are rejected.",
+      "import": "Import zip package",
+      "importing": "Importing…",
+      "importDone": "Successfully assembled {{number}} skill package(s).",
+      "importFailed": "Skill package import failed.",
+      "sync": "Sync now",
+      "syncNotConfigured": "Sync source not configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "Skill sync failed.",
+      "syncAdded": "Added: {{number}}",
+      "syncUpdated": "Updated: {{number}}",
+      "syncRemoved": "Removed: {{number}}",
+      "syncRejected": "Rejected: {{number}}"
+    },
+    "detail": {
+      "backToList": "Back to Skill Plaza",
+      "createTitle": "Create skill",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Deleting removes this skill from every role/team picker immediately; references in saved roles and teams will be flagged for correction, while historical snapshots and run records are kept. Confirm deletion?",
+      "deleteFailed": "Delete failed",
+      "derive": "Save as new skill",
+      "derivedFrom": "Derived from",
+      "approve": "Approve",
+      "unapprove": "Revoke approval",
+      "approvePrerequisite": "Approve is available only after at least one qualified trial run of this skill.",
+      "approveFailed": "Approve / revoke failed",
+      "assembledReadonly": "Assembled skills are read-only; you can still trial them or save them as a new custom skill."
+    },
+    "form": {
+      "name": "Skill name (globally unique)",
+      "nameInvalid": "Name is required, at most {{number}} characters, and must not duplicate a built-in or another custom skill.",
+      "purpose": "Business purpose (short)",
+      "methodology": "Methodology and operating instructions",
+      "methodologyInvalid": "Methodology is required and must not exceed {{number}} characters.",
+      "inputs": "Input requirements",
+      "outputs": "Output conventions",
+      "template": "Derivation template (optional)",
+      "templateNone": "No template, start from blank",
+      "templateApplying": "Loading template content…",
+      "templateHint": "Only approved skills can be templates. Selecting one prefills purpose, methodology, inputs and outputs; the name must be entered anew.",
+      "templateLoadFailed": "Failed to load template content; retry or pick another template",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saveAs": "Save as new skill",
+      "saving": "Saving…",
+      "saveFailed": "Save failed"
+    },
+    "run": {
+      "hint": "Run one standalone trial of this skill with a target and question; a qualified conclusion is the prerequisite for operator approval.",
+      "targetPlaceholder": "Evaluation target, e.g. 600519.SH / COMEX Gold",
+      "questionPlaceholder": "Research question for this trial",
+      "launch": "Start trial run",
+      "launchFailed": "Failed to start the trial"
+    },
+    "history": {
+      "loadError": "Failed to load trial history",
+      "scopeAll": "View every investor's trial records (operator review)"
+    },
+    "evaluations": {
+      "loadError": "Failed to load evaluations",
+      "loading": "Loading evaluations…",
+      "filterSkill": "Skill name",
+      "filterSkillPlaceholder": "Skill name fragment",
+      "filterTarget": "Target keyword",
+      "filterTargetPlaceholder": "Code or name fragment",
+      "filterFrom": "From date",
+      "filterTo": "To date",
+      "search": "Search",
+      "clear": "Clear",
+      "columnSkill": "Skill",
+      "empty": "No evaluation records yet."
     }
   }
 }

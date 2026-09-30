@@ -36,7 +36,8 @@
     "about": "Tentang",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "Plaza Keterampilan"
   },
   "runtime": {
     "monitorBadge": "Monitor Runtime",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "Plaza Keterampilan",
+    "subtitle": "Semua keterampilan keuangan yang dapat dipakai ulang: keterampilan bawaan bersifat hanya-baca; keterampilan buatan Anda baru dapat dipilih semua orang setelah disetujui administrator operasional.",
+    "tabs": {
+      "plaza": "Plaza Keterampilan",
+      "evaluations": "Evaluasi Saya",
+      "profile": "Profil Keterampilan",
+      "run": "Uji Coba",
+      "history": "Riwayat Uji Coba"
+    },
+    "groups": {
+      "builtin": "Keterampilan Bawaan",
+      "builtinHint": "Semua keterampilan bawaan dan yang dipasang administrator, terlihat semua orang.",
+      "custom": "Keterampilan Kustom Saya",
+      "customHint": "Keterampilan yang Anda buat: yang disetujui dapat dipilih semua orang, yang belum disetujui hanya terlihat oleh Anda."
+    },
+    "list": {
+      "create": "＋ Buat keterampilan",
+      "groupSearch": "Cari di grup ini",
+      "approved": "Disetujui",
+      "approvedMine": "Disetujui · saya yang membuat",
+      "unapprovedMine": "Belum disetujui · saya yang membuat",
+      "noMatchInGroup": "Tidak ada keterampilan yang cocok di grup ini",
+      "emptyGroup": "Belum ada keterampilan di grup ini",
+      "loading": "Memuat keterampilan…",
+      "loadError": "Gagal memuat daftar keterampilan",
+      "retry": "Coba lagi"
+    },
+    "personal": {
+      "button": "⬆ Impor paket zip keterampilan",
+      "importDone": "Berhasil mengimpor {{number}} keterampilan pribadi.",
+      "importFailed": "Gagal mengimpor paket pribadi."
+    },
+    "admin": {
+      "title": "Administrasi paket keterampilan (khusus administrator)",
+      "hint": "Impor paket zip keterampilan keuangan pihak ketiga atau sinkronkan keterampilan keuangan dari sumber yang dikonfigurasi. Paket non-keuangan atau tidak lengkap akan ditolak.",
+      "import": "Impor paket zip",
+      "importing": "Mengimpor…",
+      "importDone": "Berhasil memasang {{number}} paket keterampilan.",
+      "importFailed": "Gagal mengimpor paket.",
+      "sync": "Sinkronkan sekarang",
+      "syncNotConfigured": "Sumber sinkronisasi belum dikonfigurasi (VIBE_TRADING_SKILL_SYNC_SOURCE).",
+      "syncFailed": "Sinkronisasi keterampilan gagal.",
+      "syncAdded": "Ditambahkan: {{number}}",
+      "syncUpdated": "Diperbarui: {{number}}",
+      "syncRemoved": "Dihapus: {{number}}",
+      "syncRejected": "Ditolak: {{number}}"
+    },
+    "detail": {
+      "backToList": "Kembali ke Plaza Keterampilan",
+      "createTitle": "Buat keterampilan",
+      "edit": "Edit",
+      "delete": "Hapus",
+      "deleteConfirm": "Setelah dihapus, keterampilan langsung keluar dari semua daftar pilihan peran/tim; referensi di peran dan tim tersimpan akan ditandai untuk dikoreksi, sedangkan snapshot riwayat dan catatan eksekusi tetap dipertahankan. Konfirmasi hapus?",
+      "deleteFailed": "Gagal menghapus",
+      "derive": "Simpan sebagai keterampilan baru",
+      "derivedFrom": "Diturunkan dari",
+      "approve": "Setujui dan terbitkan",
+      "unapprove": "Cabut persetujuan",
+      "approvePrerequisite": "Keterampilan ini belum punya uji coba yang lulus; diperlukan setidaknya satu hasil uji coba yang memenuhi syarat.",
+      "approveFailed": "Gagal menyetujui/mencabut",
+      "assembledReadonly": "Keterampilan bawaan/pasangan administrator bersifat hanya-baca; Anda tetap bisa mengujinya atau menyimpannya sebagai keterampilan baru."
+    },
+    "form": {
+      "name": "Nama keterampilan (unik secara global)",
+      "nameInvalid": "Nama wajib diisi, maksimal {{number}} karakter, dan tidak boleh sama dengan keterampilan bawaan atau keterampilan kustom lain.",
+      "purpose": "Tujuan bisnis (ringkas)",
+      "methodology": "Metodologi dan instruksi operasi",
+      "methodologyInvalid": "Metodologi wajib diisi dan maksimal {{number}} karakter.",
+      "inputs": "Persyaratan input",
+      "outputs": "Ketentuan output",
+      "template": "Templat turunan (opsional)",
+      "templateNone": "Tanpa templat, mulai dari kosong",
+      "templateApplying": "Memuat konten templat…",
+      "templateHint": "Hanya keterampilan yang disetujui yang bisa menjadi templat. Saat dipilih, tujuan, metodologi, input dan output akan terisi otomatis; nama keterampilan harus diisi ulang.",
+      "templateLoadFailed": "Gagal memuat konten templat; coba lagi atau pilih templat lain",
+      "cancel": "Batal",
+      "save": "Simpan",
+      "saveAs": "Simpan sebagai keterampilan baru",
+      "saving": "Menyimpan…",
+      "saveFailed": "Gagal menyimpan"
+    },
+    "run": {
+      "hint": "Jalankan satu uji coba mandiri untuk keterampilan ini dengan target dan pertanyaan; kesimpulan yang memenuhi syarat adalah prasyarat persetujuan administrator.",
+      "targetPlaceholder": "Target evaluasi, mis. 600519.SH / emas COMEX",
+      "questionPlaceholder": "Pertanyaan riset untuk uji coba ini",
+      "launch": "Mulai uji coba",
+      "launchFailed": "Gagal memulai uji coba"
+    },
+    "history": {
+      "loadError": "Gagal memuat riwayat uji coba",
+      "scopeAll": "Lihat catatan uji coba semua investor (tinjauan operasional)"
+    },
+    "evaluations": {
+      "loadError": "Gagal memuat evaluasi",
+      "loading": "Memuat evaluasi…",
+      "filterSkill": "Nama keterampilan",
+      "filterSkillPlaceholder": "Potongan nama keterampilan",
+      "filterTarget": "Kata kunci target",
+      "filterTargetPlaceholder": "Potongan kode atau nama",
+      "filterFrom": "Dari tanggal",
+      "filterTo": "Sampai tanggal",
+      "search": "Cari",
+      "clear": "Bersihkan",
+      "columnSkill": "Keterampilan",
+      "empty": "Belum ada catatan evaluasi."
     }
   }
 }

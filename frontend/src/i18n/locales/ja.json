@@ -31,7 +31,8 @@
     "about": "概要",
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
-    "roleSquare": "Role Square"
+    "roleSquare": "Role Square",
+    "skillPlaza": "スキル広場"
   },
   "runtime": {
     "monitorBadge": "取引モニター",
@@ -1860,8 +1861,7 @@
     "subtitle": "Pick a built-in team, adjust roles and handoffs for this evaluation, then launch. Edits apply only to this run.",
     "tabs": {
       "studio": "Orchestrate",
-      "history": "My evaluations",
-      "skills": "Skill Square"
+      "history": "My evaluations"
     },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
@@ -2000,41 +2000,6 @@
       "loadError": "Failed to load custom teams.",
       "saveFailed": "Failed to save the custom team.",
       "deleteFailed": "Failed to delete the custom team."
-    },
-    "skills": {
-      "pageHint": "Assembled finance skills, standalone trials, and operator-only package administration.",
-      "loading": "Loading skills…",
-      "loadError": "Failed to load the skill catalog.",
-      "catalogTitle": "Assembled skills",
-      "catalogHint": "A skill becomes globally approved after any successful standalone trial. Approved skills can be added to roles on the canvas.",
-      "catalogEmpty": "No skills are assembled.",
-      "approved": "Approved",
-      "approvedHint": "Passed at least one standalone trial",
-      "sourceBundled": "built-in",
-      "sourceUser": "imported",
-      "trial": "Trial",
-      "trialTitle": "Run a standalone skill trial",
-      "trialHint": "Provide an evaluation target and a research question. Only you can see your trial history; one success marks the skill as approved for everyone.",
-      "trialSkillPlaceholder": "Skill name",
-      "trialTargetPlaceholder": "Evaluation target (code / name)",
-      "trialQuestionPlaceholder": "Research question",
-      "trialLaunch": "Launch trial",
-      "trialFailed": "Failed to launch the skill trial.",
-      "trialsLoadError": "Failed to load trial history.",
-      "adminTitle": "Skill package administration (operator only)",
-      "adminHint": "Import a third-party finance skill zip, or one-click sync from the configured source. Non-finance or incomplete packages are rejected.",
-      "import": "Import zip",
-      "importing": "Importing…",
-      "importDone": "Successfully installed {{number}} skill package(s).",
-      "importFailed": "Skill package import failed.",
-      "sync": "Sync now",
-      "syncNotConfigured": "No sync source configured (VIBE_TRADING_SKILL_SYNC_SOURCE).",
-      "syncFailed": "Skill sync failed.",
-      "syncAdded": "Added: {{number}}",
-      "syncUpdated": "Updated: {{number}}",
-      "syncRemoved": "Removed: {{number}}",
-      "syncRejected": "Rejected: {{number}}",
-      "trialsHistoryTitle": "My skill trial history"
     }
   },
   "roleSquare": {
@@ -2110,6 +2075,114 @@
       "searchPlaceholder": "Search by name or purpose",
       "loading": "Loading…",
       "empty": "No roles available"
+    }
+  },
+  "skillPlaza": {
+    "title": "スキル広場",
+    "subtitle": "再利用可能なすべての金融スキル。組み込みスキルは読み取り専用です。個人で作成したスキルは、運用管理者が承認すると全員が選択できるようになります。",
+    "tabs": {
+      "plaza": "スキル広場",
+      "evaluations": "マイ評価",
+      "profile": "スキルプロフィール",
+      "run": "試運転",
+      "history": "試運転履歴"
+    },
+    "groups": {
+      "builtin": "組み込みスキル",
+      "builtinHint": "組み込み済みおよび管理者導入済みのすべてのスキル（全員に表示）。",
+      "custom": "マイカスタムスキル",
+      "customHint": "自分が作成したスキル。承認済みは全員が選択可能、未承認は本人のみ表示されます。"
+    },
+    "list": {
+      "create": "＋ スキルを作成",
+      "groupSearch": "このグループ内を検索",
+      "approved": "承認済み",
+      "approvedMine": "承認済み・自分が作成",
+      "unapprovedMine": "未承認・自分が作成",
+      "noMatchInGroup": "このグループに一致するスキルはありません",
+      "emptyGroup": "このグループにはまだスキルがありません",
+      "loading": "スキルを読み込み中…",
+      "loadError": "スキル一覧の読み込みに失敗しました",
+      "retry": "再試行"
+    },
+    "personal": {
+      "button": "⬆ zipスキルパッケージをインポート",
+      "importDone": "個人スキルを {{number}} 件インポートしました。",
+      "importFailed": "個人スキルパッケージのインポートに失敗しました。"
+    },
+    "admin": {
+      "title": "スキルパッケージ管理（運用管理者のみ）",
+      "hint": "サードパーティの金融スキル zip をインポートするか、設定済みソースから金融スキルを同期します。金融と無関係または要素が不完全なパッケージは拒否されます。",
+      "import": "zipパッケージをインポート",
+      "importing": "インポート中…",
+      "importDone": "{{number}} 個のスキルパッケージを導入しました。",
+      "importFailed": "スキルパッケージのインポートに失敗しました。",
+      "sync": "今すぐ同期",
+      "syncNotConfigured": "同期元が未設定です（VIBE_TRADING_SKILL_SYNC_SOURCE）。",
+      "syncFailed": "スキルの同期に失敗しました。",
+      "syncAdded": "追加：{{number}}",
+      "syncUpdated": "更新：{{number}}",
+      "syncRemoved": "削除：{{number}}",
+      "syncRejected": "拒否：{{number}}"
+    },
+    "detail": {
+      "backToList": "スキル広場に戻る",
+      "createTitle": "スキルを作成",
+      "edit": "編集",
+      "delete": "削除",
+      "deleteConfirm": "削除すると、このスキルはすべてのロール/チームの選択肢から直ちに外れます。保存済みロールとチーム内の参照は修正対象として強調表示され、過去のスナップショットと実行記録はそのまま保持されます。削除しますか？",
+      "deleteFailed": "削除に失敗しました",
+      "derive": "新規スキルとして保存",
+      "derivedFrom": "派生元",
+      "approve": "承認して公開",
+      "unapprove": "承認を取り消す",
+      "approvePrerequisite": "このスキルには合格した試運転記録がまだありません。少なくとも1回の合格した試運転結果が必要です。",
+      "approveFailed": "承認／取り消しに失敗しました",
+      "assembledReadonly": "組み込み・管理者導入スキルは読み取り専用です。試運転や新規カスタムスキルとしての保存は可能です。"
+    },
+    "form": {
+      "name": "スキル名（グローバルで一意）",
+      "nameInvalid": "名前は必須、{{number}}文字以内で、組み込みや他のカスタムスキルと重複できません。",
+      "purpose": "業務用途（概要）",
+      "methodology": "方法論と操作手順",
+      "methodologyInvalid": "方法論は必須で、{{number}}文字以内で入力してください。",
+      "inputs": "入力要件",
+      "outputs": "出力仕様",
+      "template": "派生テンプレート（任意）",
+      "templateNone": "テンプレートを使わず新規作成",
+      "templateApplying": "テンプレート内容を読み込み中…",
+      "templateHint": "承認済みスキルのみテンプレートにできます。選択すると用途・方法論・入力・出力が自動入力されます。スキル名は新しく入力する必要があります。",
+      "templateLoadFailed": "テンプレート内容の読み込みに失敗しました。再試行するか別のテンプレートを選んでください",
+      "cancel": "キャンセル",
+      "save": "保存",
+      "saveAs": "新規スキルとして保存",
+      "saving": "保存中…",
+      "saveFailed": "保存に失敗しました"
+    },
+    "run": {
+      "hint": "このスキルを対象と研究質問で1回だけ試運転します。合格した結論が運用管理者承認の前提条件です。",
+      "targetPlaceholder": "評価対象（例: 600519.SH / COMEX金）",
+      "questionPlaceholder": "今回の研究質問",
+      "launch": "試運転を開始",
+      "launchFailed": "試運転の開始に失敗しました"
+    },
+    "history": {
+      "loadError": "試運転履歴の読み込みに失敗しました",
+      "scopeAll": "全投資者の試運転記録を表示（運用レビュー）"
+    },
+    "evaluations": {
+      "loadError": "評価記録の読み込みに失敗しました",
+      "loading": "評価記録を読み込み中…",
+      "filterSkill": "スキル名",
+      "filterSkillPlaceholder": "スキル名の断片",
+      "filterTarget": "対象キーワード",
+      "filterTargetPlaceholder": "銘柄コードまたは名前の断片",
+      "filterFrom": "開始日",
+      "filterTo": "終了日",
+      "search": "検索",
+      "clear": "クリア",
+      "columnSkill": "スキル",
+      "empty": "評価記録はまだありません。"
     }
   }
 }

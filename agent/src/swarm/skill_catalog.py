@@ -7,8 +7,14 @@ finance-relevance lexicon shared by package import/sync validation.
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from src.agent.skills import SkillsLoader
 from src.swarm.skill_approvals import SkillApprovalStore
+
+if TYPE_CHECKING:
+    from src.swarm.custom_skills import CustomSkillStore
 
 #: Keywords (English + Chinese) used as the heuristic finance-relevance gate
 #: for imported/synced packages. Matched against name, description, category
@@ -58,34 +64,74 @@ def is_finance_related(
 def list_assembled_skills(
     loader: SkillsLoader | None = None,
     approvals: SkillApprovalStore | None = None,
+    custom_store: "CustomSkillStore | None" = None,
 ) -> list[dict]:
     """Return all assembled skills with approval state.
 
-    Each item: ``{name, description, category, source, approved}`` where
-    source is ``"bundled"`` or ``"user"``.
+    Each item: ``{name, description, category, source, kind, ref,
+    approved, derived_from}``.
+
+    * assembled packages (bundled directories or operator-installed user
+      packages) use ``kind`` ``"bundled"``/``"user"``, ref
+      ``"assembled:<name>"`` and take approval from the global registry;
+    * materialized personal skills (``custom-<id>`` directories backed by
+      a :class:`CustomSkillStore` record) use ``kind="custom"``, ref =
+      record id and take approval from their record.
     """
+    from src.swarm.custom_skills import (
+        ASSEMBLED_TEMPLATE_PREFIX,
+        CustomSkillStore,
+    )
+
     loader = loader or SkillsLoader()
     approvals = approvals or SkillApprovalStore()
+    custom_store = custom_store or CustomSkillStore()
     approved = approvals.approved_names()
-    user_dir = loader._user_skills_dir
+    custom_by_id = {skill.id: skill for skill in custom_store.list_skills()}
+    user_dir = Path(loader._user_skills_dir) if loader._user_skills_dir else None
     items: list[dict] = []
     for skill in loader.skills:
         source = "bundled"
+        custom_record = None
         try:
             if skill.dir_path is not None and user_dir is not None:
-                skill.dir_path.resolve().relative_to(user_dir.resolve())
+                resolved_dir = skill.dir_path.resolve()
+                resolved_dir.relative_to(user_dir.resolve())
                 source = "user"
+                dir_name = resolved_dir.name
+                if dir_name.startswith("custom-"):
+                    custom_record = custom_by_id.get(
+                        dir_name[len("custom-"):]
+                    )
         except (ValueError, OSError):
             source = "bundled"
-        items.append(
-            {
-                "name": skill.name,
-                "description": skill.description,
-                "category": skill.category,
-                "source": source,
-                "approved": skill.name in approved,
-            }
-        )
+
+        if custom_record is not None:
+            items.append(
+                {
+                    "name": custom_record.name,
+                    "description": custom_record.purpose,
+                    "category": "custom",
+                    "source": "user",
+                    "kind": "custom",
+                    "ref": custom_record.id,
+                    "approved": custom_record.approved,
+                    "derived_from": custom_record.derived_from,
+                }
+            )
+        else:
+            items.append(
+                {
+                    "name": skill.name,
+                    "description": skill.description,
+                    "category": skill.category,
+                    "source": source,
+                    "kind": source,
+                    "ref": f"{ASSEMBLED_TEMPLATE_PREFIX}{skill.name}",
+                    "approved": skill.name in approved,
+                    "derived_from": None,
+                }
+            )
     items.sort(key=lambda item: (item["source"], item["category"], item["name"]))
     return items
 
@@ -93,11 +139,18 @@ def list_assembled_skills(
 def list_approved_skill_names(
     loader: SkillsLoader | None = None,
     approvals: SkillApprovalStore | None = None,
+    custom_store: "CustomSkillStore | None" = None,
 ) -> list[str]:
-    """Names of assembled skills that are also approved (the 'add' catalog)."""
+    """Names of assembled skills that are also approved (the 'add' catalog).
+
+    Combines the global package-approval registry with manually approved
+    personal custom skills.
+    """
     return [
         item["name"]
-        for item in list_assembled_skills(loader=loader, approvals=approvals)
+        for item in list_assembled_skills(
+            loader=loader, approvals=approvals, custom_store=custom_store
+        )
         if item["approved"]
     ]
 
@@ -106,3 +159,76 @@ def assembled_skill_names(loader: SkillsLoader | None = None) -> set[str]:
     """All currently assembled skill names (regardless of approval)."""
     loader = loader or SkillsLoader()
     return {skill.name for skill in loader.skills}
+
+
+def resolve_skill(
+    ref: str,
+    loader: SkillsLoader | None = None,
+    approvals: SkillApprovalStore | None = None,
+    custom_store: "CustomSkillStore | None" = None,
+) -> dict:
+    """Return the uniform full profile behind any skill-square reference.
+
+    Assembled references look like ``"assembled:<name>"``; custom
+    references are the custom skill id. Raises :class:`ValueError` on
+    malformed/unknown references and :class:`FileNotFoundError` when a
+    custom record was deleted.
+    """
+    from src.swarm.custom_skills import (
+        ASSEMBLED_TEMPLATE_PREFIX,
+        CustomSkillStore,
+        is_custom_skill_id,
+    )
+
+    ref = (ref or "").strip()
+    if not ref:
+        raise ValueError("技能引用不能为空")
+    loader = loader or SkillsLoader()
+    approvals = approvals or SkillApprovalStore()
+
+    if ref.startswith(ASSEMBLED_TEMPLATE_PREFIX):
+        name = ref[len(ASSEMBLED_TEMPLATE_PREFIX):].strip()
+        skill = next((item for item in loader.skills if item.name == name), None)
+        if skill is None:
+            raise ValueError(f"技能不存在或未装配: {name!r}")
+        return {
+            "kind": "assembled",
+            "ref": ref,
+            "name": skill.name,
+            "purpose": skill.description,
+            "methodology": skill.body,
+            "inputs": "",
+            "outputs": "",
+            "category": skill.category,
+            "approved": approvals.is_approved(skill.name),
+            "derived_from": None,
+        }
+
+    if not is_custom_skill_id(ref):
+        raise ValueError(f"技能引用不合法: {ref!r}")
+    custom_store = custom_store or CustomSkillStore()
+    record = custom_store.get_skill(ref)  # may raise FileNotFoundError
+    return {
+        "kind": "custom",
+        "ref": record.id,
+        "name": record.name,
+        "purpose": record.purpose,
+        "methodology": record.methodology,
+        "inputs": record.inputs,
+        "outputs": record.outputs,
+        "category": "custom",
+        "approved": record.approved,
+        "derived_from": record.derived_from,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+    }
+
+
+def is_custom_skill_name(
+    skill_name: str, custom_store: "CustomSkillStore | None" = None
+) -> bool:
+    """Whether an assembled skill name belongs to a personal custom skill."""
+    from src.swarm.custom_skills import CustomSkillStore
+
+    custom_store = custom_store or CustomSkillStore()
+    return custom_store.get_by_name(skill_name) is not None

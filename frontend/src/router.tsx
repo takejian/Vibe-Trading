@@ -43,6 +43,9 @@ const SwarmStudio = lazy(() =>
 const RoleSquare = lazy(() =>
   import("@/pages/RoleSquare").then((m) => ({ default: m.RoleSquare })),
 );
+const SkillPlaza = lazy(() =>
+  import("@/pages/SkillPlaza").then((m) => ({ default: m.SkillPlaza })),
+);
 
 function PageLoader() {
   return (
@@ -70,6 +73,7 @@ export const router = createBrowserRouter([
       { path: "/macro", element: wrap(Macro) },
       { path: "/swarm", element: wrap(SwarmStudio) },
       { path: "/roles", element: wrap(RoleSquare) },
+      { path: "/skills", element: wrap(SkillPlaza) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/scheduled", element: wrap(Scheduled) },
       { path: "/reports", element: wrap(Reports) },

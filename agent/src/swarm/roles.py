@@ -145,11 +145,12 @@ class RoleStore:
         return set(preset_tool_union())
 
     def _allowed_skills(self) -> set[str]:
-        # Custom roles may only use skills that are assembled AND approved.
-        from src.swarm.skill_approvals import SkillApprovalStore
-        from src.swarm.skill_catalog import assembled_skill_names
+        # Custom roles may only use skills that are assembled AND approved —
+        # either globally approved packages or operator-approved personal
+        # custom skills (uniform approved catalog).
+        from src.swarm.skill_catalog import list_approved_skill_names
 
-        return SkillApprovalStore().approved_names() & assembled_skill_names()
+        return set(list_approved_skill_names())
 
     def _validate_payload(
         self,

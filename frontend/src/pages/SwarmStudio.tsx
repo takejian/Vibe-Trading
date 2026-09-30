@@ -29,12 +29,10 @@ import { LaunchBar } from "@/components/swarm/LaunchBar";
 import { RunView } from "@/components/swarm/RunView";
 import { HistoryList, type HistoryFilters } from "@/components/swarm/HistoryList";
 import { SaveTeamDialog } from "@/components/swarm/SaveTeamDialog";
-import { SkillSquare } from "@/components/swarm/SkillSquare";
 import { RolePickerDialog } from "@/components/swarm/RolePickerDialog";
 
-type Tab = "studio" | "history" | "skills";
+type Tab = "studio" | "history";
 type View = "gallery" | "edit" | "run";
-type RunOrigin = "studio" | "skills" | "history";
 
 export function SwarmStudio() {
   const { t } = useTranslation();
@@ -63,7 +61,6 @@ export function SwarmStudio() {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState("");
   const [activeRunId, setActiveRunId] = useState("");
-  const [runOrigin, setRunOrigin] = useState<RunOrigin>("studio");
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [teamDialogMode, setTeamDialogMode] = useState<"create" | "update">("create");
@@ -244,7 +241,6 @@ export function SwarmStudio() {
     try {
       const payload = toCustomPayload(nodes, edges, target, question);
       const run = await api.createSwarmRun(presetName, { target: payload.target }, payload);
-      setRunOrigin("studio");
       setActiveRunId(run.id);
       setView("run");
     } catch (err) {
@@ -326,11 +322,8 @@ export function SwarmStudio() {
         <RunView
           runId={activeRunId}
           onBack={() => {
-            const origin = runOrigin;
             setView("gallery");
-            setTab(origin);
             setActiveRunId("");
-            if (origin === "skills") loadTeams();
           }}
         />
       </div>
@@ -364,19 +357,6 @@ export function SwarmStudio() {
       >
         <History className="h-4 w-4" />
         {t("swarmStudio.tabs.history")}
-      </button>
-      <button
-        type="button"
-        onClick={() => setTab("skills")}
-        data-testid="tab-skills"
-        className={
-          active === "skills"
-            ? "inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-background"
-            : "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 hover:bg-accent"
-        }
-      >
-        <Bookmark className="h-4 w-4" />
-        {t("swarmStudio.tabs.skills")}
       </button>
     </nav>
   );
@@ -412,31 +392,6 @@ export function SwarmStudio() {
           error={historyError}
           onSearch={loadHistory}
           onOpen={setHistoryRunId}
-        />
-      </div>
-    );
-  }
-
-  if (tab === "skills") {
-    return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-8" data-testid="swarm-studio-page">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-2xl text-foreground">
-              {t("swarmStudio.title")}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("swarmStudio.skills.pageHint")}
-            </p>
-          </div>
-          {tabNav("skills")}
-        </header>
-        <SkillSquare
-          onOpenRun={(runId) => {
-            setRunOrigin("skills");
-            setActiveRunId(runId);
-            setView("run");
-          }}
         />
       </div>
     );
