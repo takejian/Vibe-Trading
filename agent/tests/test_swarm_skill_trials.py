@@ -33,13 +33,25 @@ def test_trial_run_is_single_agent_with_skill_allowlist() -> None:
     assert agent.skills == [SKILL]
     # The broad operator-trusted preset tool pool is attached.
     assert "get_market_data" in agent.tools
-    assert agent.max_iterations == 25
-    assert agent.timeout_seconds == 300
+    # Role-like default budget (SWARM_SKILL_TRIAL_*), not the old 25/300 cap.
+    assert agent.max_iterations == 40
+    assert agent.timeout_seconds == 900
 
     task = run.tasks[0]
     assert task.agent_id == agent.id
     assert task.status == TaskStatus.pending
     assert "{target}" in task.prompt_template
+
+
+def test_trial_budget_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SWARM_SKILL_TRIAL_MAX_ITER", "12")
+    monkeypatch.setenv("SWARM_SKILL_TRIAL_TIMEOUT", "240")
+
+    run = build_skill_trial_run(SKILL, "600519.SH", "当前是否适合做多？")
+
+    agent = run.agents[0]
+    assert agent.max_iterations == 12
+    assert agent.timeout_seconds == 240
 
 
 def test_question_braces_are_template_safe() -> None:

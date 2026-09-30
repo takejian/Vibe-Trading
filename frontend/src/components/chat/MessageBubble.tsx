@@ -1,107 +1,12 @@
 import i18n from '@/i18n';
-import { Component, memo, useState, useCallback, type ReactNode } from "react";
+import { memo, useState, useCallback } from "react";
 import { XCircle, RefreshCw, Copy, Check, Paperclip, Users, Target, Clock3 } from "lucide-react";
-import ReactMarkdown, { type Options as ReactMarkdownOptions } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeHighlight from "rehype-highlight";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import { toast } from "sonner";
-import { normalizeMathDelimiters } from "@/lib/markdown";
 import type { AgentMessage } from "@/types/agent";
 import type { StoredAgentMessage } from "@/stores/agent";
+import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { AgentAvatar } from "./AgentAvatar";
 import { RunCompleteCard } from "./RunCompleteCard";
-
-// singleDollarTextMath off: dollar amounts ("$150 to $120") must never parse as
-// formulas; LLM \(...\)/\[...\] delimiters are normalized to $$ before render.
-const remarkPlugins: ReactMarkdownOptions["remarkPlugins"] = [
-  remarkGfm,
-  [remarkMath, { singleDollarTextMath: false }],
-];
-const rehypePlugins: ReactMarkdownOptions["rehypePlugins"] = [rehypeHighlight, rehypeKatex];
-const markdownComponents: ReactMarkdownOptions["components"] = {
-  table: ({ node, ...props }) => {
-    void node;
-    return (
-      <div className="overflow-x-auto">
-        <table {...props} />
-      </div>
-    );
-  },
-  a: ({ node, ...props }) => {
-    void node;
-    return <a {...props} target="_blank" rel="noopener noreferrer" />;
-  },
-};
-const proseClassName = "prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:font-serif prose-p:text-[15.5px] prose-p:leading-[1.75] prose-li:font-serif prose-li:text-[15.5px] prose-li:leading-[1.75] prose-headings:font-sans prose-table:font-sans prose-code:font-mono prose-blockquote:font-sans [&_blockquote_p]:font-sans prose-table:border prose-table:border-border/50 prose-th:bg-muted/30 prose-th:px-3 prose-th:py-1.5 prose-td:px-3 prose-td:py-1.5 prose-th:text-left prose-th:text-xs prose-th:font-medium prose-td:text-xs prose-hr:hidden";
-
-interface MarkdownErrorBoundaryProps {
-  content: string;
-  children: ReactNode;
-}
-
-interface MarkdownErrorBoundaryState {
-  failed: boolean;
-}
-
-class MarkdownErrorBoundary extends Component<MarkdownErrorBoundaryProps, MarkdownErrorBoundaryState> {
-  state: MarkdownErrorBoundaryState = { failed: false };
-
-  static getDerivedStateFromError(): MarkdownErrorBoundaryState {
-    return { failed: true };
-  }
-
-  componentDidUpdate(previous: MarkdownErrorBoundaryProps) {
-    if (this.state.failed && previous.content !== this.props.content) {
-      this.setState({ failed: false });
-    }
-  }
-
-  render() {
-    if (this.state.failed) {
-      return <span className="whitespace-pre-wrap">{this.props.content}</span>;
-    }
-    return this.props.children;
-  }
-}
-
-interface MarkdownContentProps {
-  content: string;
-  streaming?: boolean;
-  showCursor?: boolean;
-}
-
-export const MarkdownContent = memo(function MarkdownContent({
-  content,
-  streaming = false,
-  showCursor = false,
-}: MarkdownContentProps) {
-  let normalized = content;
-  try {
-    normalized = normalizeMathDelimiters(content);
-  } catch {
-    normalized = content;
-  }
-
-  return (
-    <div className={proseClassName}>
-      <MarkdownErrorBoundary content={content}>
-        <ReactMarkdown
-          remarkPlugins={remarkPlugins}
-          rehypePlugins={streaming ? [] : rehypePlugins}
-          components={markdownComponents}
-        >
-          {normalized}
-        </ReactMarkdown>
-      </MarkdownErrorBoundary>
-      {showCursor && (
-        <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse align-middle" />
-      )}
-    </div>
-  );
-});
 
 async function copyText(text: string): Promise<boolean> {
   try {

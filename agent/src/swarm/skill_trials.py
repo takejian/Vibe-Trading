@@ -27,6 +27,20 @@ _TRIAL_AGENT_ID = "skill_analyst"
 _TRIAL_TASK_ID = "task_run_skill"
 
 
+def _trial_budget() -> tuple[int, int]:
+    """Resolve the trial worker's ``(max_iterations, timeout_seconds)``.
+
+    Defaults come from :class:`src.config.env_schema.SwarmConfig`
+    (``SWARM_SKILL_TRIAL_MAX_ITER`` / ``SWARM_SKILL_TRIAL_TIMEOUT``, 40 /
+    900s out of the box — aligned with built-in role budgets). Read lazily
+    like the worker's own fallbacks so tests/operators can override via env.
+    """
+    from src.config.accessor import get_env_config
+
+    cfg = get_env_config().swarm
+    return int(cfg.swarm_skill_trial_max_iter), int(cfg.swarm_skill_trial_timeout)
+
+
 @lru_cache(maxsize=1)
 def preset_tool_union() -> tuple[str, ...]:
     """All tool names whitelisted by at least one available preset (cached)."""
@@ -81,6 +95,8 @@ def build_skill_trial_run(skill_name: str, target: str, question: str) -> SwarmR
         "with a structured conclusion."
     )
 
+    max_iterations, timeout_seconds = _trial_budget()
+
     now = datetime.now(timezone.utc)
     run_id = f"swarm-{now.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
     agent = SwarmAgentSpec(
@@ -89,8 +105,8 @@ def build_skill_trial_run(skill_name: str, target: str, question: str) -> SwarmR
         system_prompt=system_prompt,
         tools=list(preset_tool_union()),
         skills=[skill_name],
-        max_iterations=40,
-        timeout_seconds=900,
+        max_iterations=max_iterations,
+        timeout_seconds=timeout_seconds,
     )
     task = SwarmTask(
         id=_TRIAL_TASK_ID,

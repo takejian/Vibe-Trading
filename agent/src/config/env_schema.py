@@ -381,6 +381,15 @@ class SwarmConfig(_EnvBase):
 
     swarm_worker_timeout: int = Field(alias="SWARM_WORKER_TIMEOUT", default=300)
     swarm_worker_max_iter: int = Field(alias="SWARM_WORKER_MAX_ITER", default=50)
+    # Standalone skill-trial runs (Skill Square) get a role-like budget by
+    # default: the old 300s/25-iter ceiling timed out whenever data tools or
+    # a slow LLM gateway consumed more than ~3 iterations.
+    swarm_skill_trial_timeout: int = Field(
+        alias="SWARM_SKILL_TRIAL_TIMEOUT", default=900, gt=0
+    )
+    swarm_skill_trial_max_iter: int = Field(
+        alias="SWARM_SKILL_TRIAL_MAX_ITER", default=40, gt=0
+    )
     swarm_max_workers: int = Field(alias="SWARM_MAX_WORKERS", default=4)
     swarm_timeout: int = Field(alias="SWARM_TIMEOUT", default=1800)
     swarm_heartbeat_interval_s: float = Field(alias="SWARM_HEARTBEAT_INTERVAL_S", default=3.0)

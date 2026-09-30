@@ -234,6 +234,8 @@
       "vars": [
         "SWARM_WORKER_TIMEOUT",
         "SWARM_WORKER_MAX_ITER",
+        "SWARM_SKILL_TRIAL_TIMEOUT",
+        "SWARM_SKILL_TRIAL_MAX_ITER",
         "SWARM_MAX_WORKERS",
         "SWARM_TIMEOUT",
         "SWARM_HEARTBEAT_INTERVAL_S",
@@ -243,7 +245,7 @@
         "SWARM_WORKER_RETRY_MAX_DELAY_S",
         "SWARM_GROUNDING_MAX_SYMBOLS"
       ],
-      "doc": "Multi-agent swarm sizing, streaming heartbeat/retry backoff and grounding limits for parallel worker teams. Source: agent/src/config/env_schema.py:358-373"
+      "doc": "Multi-agent swarm sizing, streaming heartbeat/retry backoff and grounding limits for parallel worker teams; SKILL_TRIAL knobs size the Skill Square standalone trial worker (900s/40 iters by default). Source: agent/src/config/env_schema.py:375-420"
     },
     {
       "category": "tuning",

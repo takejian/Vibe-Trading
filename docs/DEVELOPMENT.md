@@ -132,7 +132,7 @@ Key variables by category (names only; secrets belong in `.env`, never in the tr
 - Brokers (names only; most credentials live as files under `~/.vibe-trading/live/<broker>/`): `FUTU_HOST`/`FUTU_PORT`/`FUTU_TRADE_PWD_MD5`, `LONGBRIDGE_APP_KEY`/`LONGBRIDGE_APP_SECRET`/`LONGBRIDGE_ACCESS_TOKEN`, `TAP_AGENT_KEY`/`TAP_PROXY_URL`, plus broker onboarding for ibkr/alpaca/binance/okx/robinhood/etc.
 - Paths: `VIBE_TRADING_HOME`, `VIBE_TRADING_STRATEGY_STORE_DB_PATH`, `VIBE_TRADING_GOAL_DB_PATH`.
 - Memory/feature flags: `VT_MEMORY` (`off`|`on`|`full` plus `VT_MEMORY_*` quality knobs), `VIBE_TRADING_ENABLE_ADVISORY`, `VIBE_TRADING_ENABLE_SCHEDULER`, `VIBE_TRADING_CHANNELS_AUTO_START`.
-- Swarm/tuning: `SWARM_WORKER_TIMEOUT`, `SWARM_WORKER_MAX_ITER`, `SWARM_MAX_WORKERS`, `VIBE_TRADING_TOOL_TIMEOUT_SECONDS`, `VIBE_TRADING_LLM_TIMEOUT_SECONDS`, `VIBE_TRADING_SSE_TIMEOUT`.
+- Swarm/tuning: `SWARM_WORKER_TIMEOUT`, `SWARM_WORKER_MAX_ITER`, `SWARM_SKILL_TRIAL_TIMEOUT` (default 900), `SWARM_SKILL_TRIAL_MAX_ITER` (default 40), `SWARM_MAX_WORKERS`, `VIBE_TRADING_TOOL_TIMEOUT_SECONDS`, `VIBE_TRADING_LLM_TIMEOUT_SECONDS`, `VIBE_TRADING_SSE_TIMEOUT`.
 
 ## Eval Harness
 

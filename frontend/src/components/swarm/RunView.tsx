@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { ArrowLeft, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { api, type SwarmRunDetail } from "@/lib/api";
 import {
   computeLayers,
   edgesFromRunTasks,
   type FlowEdge,
 } from "@/lib/swarmGraph";
+import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { FlowCanvas, type NodeVisualStatus } from "./FlowCanvas";
 
 interface RunViewProps {
@@ -57,9 +56,11 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
   const [loadError, setLoadError] = useState("");
   const [liveStatus, setLiveStatus] = useState<Record<string, NodeVisualStatus>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [cancelling, setCancelling] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
+  const panelBodyId = useId();
 
   const refresh = useCallback(async () => {
     const run = await api.getSwarmRun(runId);
@@ -191,6 +192,14 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
   const terminal = detail && !active;
   const finalReport = detail?.final_report;
 
+  // Selecting a node is the intent to read its conclusion, so it always
+  // reveals the panel; afterwards the user may collapse manually until
+  // another node is picked.
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) setPanelCollapsed(false);
+  }, []);
+
   const handleCancel = async () => {
     if (!detail) return;
     setCancelling(true);
@@ -266,82 +275,111 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
         </p>
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="min-w-0 flex-1 rounded-lg border border-border bg-card p-3">
-          <FlowCanvas
-            nodes={graph.nodes}
-            edges={graph.edges}
-            statusById={statusById}
-            selectedId={selectedId}
-            onSelectNode={setSelectedId}
-          />
-          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-            {(["waiting", "running", "completed", "failed"] as NodeVisualStatus[]).map(
-              (s) => (
-                <span key={s} className="inline-flex items-center gap-1">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      s === "waiting"
-                        ? "bg-zinc-300"
-                        : s === "running"
-                          ? "bg-blue-500"
-                          : s === "completed"
-                            ? "bg-emerald-500"
-                            : "bg-red-500"
-                    }`}
-                  />
-                  {t(NODE_STATUS_TKEY[s])}
-                </span>
-              ),
+      <div className="rounded-lg border border-border bg-card p-3">
+        <FlowCanvas
+          nodes={graph.nodes}
+          edges={graph.edges}
+          statusById={statusById}
+          selectedId={selectedId}
+          onSelectNode={handleSelectNode}
+        />
+        <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+          {(["waiting", "running", "completed", "failed"] as NodeVisualStatus[]).map(
+            (s) => (
+              <span key={s} className="inline-flex items-center gap-1">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    s === "waiting"
+                      ? "bg-zinc-300"
+                      : s === "running"
+                        ? "bg-blue-500"
+                        : s === "completed"
+                          ? "bg-emerald-500"
+                          : "bg-red-500"
+                  }`}
+                />
+                {t(NODE_STATUS_TKEY[s])}
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+
+      <section
+        data-testid="node-detail-panel"
+        className="overflow-hidden rounded-lg border border-border bg-card"
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2.5">
+          <h3 className="min-w-0 text-sm font-semibold text-foreground">
+            <span className="block truncate">
+              {selectedAgent
+                ? selectedAgent.role
+                : t("swarmStudio.run.analysisTitle")}
+            </span>
+            {selectedAgent && (
+              <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                {t(NODE_STATUS_TKEY[statusById[selectedAgent.id] ?? "waiting"])}
+              </span>
             )}
-          </div>
+          </h3>
+          <button
+            type="button"
+            onClick={() => setPanelCollapsed((prev) => !prev)}
+            aria-expanded={!panelCollapsed}
+            aria-label={
+              panelCollapsed
+                ? t("swarmStudio.run.expand")
+                : t("swarmStudio.run.collapse")
+            }
+            data-testid="node-panel-toggle"
+            aria-controls={panelBodyId}
+            className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            {panelCollapsed ? t("swarmStudio.run.expand") : t("swarmStudio.run.collapse")}
+            {panelCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
         </div>
 
-        <aside
-          className="w-full rounded-lg border border-border bg-card p-4 lg:w-96"
-          data-testid="node-detail-panel"
-        >
-          {selectedAgent ? (
-            <>
-              <h3 className="text-sm font-semibold text-foreground">
-                {selectedAgent.role}
-              </h3>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {t(NODE_STATUS_TKEY[statusById[selectedAgent.id] ?? "waiting"])}
-              </p>
-              {selectedTask?.summary && (
-                <div className="mt-3 max-h-[40vh] overflow-y-auto rounded bg-background p-2 text-xs text-foreground">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {selectedTask.summary}
-                  </ReactMarkdown>
-                </div>
-              )}
-              {selectedTask?.error && (
-                <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                  {selectedTask.error}
-                </p>
-              )}
-              {notes
-                .filter((n) => n.agentId === selectedAgent.id)
-                .slice(-3)
-                .map((n, i) => (
-                  <p key={i} className="mt-1 text-[11px] text-amber-600">
-                    {n.text}
+        {!panelCollapsed && (
+          <div className="p-4" id={panelBodyId} data-testid="node-panel-body">
+            {selectedAgent ? (
+              <>
+                {selectedTask?.summary && (
+                  <div className="max-h-[40vh] overflow-y-auto rounded bg-background p-2 text-xs text-foreground">
+                    <MarkdownContent content={selectedTask.summary} />
+                  </div>
+                )}
+                {selectedTask?.error && (
+                  <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                    {selectedTask.error}
                   </p>
-                ))}
-              {!selectedTask?.summary && !selectedTask?.error && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {t("swarmStudio.run.noConclusionYet")}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t("swarmStudio.run.selectNode")}
-            </p>
-          )}
-        </aside>
-      </div>
+                )}
+                {notes
+                  .filter((n) => n.agentId === selectedAgent.id)
+                  .slice(-3)
+                  .map((n, i) => (
+                    <p key={i} className="mt-1 text-[11px] text-amber-600">
+                      {n.text}
+                    </p>
+                  ))}
+                {!selectedTask?.summary && !selectedTask?.error && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("swarmStudio.run.noConclusionYet")}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t("swarmStudio.run.selectNode")}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       <section
         data-testid="final-decision-panel"
@@ -357,7 +395,7 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
             className="mt-2 max-h-[50vh] overflow-y-auto text-sm text-foreground"
             data-testid="final-decision-content"
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{finalReport}</ReactMarkdown>
+            <MarkdownContent content={finalReport} />
           </div>
         ) : active ? (
           <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">

@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
-import { MarkdownContent, MessageBubble } from "../MessageBubble";
+import { MarkdownContent } from "@/components/common/MarkdownContent";
+import { MessageBubble } from "../MessageBubble";
 import type { AgentMessage } from "@/types/agent";
 
 // Unlike MessageBubble.test.tsx, react-markdown is NOT mocked here: these tests
