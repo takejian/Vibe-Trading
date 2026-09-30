@@ -14,7 +14,10 @@ LOG_DIR="$VIBE_HOME/logs"
 PIDFILE="$LOG_DIR/harness-server.pid"
 LOGFILE="$LOG_DIR/harness-server.log"
 VIBE_BIN="$ROOT/.venv/bin/vibe-trading"
-PROBE_URL="http://HOST:$PORT/live"
+# Health probing always goes through loopback: it works for a 127.0.0.1
+# bind and is also reachable when the server binds 0.0.0.0; connecting to
+# 0.0.0.0 directly is not portable (fails on macOS/Windows).
+PROBE_URL="http://127.0.0.1:$PORT/live"
 
 mkdir -p "$LOG_DIR"
 
@@ -79,10 +82,11 @@ nohup "$VIBE_BIN" serve --host "$HOST" --port "$PORT" >>"$LOGFILE" 2>&1 &
 server_pid=$!
 echo "$server_pid" >"$PIDFILE"
 
-# 5. Poll /live for up to ~30s; fail fast if the process exits meanwhile.
+# 5. Poll /live for up to ~60s (preflight network timeouts can make startup
+#    slow); fail fast if the process exits meanwhile.
 info "waiting for $PROBE_URL"
 ready=0
-for ((i = 1; i <= 30; i++)); do
+for ((i = 1; i <= 60; i++)); do
   if health_ok; then
     ready=1
     break
@@ -99,7 +103,7 @@ done
 printf '\n'
 
 if [[ "$ready" -ne 1 ]]; then
-  warn "server not healthy after 30s — tail of $LOGFILE:"
+  warn "server not healthy after 60s — tail of $LOGFILE:"
   tail -n 40 "$LOGFILE" >&2 || true
   exit 1
 fi

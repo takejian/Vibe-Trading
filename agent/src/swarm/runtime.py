@@ -294,6 +294,7 @@ class SwarmRuntime:
         resume_from: SwarmRun | None = None,
         custom_spec: dict | None = None,
         skill_trial: dict | None = None,
+        role_run: dict | None = None,
     ) -> SwarmRun:
         """Start a swarm run. Returns immediately, execution happens in background.
 
@@ -334,6 +335,15 @@ class SwarmRuntime:
             raise ValueError("custom_spec and resume_from are mutually exclusive")
         if skill_trial is not None and (custom_spec is not None or resume_from is not None):
             raise ValueError("skill_trial is mutually exclusive with custom_spec/resume_from")
+        if role_run is not None and (
+            skill_trial is not None
+            or custom_spec is not None
+            or resume_from is not None
+        ):
+            raise ValueError(
+                "role_run is mutually exclusive with "
+                "skill_trial/custom_spec/resume_from"
+            )
         if skill_trial is not None:
             from src.swarm.skill_trials import build_skill_trial_run
 
@@ -341,6 +351,14 @@ class SwarmRuntime:
                 str(skill_trial.get("skill_name", "")),
                 str(skill_trial.get("target", "")),
                 str(skill_trial.get("question", "")),
+            )
+        elif role_run is not None:
+            from src.swarm.role_runs import build_role_run
+
+            run = build_role_run(
+                str(role_run.get("role_ref", "")),
+                str(role_run.get("target", "")),
+                str(role_run.get("question", "")),
             )
         elif custom_spec is not None:
             from src.swarm.custom_spec import build_run_from_custom_spec

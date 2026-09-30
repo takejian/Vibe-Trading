@@ -40,6 +40,9 @@ const Macro = lazy(() =>
 const SwarmStudio = lazy(() =>
   import("@/pages/SwarmStudio").then((m) => ({ default: m.SwarmStudio })),
 );
+const RoleSquare = lazy(() =>
+  import("@/pages/RoleSquare").then((m) => ({ default: m.RoleSquare })),
+);
 
 function PageLoader() {
   return (
@@ -66,6 +69,7 @@ export const router = createBrowserRouter([
       { path: "/agent", element: wrap(Agent) },
       { path: "/macro", element: wrap(Macro) },
       { path: "/swarm", element: wrap(SwarmStudio) },
+      { path: "/roles", element: wrap(RoleSquare) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/scheduled", element: wrap(Scheduled) },
       { path: "/reports", element: wrap(Reports) },

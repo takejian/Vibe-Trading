@@ -30,7 +30,8 @@
     "mainNavigation": "メインナビゲーション",
     "about": "概要",
     "macroAnalysis": "Macro Analysis",
-    "swarmStudio": "Agent Teams"
+    "swarmStudio": "Agent Teams",
+    "roleSquare": "Role Square"
   },
   "runtime": {
     "monitorBadge": "取引モニター",
@@ -1902,7 +1903,8 @@
       "skillApprovedBadge": "approved",
       "skillSearchPlaceholder": "Search approved skills…",
       "skillPickerClose": "Close skill picker",
-      "noAddableSkills": "No other approved skills. Run a skill trial in the Skill Square to approve one."
+      "noAddableSkills": "No other approved skills. Run a skill trial in the Skill Square to approve one.",
+      "roleLocked": "Role name is fixed on the canvas; remove the node and re-add a role to change it."
     },
     "validation": {
       "valid": "Flow is valid — ready to launch.",
@@ -2033,6 +2035,75 @@
       "syncRemoved": "Removed: {{number}}",
       "syncRejected": "Rejected: {{number}}",
       "trialsHistoryTitle": "My skill trial history"
+    }
+  },
+  "roleSquare": {
+    "title": "Role Square",
+    "subtitle": "Every reusable research role: built-in roles are read-only; custom roles can be added to a team canvas only after the operator approves them.",
+    "groups": {
+      "custom": "Custom roles"
+    },
+    "list": {
+      "create": "New role",
+      "loading": "Loading roles…",
+      "loadError": "Failed to load roles",
+      "retry": "Retry",
+      "groupSearch": "Search within group",
+      "approved": "Approved",
+      "noMatchInGroup": "No matching role in this group",
+      "emptyGroup": "No roles in this group yet"
+    },
+    "detail": {
+      "backToList": "Back to Role Square",
+      "createTitle": "New role",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Deleting removes this role from every orchestration list immediately; references in saved teams will be highlighted for correction, while historical snapshots and run records stay intact. Delete anyway?",
+      "deleteFailed": "Delete failed",
+      "approve": "Approve",
+      "unapprove": "Revoke approval",
+      "approveFailed": "Approval action failed",
+      "builtinReadonly": "Built-in roles are approved by default and read-only."
+    },
+    "tabs": {
+      "profile": "Role profile",
+      "run": "Standalone run",
+      "history": "Run history"
+    },
+    "form": {
+      "name": "Role name (globally unique)",
+      "nameInvalid": "Name is required, must be at most {{number}} characters and not collide with a built-in or another custom role.",
+      "purpose": "Business purpose",
+      "systemPrompt": "Responsibility prompt",
+      "promptInvalid": "Responsibility prompt is required and must be at most {{number}} characters.",
+      "tools": "Allowed tools (catalog boundary)",
+      "skills": "Skills (assembled and trial-approved)",
+      "skillsEmpty": "No skills available",
+      "maxIterations": "Max iterations",
+      "timeoutSeconds": "Timeout (seconds)",
+      "limitsInvalid": "Iterations must be 1-100 and timeout must be 1-1800 seconds.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveFailed": "Save failed"
+    },
+    "run": {
+      "hint": "Run this role standalone; a qualified result is a hard prerequisite for operator approval.",
+      "targetPlaceholder": "Target, e.g. 600519.SH / COMEX Gold",
+      "questionPlaceholder": "Research question",
+      "launch": "Start standalone run",
+      "launchFailed": "Failed to start"
+    },
+    "history": {
+      "loadError": "Failed to load run history"
+    },
+    "picker": {
+      "title": "Select a role to add",
+      "close": "Close",
+      "hint": "Only approved roles are shown; canvas edits to duties/skills/timeout are local and never write back to the role.",
+      "searchPlaceholder": "Search by name or purpose",
+      "loading": "Loading…",
+      "empty": "No roles available"
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   edgesFromRunTasks,
   isLaunchable,
   nextNodeId,
+  nodeDraftFromRole,
   toCustomPayload,
   validateGraph,
   type FlowEdge,
@@ -343,5 +344,69 @@ describe("skills in payloads and drafts", () => {
     };
     const draft = draftFromPresetDetail(detail);
     expect(draft.nodes[0].skills).toEqual(["behavioral-finance", "asset-allocation"]);
+  });
+});
+
+describe("nodeDraftFromRole", () => {
+  it("seeds an editable canvas node copy carrying the role ref", () => {
+    const draft = nodeDraftFromRole(
+      {
+        ref: "role-abc123",
+        name: "Convertible Sniper",
+        system_prompt: "You hunt convertible bonds.",
+        tools: ["get_market_data"],
+        skills: ["behavioral-finance"],
+        timeout_seconds: 240,
+      },
+      "node_1",
+    );
+    expect(draft.id).toBe("node_1");
+    expect(draft.role).toBe("Convertible Sniper");
+    expect(draft.roleRef).toBe("role-abc123");
+    expect(draft.isNew).toBe(true);
+    expect(draft.sourceTaskId).toBeNull();
+
+    const payload = toCustomPayload([draft], [], "113001.SH", "reset odds?");
+    expect(payload.nodes[0]).toMatchObject({
+      role_ref: "role-abc123",
+      is_new: true,
+      timeout_seconds: 240,
+    });
+  });
+
+  it("draftFromPresetDetail stamps builtin role refs", () => {
+    const detail: SwarmPresetDetail = {
+      name: "investment_committee",
+      title: "IC",
+      description: "",
+      variables: [],
+      agents: [
+        {
+          id: "bull_advocate",
+          role: "Bull",
+          system_prompt: "bull duty",
+          tools: [],
+          skills: [],
+          max_iterations: 25,
+          timeout_seconds: 300,
+        },
+      ],
+      tasks: [
+        {
+          id: "task-bull",
+          agent_id: "bull_advocate",
+          prompt_template: "t",
+          depends_on: [],
+          input_from: {},
+        },
+      ],
+      tool_catalog: [],
+      skill_catalog: [],
+      layers: [["bull_advocate"]],
+    };
+    const draft = draftFromPresetDetail(detail);
+    expect(draft.nodes[0].roleRef).toBe(
+      "investment_committee:bull_advocate",
+    );
   });
 });

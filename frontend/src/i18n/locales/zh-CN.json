@@ -30,7 +30,8 @@
     "mainNavigation": "主导航",
     "about": "关于",
     "macroAnalysis": "宏观经济分析",
-    "swarmStudio": "智能体团队"
+    "swarmStudio": "智能体团队",
+    "roleSquare": "角色广场"
   },
   "runtime": {
     "monitorBadge": "交易监控",
@@ -1902,7 +1903,8 @@
       "skillApprovedBadge": "已通过",
       "skillSearchPlaceholder": "搜索已通过的技能…",
       "skillPickerClose": "关闭技能选择",
-      "noAddableSkills": "没有其他已通过的技能。可在技能广场对技能发起试运行。"
+      "noAddableSkills": "没有其他已通过的技能。可在技能广场对技能发起试运行。",
+      "roleLocked": "角色名称在画布内不可修改；如需更换，请移除节点后重新引入。"
     },
     "validation": {
       "valid": "流程合法，可以发起评估。",
@@ -2033,6 +2035,75 @@
       "syncRemoved": "下架：{{number}}",
       "syncRejected": "拒绝：{{number}}",
       "trialsHistoryTitle": "我的试运行历史"
+    }
+  },
+  "roleSquare": {
+    "title": "角色广场",
+    "subtitle": "所有可复用的研究角色：内置角色只读；自建角色经运维管理员放开通过后，可在团队编排页引入。",
+    "groups": {
+      "custom": "自建角色"
+    },
+    "list": {
+      "create": "＋ 新建角色",
+      "loading": "正在加载角色…",
+      "loadError": "角色列表加载失败",
+      "retry": "重试",
+      "groupSearch": "在本组内搜索",
+      "approved": "已放开通过",
+      "noMatchInGroup": "本组内没有匹配的角色",
+      "emptyGroup": "本组暂无角色"
+    },
+    "detail": {
+      "backToList": "返回角色广场",
+      "createTitle": "新建角色",
+      "edit": "编辑",
+      "delete": "删除",
+      "deleteConfirm": "删除后该角色将立即退出全部编排清单；已保存团队中的引用将高亮待校正，历史快照与运行记录原样保留。确认删除？",
+      "deleteFailed": "删除失败",
+      "approve": "放开通过",
+      "unapprove": "取消通过",
+      "approveFailed": "放开/取消通过失败",
+      "builtinReadonly": "内置角色默认已通过、只读，不可编辑或删除。"
+    },
+    "tabs": {
+      "profile": "角色档案",
+      "run": "单独运行",
+      "history": "评估历史"
+    },
+    "form": {
+      "name": "角色名称（全局唯一）",
+      "nameInvalid": "名称必填，且不超过 {{number}} 个字符；不得与内置/其他自建角色重名。",
+      "purpose": "业务用途简介",
+      "systemPrompt": "职责提示词",
+      "promptInvalid": "职责提示词必填，且不超过 {{number}} 个字符。",
+      "tools": "可用工具（不得超出目录）",
+      "skills": "可调用技能（须已装配且已通过试运行）",
+      "skillsEmpty": "暂无可选技能",
+      "maxIterations": "最大迭代轮数",
+      "timeoutSeconds": "执行时长（秒）",
+      "limitsInvalid": "迭代轮数须在 1–100 之间，执行时长须在 1–1800 秒之间。",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中…",
+      "saveFailed": "保存失败"
+    },
+    "run": {
+      "hint": "对该角色发起一次单独运行；合格结论是运维管理员放开通过的硬性前置。",
+      "targetPlaceholder": "评估标的，如 600519.SH / COMEX黄金",
+      "questionPlaceholder": "本次研究问题",
+      "launch": "发起单独运行",
+      "launchFailed": "发起失败"
+    },
+    "history": {
+      "loadError": "评估历史加载失败"
+    },
+    "picker": {
+      "title": "选择要引入的角色",
+      "close": "关闭",
+      "hint": "仅展示已放开通过的角色；引入后可在画布内临时调整职责/技能/时长，不回写角色本体。",
+      "searchPlaceholder": "搜索角色名称或用途",
+      "loading": "正在加载…",
+      "empty": "没有可选角色"
     }
   }
 }

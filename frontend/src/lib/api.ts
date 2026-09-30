@@ -659,6 +659,59 @@ export const api = {
   },
   syncSkills: () =>
     request<SkillSyncResult>("/swarm/skills/sync", { method: "POST" }),
+
+  // Role Square
+  listRoleGroups: (q?: string) =>
+    request<{ groups: RoleGroup[]; tool_catalog?: string[] }>(
+      `/swarm/roles${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+  getRoleDetail: (roleRef: string) =>
+    request<RoleProfile>(
+      `/swarm/roles/${encodeURIComponent(roleRef)}/detail`,
+    ),
+  createCustomRole: (body: CustomRoleRequest) =>
+    request<{ id: string; name: string; approved: boolean; updated_at: string }>(
+      "/swarm/roles",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  updateCustomRole: (roleId: string, body: CustomRoleRequest) =>
+    request<{ id: string; name: string; approved: boolean; updated_at: string }>(
+      `/swarm/roles/${encodeURIComponent(roleId)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  deleteCustomRole: (roleId: string) =>
+    request<{ status: string }>(
+      `/swarm/roles/${encodeURIComponent(roleId)}`,
+      { method: "DELETE" },
+    ),
+  approveRole: (roleId: string) =>
+    request<{ id: string; approved: boolean; approved_at?: string }>(
+      `/swarm/roles/${encodeURIComponent(roleId)}/approve`,
+      { method: "POST" },
+    ),
+  unapproveRole: (roleId: string) =>
+    request<{ id: string; approved: boolean }>(
+      `/swarm/roles/${encodeURIComponent(roleId)}/unapprove`,
+      { method: "POST" },
+    ),
+  createRoleRun: (body: RoleRunRequest) =>
+    request<{ id: string; status: string; kind: string; trial_role: string }>(
+      "/swarm/role-runs",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  listRoleRuns: (options?: RoleRunListOptions) => {
+    const params = new URLSearchParams();
+    if (options?.roleRef) params.set("role_ref", options.roleRef);
+    if (options?.target) params.set("target", options.target);
+    if (options?.from) params.set("from", options.from);
+    if (options?.to) params.set("to", options.to);
+    if (options?.scope) params.set("scope", options.scope);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request<SwarmRunSummary[]>(
+      `/swarm/role-runs${query ? `?${query}` : ""}`,
+    );
+  },
   getLLMSettings: () => request<LLMSettings>("/settings/llm"),
   updateLLMSettings: (settings: UpdateLLMSettingsRequest) =>
     request<LLMSettings>("/settings/llm", {
@@ -926,14 +979,15 @@ export interface SwarmRunSummary {
   research_target?: string | null;
   research_question?: string | null;
   final_report_excerpt?: string | null;
-  /** "team" (default/old records) or "skill_trial". */
+  /** "team" (default/old records), "skill_trial" or "role_run". */
   kind?: string;
   trial_skill?: string | null;
+  trial_role?: string | null;
 }
 
 export interface SwarmRunListOptions {
-  /** "team" (default), "skill_trial" or "all". */
-  kind?: "team" | "skill_trial" | "all";
+  /** "team" (default), "skill_trial", "role_run" or "all". */
+  kind?: "team" | "skill_trial" | "role_run" | "all";
   target?: string;
   /** ISO date prefix, inclusive (YYYY-MM-DD). */
   from?: string;
@@ -972,6 +1026,8 @@ export interface CustomTeamNode {
   timeout_seconds: number;
   source_task_id?: string | null;
   is_new: boolean;
+  /** Role Square reference; nodes without it are legacy snapshots. */
+  role_ref?: string | null;
 }
 
 export interface CustomTeamRequest {
@@ -1001,6 +1057,66 @@ export interface SkillTrialRequest {
   skill_name: string;
   target: string;
   question: string;
+}
+
+// ---------------------------------------------------------------------------
+// Role Square
+// ---------------------------------------------------------------------------
+
+export interface RoleGroupItem {
+  ref: string;
+  name: string;
+  purpose: string;
+  approved: boolean;
+}
+
+export interface RoleGroup {
+  kind: "builtin" | "custom";
+  /** Preset name for builtin groups; "custom" for the custom group. */
+  ref: string;
+  title: string;
+  description: string;
+  roles: RoleGroupItem[];
+}
+
+export interface RoleProfile {
+  kind: "builtin" | "custom";
+  ref: string;
+  name: string;
+  purpose: string;
+  system_prompt: string;
+  tools: string[];
+  skills: string[];
+  max_iterations: number;
+  timeout_seconds: number;
+  approved: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomRoleRequest {
+  name: string;
+  purpose?: string;
+  system_prompt: string;
+  tools: string[];
+  skills: string[];
+  max_iterations: number;
+  timeout_seconds: number;
+}
+
+export interface RoleRunRequest {
+  role_ref: string;
+  target: string;
+  question: string;
+}
+
+export interface RoleRunListOptions {
+  roleRef?: string;
+  target?: string;
+  from?: string;
+  to?: string;
+  scope?: "mine" | "all";
+  limit?: number;
 }
 
 export interface SkillImportResult {

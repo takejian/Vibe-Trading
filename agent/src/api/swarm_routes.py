@@ -71,6 +71,7 @@ def _run_summary_item(runtime: Any, reconciled: Any) -> dict:
         "research_question": getattr(reconciled, "research_question", None),
         "kind": getattr(reconciled, "kind", "team") or "team",
         "trial_skill": getattr(reconciled, "trial_skill", None),
+        "trial_role": getattr(reconciled, "trial_role", None),
         "final_report_excerpt": excerpt or None,
     }
 
@@ -216,7 +217,9 @@ def register_swarm_routes(
     @app.get("/swarm/runs", dependencies=[Depends(require_auth)])
     async def list_swarm_runs(
         limit: int = Query(20, ge=1, le=100),
-        kind: str = Query("team", pattern="^(team|skill_trial|all)$"),
+        kind: str = Query(
+            "team", pattern="^(team|skill_trial|role_run|all)$"
+        ),
         target: str = Query("", max_length=100),
         date_from: date | None = Query(None, alias="from"),
         date_to: date | None = Query(None, alias="to"),
@@ -272,6 +275,7 @@ def register_swarm_routes(
             "research_question": getattr(run, "research_question", None),
             "kind": getattr(run, "kind", "team") or "team",
             "trial_skill": getattr(run, "trial_skill", None),
+            "trial_role": getattr(run, "trial_role", None),
         }
 
     @app.get(
@@ -605,3 +609,257 @@ def register_swarm_routes(
                 detail=e.reasons if len(e.reasons) > 1 else e.reasons[0],
             )
         return result
+
+    # ------------------------------------------------------------------
+    # Role Square: catalog, custom roles, standalone role runs
+    # ------------------------------------------------------------------
+
+    import re as _re
+
+    _ROLE_REF_RE = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,90}$")
+    _CUSTOM_ROLE_ID_RE = _re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+    def _validate_role_ref(role_ref: str) -> str:
+        role_ref = (role_ref or "").strip()
+        if not _ROLE_REF_RE.match(role_ref):
+            raise HTTPException(status_code=400, detail="角色引用不合法")
+        return role_ref
+
+    def _custom_role_id(role_id: str) -> str:
+        role_id = (role_id or "").strip()
+        if ":" in role_id or not _CUSTOM_ROLE_ID_RE.match(role_id):
+            raise HTTPException(
+                status_code=400, detail="自建角色标识不合法"
+            )
+        return role_id
+
+    def _require_role_admin() -> None:
+        if not _skill_admin_enabled():
+            raise HTTPException(
+                status_code=403, detail="Role administration is disabled"
+            )
+
+    @app.get("/swarm/roles", dependencies=[Depends(require_auth)])
+    async def list_roles(q: str = Query("", max_length=80)):
+        """Grouped role catalog (built-in preset roles + custom roles)."""
+        from src.swarm.role_catalog import list_role_groups
+        from src.swarm.skill_trials import preset_tool_union
+
+        catalog = list_role_groups()
+        catalog["tool_catalog"] = sorted(preset_tool_union())
+        needle = (q or "").strip().lower()
+        if needle:
+            filtered_groups = []
+            for group in catalog["groups"]:
+                roles = [
+                    role
+                    for role in group["roles"]
+                    if needle in role["name"].lower()
+                    or needle in (role.get("purpose") or "").lower()
+                ]
+                if roles:
+                    filtered_groups.append({**group, "roles": roles})
+            catalog = {"groups": filtered_groups}
+        return catalog
+
+    @app.get(
+        "/swarm/roles/{role_ref}/detail",
+        dependencies=[Depends(require_auth)],
+    )
+    async def get_role_detail(role_ref: str):
+        """Full read-only profile of one role (built-in or custom)."""
+        role_ref = _validate_role_ref(role_ref)
+        from src.swarm.role_catalog import resolve_role
+
+        try:
+            profile = resolve_role(role_ref)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if profile["kind"] == "custom":
+            from src.swarm.roles import RoleStore
+
+            role = RoleStore().get_role(role_ref)
+            profile["created_at"] = role.created_at
+            profile["updated_at"] = role.updated_at
+        return profile
+
+    def _role_request_fields(payload: dict) -> dict:
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="body must be an object")
+        return {
+            "name": str(payload.get("name", "") or ""),
+            "purpose": str(payload.get("purpose", "") or ""),
+            "system_prompt": str(payload.get("system_prompt", "") or ""),
+            "tools": payload.get("tools", []),
+            "skills": payload.get("skills", []),
+            "max_iterations": int(payload.get("max_iterations", 25)),
+            "timeout_seconds": int(payload.get("timeout_seconds", 300)),
+        }
+
+    @app.post("/swarm/roles", dependencies=[Depends(require_auth)])
+    async def create_role(payload: dict):
+        """Create a new unapproved custom role from a blank definition."""
+        from src.swarm.roles import RoleStore
+
+        fields = _role_request_fields(payload)
+        try:
+            role = RoleStore().create_role(**fields)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "id": role.id,
+            "name": role.name,
+            "approved": role.approved,
+            "updated_at": role.updated_at,
+        }
+
+    @app.put("/swarm/roles/{role_id}", dependencies=[Depends(require_auth)])
+    async def update_role(role_id: str, payload: dict):
+        """Replace one custom role definition in place (approval preserved)."""
+        from src.swarm.roles import RoleStore
+
+        role_id = _custom_role_id(role_id)
+        fields = _role_request_fields(payload)
+        try:
+            role = RoleStore().update_role(role_id, **fields)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "id": role.id,
+            "name": role.name,
+            "approved": role.approved,
+            "updated_at": role.updated_at,
+        }
+
+    @app.delete(
+        "/swarm/roles/{role_id}", dependencies=[Depends(require_auth)]
+    )
+    async def delete_role(role_id: str):
+        """Delete one custom role (snapshots/role-run history untouched)."""
+        from src.swarm.roles import RoleStore
+
+        role_id = _custom_role_id(role_id)
+        try:
+            RoleStore().delete_role(role_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return {"status": "deleted"}
+
+    def _role_has_qualified_run(role_id: str) -> bool:
+        """Whether the role has at least one successful standalone run."""
+        from src.swarm.role_runs import role_run_succeeded
+
+        runtime = _get_swarm_runtime()
+        for raw in runtime._store.list_runs(limit=100):
+            run = runtime._store.reconcile_run(raw, write=False)
+            if getattr(run, "kind", None) != "role_run":
+                continue
+            if getattr(run, "trial_role", None) != role_id:
+                continue
+            if role_run_succeeded(run):
+                return True
+        return False
+
+    @app.post(
+        "/swarm/roles/{role_id}/approve",
+        dependencies=[Depends(require_auth)],
+    )
+    async def approve_role(role_id: str):
+        """Operator action: approve a role after a qualified run exists."""
+        _require_role_admin()
+        from src.swarm.roles import RoleStore
+
+        role_id = _custom_role_id(role_id)
+        store = RoleStore()
+        try:
+            store.get_role(role_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        if not _role_has_qualified_run(role_id):
+            raise HTTPException(
+                status_code=409,
+                detail="该角色尚无合格的单独运行记录，无法放开通过",
+            )
+        role = store.approve(role_id)
+        return {
+            "id": role.id,
+            "approved": role.approved,
+            "approved_at": role.approved_at,
+        }
+
+    @app.post(
+        "/swarm/roles/{role_id}/unapprove",
+        dependencies=[Depends(require_auth)],
+    )
+    async def unapprove_role(role_id: str):
+        """Operator action: revoke a role approval."""
+        _require_role_admin()
+        from src.swarm.roles import RoleStore
+
+        role_id = _custom_role_id(role_id)
+        store = RoleStore()
+        try:
+            role = store.unapprove(role_id)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return {"id": role.id, "approved": role.approved}
+
+    @app.post("/swarm/role-runs", dependencies=[Depends(require_auth)])
+    async def create_role_run(payload: dict, http_request: Request):
+        """Launch a standalone single-role run."""
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="body must be an object")
+        runtime = _get_swarm_runtime()
+        try:
+            run = runtime.start_run(
+                "",
+                {},
+                include_shell_tools=_host_shell_tools_enabled_for_request(
+                    http_request
+                ),
+                role_run={
+                    "role_ref": payload.get("role_ref", ""),
+                    "target": payload.get("target", ""),
+                    "question": payload.get("question", ""),
+                },
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "id": run.id,
+            "status": run.status.value,
+            "kind": run.kind,
+            "trial_role": run.trial_role,
+        }
+
+    @app.get("/swarm/role-runs", dependencies=[Depends(require_auth)])
+    async def list_role_runs(
+        limit: int = Query(20, ge=1, le=100),
+        target: str = Query("", max_length=100),
+        date_from: date | None = Query(None, alias="from"),
+        date_to: date | None = Query(None, alias="to"),
+        role_ref: str = Query("", max_length=100),
+        scope: str = Query("mine", pattern="^(mine|all)$"),
+    ):
+        """Role-run history (kind=role_run), newest first."""
+        if scope == "all" and not _skill_admin_enabled():
+            raise HTTPException(
+                status_code=403, detail="Role administration is disabled"
+            )
+        items = _list_runs_filtered(
+            kind="role_run",
+            target=target,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+        )
+        wanted = (role_ref or "").strip()
+        if wanted:
+            items = [
+                item for item in items if item.get("trial_role") == wanted
+            ]
+        return items

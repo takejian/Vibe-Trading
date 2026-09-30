@@ -4,6 +4,7 @@ import { Bookmark, History, Plus, Save, Trash2, Users } from "lucide-react";
 import {
   api,
   type CustomTeamSummary,
+  type RoleGroup,
   type SkillCatalogEntry,
   type SwarmPreset,
   type SwarmRunSummary,
@@ -14,6 +15,7 @@ import {
   draftFromPresetDetail,
   isLaunchable,
   nextNodeId,
+  nodeDraftFromRole,
   toCustomPayload,
   validateGraph,
   type FlowEdge,
@@ -28,6 +30,7 @@ import { RunView } from "@/components/swarm/RunView";
 import { HistoryList, type HistoryFilters } from "@/components/swarm/HistoryList";
 import { SaveTeamDialog } from "@/components/swarm/SaveTeamDialog";
 import { SkillSquare } from "@/components/swarm/SkillSquare";
+import { RolePickerDialog } from "@/components/swarm/RolePickerDialog";
 
 type Tab = "studio" | "history" | "skills";
 type View = "gallery" | "edit" | "run";
@@ -48,6 +51,7 @@ export function SwarmStudio() {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
 
   const [skillCatalogEntries, setSkillCatalogEntries] = useState<SkillCatalogEntry[]>([]);
+  const [roleGroups, setRoleGroups] = useState<RoleGroup[]>([]);
 
   const [presetName, setPresetName] = useState("");
   const [detail, setDetail] = useState<SwarmPresetDetail | null>(null);
@@ -87,11 +91,13 @@ export function SwarmStudio() {
     Promise.all([
       api.listSwarmPresets(),
       api.getSkillCatalog().catch(() => ({ skills: [] as SkillCatalogEntry[] })),
+      api.listRoleGroups().catch(() => ({ groups: [] as RoleGroup[] })),
     ])
-      .then(([presetRes, catalogRes]) => {
+      .then(([presetRes, catalogRes, rolesRes]) => {
         if (cancelled) return;
         setPresets(presetRes);
         setSkillCatalogEntries(catalogRes.skills);
+        setRoleGroups(rolesRes.groups);
       })
       .catch(() => {
         if (!cancelled) setGalleryError(t("swarmStudio.gallery.loadError"));
@@ -195,20 +201,21 @@ export function SwarmStudio() {
     setSelectedId((prev) => (prev === id ? null : prev));
   };
 
-  const addNode = () => {
-    const id = nextNodeId(nodes);
-    const node: FlowNodeDraft = {
-      id,
-      role: "",
-      duty: "",
-      tools: [],
-      skills: [],
-      timeoutSeconds: 300,
-      sourceTaskId: null,
-      isNew: true,
-    };
-    setNodes((prev) => [...prev, node]);
-    setSelectedId(id);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+
+  const addRoleFromPicker = async (roleRef: string) => {
+    setRolePickerOpen(false);
+    try {
+      const profile = await api.getRoleDetail(roleRef);
+      const id = nextNodeId(nodes);
+      const draft = nodeDraftFromRole(profile, id);
+      setNodes((prev) => [...prev, draft]);
+      setSelectedId(id);
+    } catch (err) {
+      setLaunchError(
+        err instanceof Error ? err.message : t("swarmStudio.launch.failed"),
+      );
+    }
   };
 
   const deleteEdge = (edge: FlowEdge) => {
@@ -489,7 +496,7 @@ export function SwarmStudio() {
               </button>
               <button
                 type="button"
-                onClick={addNode}
+                onClick={() => setRolePickerOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs hover:bg-accent"
                 data-testid="add-node-btn"
               >
@@ -579,6 +586,13 @@ export function SwarmStudio() {
           )}
         </section>
       )}
+
+      <RolePickerDialog
+        open={rolePickerOpen}
+        groups={roleGroups}
+        onPick={(roleRef) => void addRoleFromPicker(roleRef)}
+        onClose={() => setRolePickerOpen(false)}
+      />
 
       <SaveTeamDialog
         open={teamDialogOpen}

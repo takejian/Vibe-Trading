@@ -131,12 +131,23 @@ export function NodeEditorPanel({
             value={node.role}
             onChange={(e) => onUpdateNode(node.id, { role: e.target.value })}
             data-testid="node-role-input"
-            className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+            readOnly={Boolean(node.roleRef)}
+            className={`mt-1 w-full rounded border bg-background px-2 py-1.5 text-sm ${
+              node.roleRef
+                ? "border-border text-muted-foreground"
+                : "border-border"
+            }`}
           />
-          {!node.role.trim() && (
-            <span className="mt-1 block text-xs text-red-600">
-              {t("swarmStudio.validation.emptyRole")}
+          {node.roleRef ? (
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {t("swarmStudio.editor.roleLocked")}
             </span>
+          ) : (
+            !node.role.trim() && (
+              <span className="mt-1 block text-xs text-red-600">
+                {t("swarmStudio.validation.emptyRole")}
+              </span>
+            )
           )}
         </label>
 

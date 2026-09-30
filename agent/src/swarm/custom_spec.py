@@ -180,6 +180,30 @@ def build_run_from_custom_spec(
         if not duty:
             raise ValueError(f"节点 {node_id!r} 缺少职责说明")
 
+        # When the node carries a role reference (canvas now introduces
+        # roles exclusively from the Role Square), the referenced role must
+        # still exist and be approved. Revoked/deleted role references are
+        # a hard error on both launch and team save/update. Nodes without
+        # role_ref (legacy snapshots) keep the legacy permissive behavior.
+        role_ref = raw.get("role_ref")
+        if role_ref is not None:
+            role_ref = str(role_ref or "").strip()
+        if role_ref:
+            from src.swarm.role_catalog import is_role_approved, resolve_role
+
+            try:
+                resolve_role(role_ref)
+            except (ValueError, FileNotFoundError):
+                raise ValueError(
+                    f"节点 {node_id!r} 引用的角色已不存在: {role_ref!r}，"
+                    "请替换或移除该角色后再发起"
+                ) from None
+            if not is_role_approved(role_ref):
+                raise ValueError(
+                    f"节点 {node_id!r} 引用的角色未放开通过: {role_ref!r}，"
+                    "请替换为已通过角色或请运维管理员放开后再发起"
+                )
+
         timeout = raw.get("timeout_seconds")
         if isinstance(timeout, bool) or not isinstance(timeout, int):
             raise ValueError(f"节点 {node_id!r} 的执行时长必须为正整数（秒）")

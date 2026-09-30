@@ -296,12 +296,16 @@ class SwarmRun(BaseModel):
         customized runs; ``None`` for plain preset runs.
     research_question: The research question the team must answer for a
         customized run; ``None`` for plain preset runs.
-    kind: Run lineage. ``"team"`` (default) for team evaluations and
+    kind: Run lineage. ``"team"`` (default) for team evaluations,
         ``"skill_trial"`` for a single-skill standalone trial from the
-        Skill Square. Old run.json files without this field deserialize as
-        ``"team"``.
+        Skill Square, and ``"role_run"`` for a standalone single-role run
+        from the Role Square. Old run.json files without this field
+        deserialize as ``"team"``.
     trial_skill: Skill name under trial when :attr:`kind` is
         ``"skill_trial"``; ``None`` otherwise.
+    trial_role: Role reference under run when :attr:`kind` is
+        ``"role_run"`` (``"preset:agent_id"`` for built-in roles, custom
+        role id otherwise); ``None`` otherwise.
     """
 
     id: str
@@ -325,6 +329,7 @@ class SwarmRun(BaseModel):
     research_question: str | None = None
     kind: str = "team"
     trial_skill: str | None = None
+    trial_role: str | None = None
 
 
 class WorkerResult(BaseModel):

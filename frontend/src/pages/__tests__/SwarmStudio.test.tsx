@@ -142,6 +142,8 @@ const getSkillCatalog = vi.fn();
 const getSkillCapabilities = vi.fn();
 const createSkillTrial = vi.fn();
 const listSkillTrials = vi.fn();
+const listRoleGroups = vi.fn();
+const getRoleDetail = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -162,6 +164,8 @@ vi.mock("@/lib/api", async () => {
       getSkillCapabilities: (...args: unknown[]) => getSkillCapabilities(...args),
       createSkillTrial: (...args: unknown[]) => createSkillTrial(...args),
       listSkillTrials: (...args: unknown[]) => listSkillTrials(...args),
+      listRoleGroups: (...args: unknown[]) => listRoleGroups(...args),
+      getRoleDetail: (...args: unknown[]) => getRoleDetail(...args),
       importSkillPackage: vi.fn(),
       syncSkills: vi.fn(),
       swarmSseUrl: vi.fn(async () => "http://test/events"),
@@ -207,6 +211,19 @@ beforeEach(() => {
     trial_skill: "behavioral-finance",
   });
   listSkillTrials.mockResolvedValue([]);
+  listRoleGroups.mockResolvedValue({ groups: [] });
+  getRoleDetail.mockResolvedValue({
+    kind: "builtin",
+    ref: "investment_committee:bull_advocate",
+    name: "Bull Advocate",
+    purpose: "argues the bull case",
+    system_prompt: "You are the bull advocate.",
+    tools: ["get_market_data"],
+    skills: [],
+    max_iterations: 25,
+    timeout_seconds: 300,
+    approved: true,
+  });
   createCustomTeam.mockResolvedValue({
     id: "team-abc123",
     name: "My Team",
@@ -397,4 +414,41 @@ describe("SwarmStudio", () => {
     expect(screen.getByTestId("update-team-btn")).toBeInTheDocument();
     expect(screen.getByTestId("delete-team-btn")).toBeInTheDocument();
   });
+  it("introduces an approved role from the role picker as a new canvas node", async () => {
+    listRoleGroups.mockResolvedValue({
+      groups: [
+        {
+          kind: "builtin",
+          ref: "investment_committee",
+          title: "Investment Committee",
+          description: "",
+          roles: [
+            {
+              ref: "investment_committee:bull_advocate",
+              name: "Bull Advocate",
+              purpose: "argues the bull case",
+              approved: true,
+            },
+          ],
+        },
+      ],
+    });
+    render(<SwarmStudio />);
+    await waitFor(() =>
+      expect(screen.getByTestId("preset-card-investment_committee")).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByTestId("preset-card-investment_committee"));
+    await screen.findByTestId("swarm-edit-view");
+
+    await userEvent.click(screen.getByTestId("add-node-btn"));
+    expect(screen.getByTestId("role-picker-dialog")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByTestId("role-pick-investment_committee:bull_advocate"),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("canvas-node-node_5")).toBeInTheDocument(),
+    );
+  });
+
 });

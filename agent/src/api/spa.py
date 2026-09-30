@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -17,4 +18,16 @@ class SPAStaticFiles(StaticFiles):
         except StarletteHTTPException as exc:
             if exc.status_code != 404:
                 raise
-            return await super().get_response("index.html", scope)
+            # Only browser navigations (Accept includes text/html) get the SPA
+            # shell. XHR/fetch callers send Accept: */* (or application/json)
+            # and must receive a real 404 — otherwise an API path that does
+            # not exist answers 200 with HTML, which the client surfaces as a
+            # misleading data-load failure.
+            accept = Headers(scope=scope).get("accept", "")
+            if "text/html" not in accept:
+                raise
+            response = await super().get_response("index.html", scope)
+            # The fallback is a synthetic representation for an arbitrary URL;
+            # never cache it under that URL (hashed /assets keep normal caching).
+            response.headers["Cache-Control"] = "no-store"
+            return response

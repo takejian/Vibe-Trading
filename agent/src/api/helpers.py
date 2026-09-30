@@ -61,7 +61,9 @@ async def _spa_html_deep_link_fallback(request: Request, call_next):
         if "text/html" in accept and _is_spa_html_route(request.url.path):
             index = _FRONTEND_DIST / "index.html"
             if index.exists():
-                return FileResponse(str(index))
+                # Synthetic shell for a dynamic URL: never cache it under that
+                # URL; fresh navigation must re-resolve against real routes.
+                return FileResponse(str(index), headers={"Cache-Control": "no-store"})
     return await call_next(request)
 
 
