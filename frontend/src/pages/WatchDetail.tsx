@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/common/Skeleton";
 import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { AnalysisTab } from "@/components/watch/AnalysisTab";
 import { ChanlunHistory } from "@/components/watch/ChanlunHistory";
+import { KlineReadinessCard } from "@/components/watch/KlineReadinessCard";
 
 type TabKey = "overview" | "objective" | "fundamental" | "technical" | "ai";
 const TABS: TabKey[] = ["overview", "objective", "fundamental", "technical", "ai"];
@@ -303,6 +304,7 @@ export function WatchDetail() {
       {(tab === "objective" || tab === "fundamental") && (
         <ObjectivePanel
           active={tab}
+          symbol={symbol}
           loading={objectiveLoading || !objectiveLoaded}
           raw={raw}
           fetches={fetches}
@@ -324,7 +326,12 @@ export function WatchDetail() {
       )}
       {tab === "technical" && (
         <div className="space-y-8">
-          <AnalysisTab category="technical" symbol={symbol} symbolName={name} />
+          <AnalysisTab
+            category="technical"
+            symbol={symbol}
+            symbolName={name}
+            onGotoObjective={() => setTab("objective")}
+          />
           <ChanlunHistory symbol={symbol} />
         </div>
       )}
@@ -399,6 +406,7 @@ function RawTable({
 
 function ObjectivePanel({
   active,
+  symbol,
   loading,
   raw,
   fetches,
@@ -412,6 +420,7 @@ function ObjectivePanel({
   onReload,
 }: {
   active: TabKey;
+  symbol: string;
   loading: boolean;
   raw: ObjectiveRawData | null;
   fetches: ObjectiveRecord[];
@@ -433,6 +442,7 @@ function ObjectivePanel({
   const financialOnly = active === "fundamental";
   return (
     <section data-testid="tab-objective" className="space-y-5">
+      {!financialOnly && <KlineReadinessCard symbol={symbol} />}
       {!financialOnly && (
       <div className="rounded-md border border-border p-4">
         <h3 className="mb-2 text-sm font-semibold">{t("watch.obj.fetchTitle")}</h3>

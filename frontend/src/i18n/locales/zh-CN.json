@@ -2287,7 +2287,11 @@
       "historyEmpty": "暂无分析历史",
       "noAgents": "该分类下暂无已发布角色",
       "expand": "展开",
-      "collapse": "收起"
+      "collapse": "收起",
+      "gateTitle": "缠论分析所需行情尚未齐备",
+      "gateDesc": "以下 K 线级别未齐备，请先到「客观数据」页更新行情数据，再运行缠论分析。",
+      "gateGo": "去更新行情数据",
+      "warn30m": "当前缺少 30 分钟行情，低级别择时结论可能存在盲区，但不影响缠论分析运行。"
     },
     "ch": {
       "title": "缠论分析历史",
@@ -2299,6 +2303,59 @@
       "filter": "筛选",
       "unstructured": "非结构化返回，以下为原文",
       "recordEmpty": "暂无缠论分析记录"
+    },
+    "kline": {
+      "title": "缠论分析所需各级别 K 线",
+      "subtitle": "直接从数据源获取，不经过 AI；日/周/月/季/年五个级别全部齐备后，才能运行缠论分析。",
+      "updateAll": "一键更新全部级别（日/周/月/季/年）",
+      "levelCol": "级别",
+      "statusCol": "状态",
+      "barsCol": "K 线根数",
+      "latestCol": "最新一根",
+      "updatedCol": "最近成功时间",
+      "actionCol": "操作",
+      "state": {
+        "ready": "已齐备",
+        "insufficient": "数据不足",
+        "not_fetched": "未获取",
+        "failed": "获取失败"
+      },
+      "levels": {
+        "1d": "日线",
+        "1w": "周线",
+        "1mo": "月线",
+        "1q": "季线",
+        "1y": "年线",
+        "30m": "30 分钟"
+      },
+      "retry": "重试",
+      "failHint": "操作方法：请稍后重试；检查网络是否正常；若标的停牌或市场休市，请于开市后再试。更新失败时已有数据会被保留。",
+      "optional30m": "30 分钟级别为可选项，不作为缠论分析的强制条件；公开数据源通常较难提供分钟 K 线。",
+      "fetch30m": "尝试获取 30 分钟 K 线",
+      "loadFailed": "K 线状态加载失败，请重试",
+      "updatePartial": "部分级别获取失败，请在下方逐级别重试",
+      "updateDone": "K 线更新完成",
+      "sourceLabel": "数据源",
+      "reason": {
+        "not_installed": "未安装",
+        "needs_auth": "需要凭证",
+        "no_adapter": "K线卡片暂不支持"
+      },
+      "sources": {
+        "tencent": "腾讯行情",
+        "mootdx": "Mootdx",
+        "eastmoney": "东方财富",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "本地 DuckDB"
+      },
+      "errorDialogTitle": "K线获取失败",
+      "errorDialogHint": "以下级别获取失败，已有数据已保留。可切换数据源后重试。",
+      "errorDialogRequest": "请求",
+      "close": "关闭",
+      "retryFailed": "重试失败级别"
     },
     "status": {
       "pending": "等待中",

@@ -7,6 +7,7 @@ import {
   type WatchAgent,
   type WatchAnalysisSummary,
   type WatchCategory,
+  type WatchKlineLevel,
 } from "@/lib/api";
 import { RunView } from "@/components/swarm/RunView";
 import { MarkdownContent } from "@/components/common/MarkdownContent";
@@ -16,11 +17,14 @@ const ACTIVE_STATUSES = new Set(["pending", "running"]);
 export function AnalysisTab({
   category,
   symbol,
+  onGotoObjective,
 }: {
   category: WatchCategory;
   symbol: string;
   /** Display name kept for future question-template enrichment. */
   symbolName?: string;
+  /** Technical tab: jump to the Objective-data tab from the Chanlun gate. */
+  onGotoObjective?: () => void;
 }) {
   const { t } = useTranslation();
   const [agents, setAgents] = useState<WatchAgent[]>([]);
@@ -35,6 +39,8 @@ export function AnalysisTab({
   const [activeRunId, setActiveRunId] = useState("");
   const [activeRunReadOnly, setActiveRunReadOnly] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [gateItems, setGateItems] = useState<WatchKlineLevel[] | null>(null);
+  const [warn30m, setWarn30m] = useState(false);
 
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -64,6 +70,33 @@ export function AnalysisTab({
     void loadHistory();
   }, [loadAgents, loadHistory]);
 
+  const selectedAgent = useMemo(
+    () => agents.find((agent) => agent.ref === roleRef) ?? null,
+    [agents, roleRef],
+  );
+
+  // Chanlun is the only role with a data prerequisite. The optional 30m
+  // level never blocks — it only surfaces a non-blocking warning (BDD US-11).
+  useEffect(() => {
+    if (category !== "technical" || !selectedAgent?.is_chanlun) {
+      setWarn30m(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resp = await api.getWatchKlineStatus(symbol);
+        const minute = resp.items.find((item) => item.interval === "30m");
+        if (!cancelled) setWarn30m(minute?.status !== "ready");
+      } catch {
+        /* warning is advisory — ignore status-load failures */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, selectedAgent, symbol]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, { name: string; items: WatchAnalysisSummary[] }>();
     for (const item of history) {
@@ -80,6 +113,7 @@ export function AnalysisTab({
     setStarting(true);
     setError409(false);
     setErrorOther("");
+    setGateItems(null);
     try {
       const run = await api.startWatchAnalysis(symbol, {
         category,
@@ -92,6 +126,16 @@ export function AnalysisTab({
       if (err instanceof ApiError && err.status === 409) {
         setError409(true);
         await loadHistory();
+      } else if (
+        err instanceof ApiError &&
+        err.status === 412 &&
+        err.code === "kline_not_ready"
+      ) {
+        setGateItems(
+          Array.isArray(err.payload?.items)
+            ? (err.payload!.items as WatchKlineLevel[])
+            : [],
+        );
       } else {
         setErrorOther(t("watch.error.dataFailed"));
       }
@@ -154,6 +198,7 @@ export function AnalysisTab({
                       onChange={() => {
                         setRoleRef(agent.ref);
                         setError409(false);
+                        setGateItems(null);
                       }}
                     />
                     <span>
@@ -217,6 +262,47 @@ export function AnalysisTab({
       {error409 && (
         <div role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm" data-testid="analysis-409">
           {t("watch.an.inProgress")}
+        </div>
+      )}
+      {gateItems && (
+        <div
+          role="alert"
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm"
+          data-testid="chanlun-kline-gate"
+        >
+          <p className="font-medium">{t("watch.an.gateTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{t("watch.an.gateDesc")}</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {gateItems.map((item) => (
+              <li
+                key={item.interval}
+                className="rounded border border-border bg-background px-2 py-0.5 text-xs"
+                data-testid={`chanlun-gate-item-${item.interval}`}
+              >
+                {t(`watch.kline.levels.${item.interval}`)}：
+                {t(`watch.kline.state.${item.status}`)}
+              </li>
+            ))}
+          </ul>
+          {onGotoObjective && (
+            <button
+              type="button"
+              onClick={onGotoObjective}
+              className="mt-3 inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90"
+              data-testid="chanlun-gate-go"
+            >
+              {t("watch.an.gateGo")}
+            </button>
+          )}
+        </div>
+      )}
+      {warn30m && category === "technical" && selectedAgent?.is_chanlun && (
+        <div
+          role="status"
+          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+          data-testid="chanlun-30m-warn"
+        >
+          {t("watch.an.warn30m")}
         </div>
       )}
       {errorOther && (

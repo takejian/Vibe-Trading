@@ -2287,7 +2287,11 @@
       "historyEmpty": "Noch kein Analyseverlauf",
       "noAgents": "Keine veröffentlichten Rollen in dieser Kategorie",
       "expand": "Erweitern",
-      "collapse": "Einklappen"
+      "collapse": "Einklappen",
+      "gateTitle": "Die für die Chanlun-Analyse erforderlichen Marktdaten sind nicht bereit",
+      "gateDesc": "Folgende Kerzenebenen sind nicht bereit. Aktualisieren Sie die Marktdaten im Reiter „Objektive Daten“, bevor Sie die Chanlun-Analyse starten.",
+      "gateGo": "Marktdaten aktualisieren",
+      "warn30m": "Keine 30-Minuten-Kerzen verfügbar; Timing-Schlüsse auf niedrigeren Ebenen können Lücken haben, der Lauf wird aber nicht blockiert."
     },
     "ch": {
       "title": "Chanlun-Analyseverlauf",
@@ -2299,6 +2303,59 @@
       "filter": "Filter",
       "unstructured": "Unstrukturierte Antwort — Originaltext unten",
       "recordEmpty": "Noch keine Chanlun-Analyse"
+    },
+    "kline": {
+      "title": "Für die Chanlun-Analyse erforderliche Kerzenebenen",
+      "subtitle": "Direkt von den Datenquellen geholt — ohne KI. Tages-/Wochen-/Monats-/Quartals-/Jahresdaten müssen vollständig sein, bevor eine Chanlun-Analyse starten kann.",
+      "updateAll": "Alle Ebenen aktualisieren (T/W/M/Q/J)",
+      "levelCol": "Ebene",
+      "statusCol": "Status",
+      "barsCol": "Kerzen",
+      "latestCol": "Neueste Kerze",
+      "updatedCol": "Letzter Erfolg",
+      "actionCol": "Aktion",
+      "state": {
+        "ready": "Bereit",
+        "insufficient": "Unzureichend",
+        "not_fetched": "Nicht geholt",
+        "failed": "Abruf fehlgeschlagen"
+      },
+      "levels": {
+        "1d": "Täglich",
+        "1w": "Wöchentlich",
+        "1mo": "Monatlich",
+        "1q": "Quartal",
+        "1y": "Jährlich",
+        "30m": "30 Minuten"
+      },
+      "retry": "Erneut versuchen",
+      "failHint": "Hinweise: versuchen Sie es später erneut; prüfen Sie Ihre Netzwerkverbindung; bei Handelsaussetzung oder Börsenschließung versuchen Sie es nach Wiedereröffnung. Vorhandene Daten bleiben bei Fehlern erhalten.",
+      "optional30m": "Die 30-Minuten-Ebene ist optional und für die Chanlun-Analyse nicht erforderlich; öffentliche Quellen liefern Minutenkerzen oft nicht.",
+      "fetch30m": "30-Minuten-Kerzen abrufen",
+      "loadFailed": "Kerzenstatus konnte nicht geladen werden, bitte erneut versuchen",
+      "updatePartial": "Einige Ebenen sind fehlgeschlagen; unten einzeln erneut versuchen",
+      "updateDone": "Kerzenaktualisierung abgeschlossen",
+      "sourceLabel": "Datenquelle",
+      "reason": {
+        "not_installed": "nicht installiert",
+        "needs_auth": "Anmeldedaten erforderlich",
+        "no_adapter": "in der K-Line-Karte nicht unterstützt"
+      },
+      "sources": {
+        "tencent": "Tencent",
+        "mootdx": "Mootdx",
+        "eastmoney": "Eastmoney",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "Lokale DuckDB"
+      },
+      "errorDialogTitle": "K-Line-Abruf fehlgeschlagen",
+      "errorDialogHint": "Folgende Zeitebenen konnten nicht abgerufen werden. Vorhandene Daten bleiben erhalten. Datenquelle wechseln und erneut versuchen.",
+      "errorDialogRequest": "Anfrage",
+      "close": "Schließen",
+      "retryFailed": "Fehlgeschlagene erneut versuchen"
     },
     "status": {
       "pending": "Wartend",

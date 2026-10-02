@@ -2287,7 +2287,11 @@
       "historyEmpty": "No analysis history yet",
       "noAgents": "No published analysts in this category",
       "expand": "Expand",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "gateTitle": "Required market data is not ready",
+      "gateDesc": "The following K-line levels are not ready. Update market data on the Objective-data tab before running the Chanlun analyst.",
+      "gateGo": "Go to update market data",
+      "warn30m": "30-minute bars are unavailable; lower-level timing conclusions may have blind spots, but the run is not blocked."
     },
     "ch": {
       "title": "Chanlun analysis history",
@@ -2299,6 +2303,59 @@
       "filter": "Filter",
       "unstructured": "Non-structured response — raw text below",
       "recordEmpty": "No chanlun analysis yet"
+    },
+    "kline": {
+      "title": "K-line levels required by the Chanlun analyst",
+      "subtitle": "Fetched directly from data sources — no AI involved. Day/week/month/quarter/year must all be ready before a Chanlun run.",
+      "updateAll": "Update all levels (D/W/M/Q/Y)",
+      "levelCol": "Level",
+      "statusCol": "Status",
+      "barsCol": "Bars",
+      "latestCol": "Latest bar",
+      "updatedCol": "Last success",
+      "actionCol": "Action",
+      "state": {
+        "ready": "Ready",
+        "insufficient": "Insufficient",
+        "not_fetched": "Not fetched",
+        "failed": "Fetch failed"
+      },
+      "levels": {
+        "1d": "Daily",
+        "1w": "Weekly",
+        "1mo": "Monthly",
+        "1q": "Quarterly",
+        "1y": "Yearly",
+        "30m": "30-minute"
+      },
+      "retry": "Retry",
+      "failHint": "Retry tips: try again later; check your network; if the stock is suspended or the market is closed, retry after it reopens. Existing data is kept when a refresh fails.",
+      "optional30m": "The 30-minute level is optional and never required for Chanlun analysis; public sources often fail to provide minute bars.",
+      "fetch30m": "Try fetching 30-minute K-lines",
+      "loadFailed": "Failed to load K-line status, please retry",
+      "updatePartial": "Some levels failed; retry them individually below",
+      "updateDone": "K-line update finished",
+      "sourceLabel": "Data source",
+      "reason": {
+        "not_installed": "not installed",
+        "needs_auth": "credentials required",
+        "no_adapter": "not supported in the K-line card"
+      },
+      "sources": {
+        "tencent": "Tencent",
+        "mootdx": "Mootdx",
+        "eastmoney": "Eastmoney",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "Local DuckDB"
+      },
+      "errorDialogTitle": "K-line fetch failed",
+      "errorDialogHint": "The following levels could not be fetched. Existing data is kept. Switch the data source and retry.",
+      "errorDialogRequest": "Request",
+      "close": "Close",
+      "retryFailed": "Retry failed levels"
     },
     "status": {
       "pending": "Pending",

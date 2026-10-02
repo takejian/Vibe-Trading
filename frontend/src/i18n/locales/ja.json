@@ -2287,7 +2287,11 @@
       "historyEmpty": "分析履歴はまだありません",
       "noAgents": "このカテゴリに公開済みロールがありません",
       "expand": "展開",
-      "collapse": "折りたたむ"
+      "collapse": "折りたたむ",
+      "gateTitle": "纏論分析に必要な相場データが準備できていません",
+      "gateDesc": "次のローソク足レベルが未準備です。「客観データ」タブで相場データを更新してから纏論分析を実行してください。",
+      "gateGo": "相場データを更新する",
+      "warn30m": "30分足がありません。下位レベルのタイミング判断に死角が生じる可能性がありますが、実行はブロックされません。"
     },
     "ch": {
       "title": "纏論（チャンロン）分析履歴",
@@ -2299,6 +2303,59 @@
       "filter": "絞り込み",
       "unstructured": "非構造化レスポンス — 原文を表示",
       "recordEmpty": "纏論分析はまだありません"
+    },
+    "kline": {
+      "title": "纏論（チャンロン）分析に必要なローソク足レベル",
+      "subtitle": "データソースから直接取得し、AI は使用しません。日/週/月/四半期/年の全レベルが揃ってから纏論分析を実行できます。",
+      "updateAll": "全レベルを更新（日/週/月/四半期/年）",
+      "levelCol": "レベル",
+      "statusCol": "状態",
+      "barsCol": "本数",
+      "latestCol": "最新の足",
+      "updatedCol": "最終成功時刻",
+      "actionCol": "操作",
+      "state": {
+        "ready": "準備完了",
+        "insufficient": "データ不足",
+        "not_fetched": "未取得",
+        "failed": "取得失敗"
+      },
+      "levels": {
+        "1d": "日足",
+        "1w": "週足",
+        "1mo": "月足",
+        "1q": "四半期足",
+        "1y": "年足",
+        "30m": "30分足"
+      },
+      "retry": "再試行",
+      "failHint": "対処方法：しばらくしてから再試行し、ネットワークを確認してください。銘柄が取引停止または休場の場合は、再開後にお試しください。更新失敗時も既存データは保持されます。",
+      "optional30m": "30分足は任意で、纏論分析の必須条件ではありません。公開データソースでは分足の取得が難しい場合があります。",
+      "fetch30m": "30分足の取得を試みる",
+      "loadFailed": "ローソク足状態の読み込みに失敗しました。再試行してください",
+      "updatePartial": "一部レベルの取得に失敗しました。下で個別に再試行してください",
+      "updateDone": "ローソク足の更新が完了しました",
+      "sourceLabel": "データソース",
+      "reason": {
+        "not_installed": "未インストール",
+        "needs_auth": "認証情報が必要",
+        "no_adapter": "Kラインカードでは未対応"
+      },
+      "sources": {
+        "tencent": "騰訊",
+        "mootdx": "Mootdx",
+        "eastmoney": "東方財富",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "ローカル DuckDB"
+      },
+      "errorDialogTitle": "Kライン取得失敗",
+      "errorDialogHint": "以下の足データを取得できませんでした。既存データは保持されています。データソースを切り替えて再試行できます。",
+      "errorDialogRequest": "リクエスト",
+      "close": "閉じる",
+      "retryFailed": "失敗した足を再試行"
     },
     "status": {
       "pending": "待機中",

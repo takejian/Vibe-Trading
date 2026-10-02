@@ -13,6 +13,8 @@ const startObjectiveFetch = vi.fn();
 const listWatchAgents = vi.fn();
 const listWatchAnalyses = vi.fn();
 const listChanlun = vi.fn();
+const getWatchKlineStatus = vi.fn();
+const getWatchKlineSources = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -27,6 +29,8 @@ vi.mock("@/lib/api", async () => {
       listWatchAgents: (...a: unknown[]) => listWatchAgents(...a),
       listWatchAnalyses: (...a: unknown[]) => listWatchAnalyses(...a),
       listChanlun: (...a: unknown[]) => listChanlun(...a),
+      getWatchKlineStatus: (...a: unknown[]) => getWatchKlineStatus(...a),
+      getWatchKlineSources: (...a: unknown[]) => getWatchKlineSources(...a),
     },
   };
 });
@@ -99,6 +103,25 @@ describe("WatchDetail", () => {
     listWatchAgents.mockResolvedValue({ items: [] });
     listWatchAnalyses.mockResolvedValue({ items: [] });
     listChanlun.mockResolvedValue({ items: [] });
+    getWatchKlineSources.mockResolvedValue({
+      items: [
+        { id: "tencent", available: true, requires_auth: false, reason: null,
+          intervals: ["1d", "1w", "1mo", "1q", "1y", "30m"] },
+        { id: "eastmoney", available: true, requires_auth: false, reason: null,
+          intervals: ["1d", "1w", "1mo", "1q", "1y", "30m"] },
+      ],
+    });
+    getWatchKlineStatus.mockResolvedValue({
+      items: [
+        { interval: "1d", required: true, status: "ready", fetch_failed: false, bars_count: 120, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "1w", required: true, status: "ready", fetch_failed: false, bars_count: 60, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "1mo", required: true, status: "ready", fetch_failed: false, bars_count: 24, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "1q", required: true, status: "ready", fetch_failed: false, bars_count: 12, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "1y", required: true, status: "ready", fetch_failed: false, bars_count: 5, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "30m", required: false, status: "not_fetched", fetch_failed: false, bars_count: 0, latest_bar_time: null, last_ok_at: null, last_attempt_at: null, last_error: null, earliest_bar_time: null },
+      ],
+      market_ref: { last_trading_date: "2026-09-30", threshold_date: "2026-09-29", source: "trading_calendar" },
+    });
   });
 
   it("renders overview fields with No-data placeholders for missing values", async () => {
@@ -156,6 +179,12 @@ describe("WatchDetail", () => {
     await user.click(screen.getByRole("tab", { name: "Objective data" }));
 
     await waitFor(() => expect(getObjective).toHaveBeenCalledTimes(1));
+    // M16: the Chanlun multi-level K-line readiness card sits on top of the
+    // objective tab and lists all five required levels.
+    await waitFor(() => expect(getWatchKlineStatus).toHaveBeenCalledWith("600519.SH"));
+    expect(screen.getByTestId("kline-card")).toBeInTheDocument();
+    expect(screen.getByTestId("kline-update-all")).toBeInTheDocument();
+    expect(screen.getByTestId("kline-30m-btn")).toBeInTheDocument();
     // Four empty sections.
     expect(screen.getAllByText("No data").length).toBe(4);
     expect(screen.getByTestId("objective-records-empty")).toBeInTheDocument();

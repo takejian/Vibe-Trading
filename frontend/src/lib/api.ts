@@ -376,6 +376,11 @@ async function errorFromResponse(res: Response): Promise<ApiError> {
       if (structured.readiness && typeof structured.readiness === "object") {
         payload = { readiness: structured.readiness as MacroReadiness };
       }
+      // Generic structured envelope fields, e.g. the watchlist 412 Chanlun
+      // gate carries an `items` list of missing K-line levels.
+      if (Array.isArray(structured.items)) {
+        payload = { ...(payload ?? {}), items: structured.items };
+      }
     }
   } catch { /* ignore */ }
   if (res.status === 401 || res.status === 403) {
@@ -982,6 +987,29 @@ export const api = {
       `/watch/${encodeURIComponent(symbol)}/chanlun${query ? `?${query}` : ""}`,
     );
   },
+  getWatchKlineStatus: (symbol: string) =>
+    request<WatchKlineStatusResponse>(
+      `/watch/${encodeURIComponent(symbol)}/kline/status`,
+    ),
+  getWatchKlineSources: (symbol: string) =>
+    request<WatchKlineSourcesResponse>(
+      `/watch/${encodeURIComponent(symbol)}/kline/sources`,
+    ),
+  updateWatchKline: (
+    symbol: string,
+    intervals?: WatchKlineInterval[],
+    source?: string,
+  ) =>
+    request<WatchKlineStatusResponse>(
+      `/watch/${encodeURIComponent(symbol)}/kline/update`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          intervals: intervals ?? ["1d", "1w", "1mo", "1q", "1y"],
+          ...(source ? { source } : {}),
+        }),
+      },
+    ),
 };
 
 // --- Scheduled research types ---
@@ -2567,4 +2595,68 @@ export interface ChanlunRecord {
   structured: boolean;
   raw_report: string | null;
   created_at: string;
+}
+
+// --- M16 multi-level K-line readiness (Chanlun pre-run gate) ---
+
+export type WatchKlineInterval = "1d" | "1w" | "1mo" | "1q" | "1y" | "30m";
+
+export type WatchKlineStatusValue =
+  | "ready"
+  | "insufficient"
+  | "not_fetched"
+  | "failed";
+
+export interface WatchKlineLevel {
+  interval: WatchKlineInterval;
+  required: boolean;
+  status: WatchKlineStatusValue;
+  /** True when the last attempt failed (old bars, if any, are kept). */
+  fetch_failed: boolean;
+  bars_count: number;
+  earliest_bar_time: string | null;
+  latest_bar_time: string | null;
+  last_ok_at: string | null;
+  last_attempt_at: string | null;
+  last_error: string | null;
+  /** Vendor that produced the current bars (null until first success). */
+  source: string | null;
+}
+
+export type WatchKlineSourceId =
+  | "tencent"
+  | "mootdx"
+  | "eastmoney"
+  | "baostock"
+  | "akshare"
+  | "tushare"
+  | "gildata"
+  | "local"
+  // backend may introduce new vendors before the frontend is rebuilt
+  | (string & {});
+
+export type WatchKlineUnavailableReason =
+  | "not_installed"
+  | "needs_auth"
+  | "no_adapter";
+
+export interface WatchKlineSource {
+  id: WatchKlineSourceId;
+  available: boolean;
+  requires_auth: boolean;
+  reason: WatchKlineUnavailableReason | null;
+  intervals: WatchKlineInterval[];
+}
+
+export interface WatchKlineSourcesResponse {
+  items: WatchKlineSource[];
+}
+
+export interface WatchKlineStatusResponse {
+  items: WatchKlineLevel[];
+  market_ref: {
+    last_trading_date: string | null;
+    threshold_date: string | null;
+    source: string;
+  };
 }

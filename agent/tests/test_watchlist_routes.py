@@ -132,6 +132,29 @@ def _snapshot():
     )
 
 
+def _seed_ready_klines(symbol: str) -> None:
+    """Seed all five required levels as ready (uses the patched tmp DB)."""
+    from datetime import date, timedelta
+
+    db = watchlist_routes.watch_db
+    conn = db.watchlist_connection()
+    db.initialize_schema(conn)
+    today = date.today()
+    sizes = {"1d": 120, "1w": 60, "1mo": 24, "1q": 12, "1y": 5}
+    for interval, count in sizes.items():
+        rows = [
+            {
+                "trade_date": (today - timedelta(days=i)).isoformat(),
+                "open": 1, "high": 1, "low": 1, "close": 1,
+                "volume": 1, "amount": 1,
+            }
+            for i in range(count)
+        ]
+        db.upsert_kline_bars(symbol, interval, rows, source="eastmoney", conn=conn)
+        db.record_kline_fetch(symbol, interval, ok=True, error=None, conn=conn)
+    conn.close()
+
+
 # ----------------------------------------------------------------------
 def test_all_watch_routes_require_auth() -> None:
     app = FastAPI()
@@ -298,6 +321,9 @@ def test_analyze_validation_and_success(client) -> None:
         "/watch/600519.SH/analyze",
         json={"category": "technical", "role_ref": "missing:role"},
     ).status_code == 400
+
+    # Chanlun runs require the five K-line levels to be ready (BDD rule 18).
+    _seed_ready_klines("600519.SH")
 
     ok = c.post(
         "/watch/600519.SH/analyze",

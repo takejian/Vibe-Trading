@@ -176,6 +176,10 @@ ashare = [
     # HTTP CDN IP blocks that affect eastmoney-backed sources. The Tencent
     # A-share loader needs no extra dependency (stdlib HTTP only).
     "baostock>=0.8.8",
+    # TDX quotes over TCP. Kept optional: mootdx 0.11 pins httpx<0.26,
+    # which clashes with the project-wide httpx floor; the watchlist
+    # K-line card imports it lazily and reports not_installed otherwise.
+    "mootdx>=0.11.7",
 ]
 harmonic = [
     "pyharmonics>=1.5.0",

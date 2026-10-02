@@ -2287,7 +2287,11 @@
       "historyEmpty": "Belum ada riwayat analisis",
       "noAgents": "Tidak ada peran terbit di kategori ini",
       "expand": "Bentangkan",
-      "collapse": "Ringkas"
+      "collapse": "Ringkas",
+      "gateTitle": "Data pasar yang dibutuhkan analisis Chanlun belum siap",
+      "gateDesc": "Level candlestick berikut belum siap. Perbarui data pasar di tab «Data Objektif» sebelum menjalankan analis Chanlun.",
+      "gateGo": "Perbarui data pasar",
+      "warn30m": "Candle 30 menit tidak tersedia; kesimpulan waktu level rendah mungkin memiliki titik buta, tetapi eksekusi tidak diblokir."
     },
     "ch": {
       "title": "Riwayat analisis Chanlun",
@@ -2299,6 +2303,59 @@
       "filter": "Filter",
       "unstructured": "Respons tidak terstruktur — teks mentah di bawah",
       "recordEmpty": "Belum ada analisis Chanlun"
+    },
+    "kline": {
+      "title": "Level candlestick yang dibutuhkan analis Chanlun",
+      "subtitle": "Diambil langsung dari sumber data — tanpa AI. Level harian/mingguan/bulanan/kuartalan/tahunan harus siap sebelum analisis Chanlun dapat dijalankan.",
+      "updateAll": "Perbarui semua level (H/M/B/K/T)",
+      "levelCol": "Level",
+      "statusCol": "Status",
+      "barsCol": "Jumlah candle",
+      "latestCol": "Candle terbaru",
+      "updatedCol": "Keberhasilan terakhir",
+      "actionCol": "Aksi",
+      "state": {
+        "ready": "Siap",
+        "insufficient": "Tidak cukup",
+        "not_fetched": "Belum diambil",
+        "failed": "Gagal mengambil"
+      },
+      "levels": {
+        "1d": "Harian",
+        "1w": "Mingguan",
+        "1mo": "Bulanan",
+        "1q": "Kuartalan",
+        "1y": "Tahunan",
+        "30m": "30 menit"
+      },
+      "retry": "Coba lagi",
+      "failHint": "Saran: coba lagi nanti; periksa jaringan Anda; jika saham dihentikan atau pasar tutup, coba lagi setelah dibuka kembali. Data lama tetap tersimpan bila pembaruan gagal.",
+      "optional30m": "Level 30 menit bersifat opsional dan tidak wajib untuk analisis Chanlun; sumber publik sering kali tidak menyediakan candle menit.",
+      "fetch30m": "Coba ambil candle 30 menit",
+      "loadFailed": "Gagal memuat status candlestick; silakan coba lagi",
+      "updatePartial": "Sebagian level gagal; coba lagi satu per satu di bawah",
+      "updateDone": "Pembaruan candlestick selesai",
+      "sourceLabel": "Sumber data",
+      "reason": {
+        "not_installed": "belum terpasang",
+        "needs_auth": "perlu kredensial",
+        "no_adapter": "tidak didukung di kartu K-line"
+      },
+      "sources": {
+        "tencent": "Tencent",
+        "mootdx": "Mootdx",
+        "eastmoney": "Eastmoney",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "DuckDB lokal"
+      },
+      "errorDialogTitle": "Pengambilan K-line gagal",
+      "errorDialogHint": "Level berikut gagal diambil. Data lama tetap dipertahankan. Ganti sumber data dan coba lagi.",
+      "errorDialogRequest": "Permintaan",
+      "close": "Tutup",
+      "retryFailed": "Coba ulang level yang gagal"
     },
     "status": {
       "pending": "Menunggu",

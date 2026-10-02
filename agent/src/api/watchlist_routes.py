@@ -25,9 +25,11 @@ from pydantic import BaseModel
 from src.api.security import require_auth
 from src.watchlist import analysis as watch_analysis
 from src.watchlist import db as watch_db
+from src.watchlist import kline as watch_kline
 from src.watchlist import market as watch_market
 from src.watchlist.market import normalize_a_share_symbol
 from src.watchlist.models import QuoteSnapshot
+from src.watchlist.role_catalog_filter import CHANLUN_ROLE_REF
 from src.watchlist.store import (
     DuplicateWatchError,
     WatchlistStore,
@@ -139,6 +141,12 @@ class AnalyzeBody(BaseModel):
     category: str
     role_ref: str
     question: str = ""
+
+
+class KlineUpdateBody(BaseModel):
+    intervals: list[str] | None = None
+    # Vendor id from GET /watch/{symbol}/kline/sources; defaults to eastmoney.
+    source: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +362,24 @@ def register_watchlist_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail="不支持的分析分类")
         if not body.role_ref.strip():
             raise HTTPException(status_code=400, detail="必须选择一个智能体")
+        if (
+            body.category == "technical"
+            and body.role_ref.strip() == CHANLUN_ROLE_REF
+        ):
+            # Chanlun pre-run gate (BDD rule 18): all five required K-line
+            # levels must be ready; the optional 30m level never blocks.
+            with _db_connection() as gate_conn:
+                states = watch_kline.list_level_states(symbol, gate_conn)
+            missing = watch_kline.missing_required_levels(states)
+            if missing:
+                raise HTTPException(
+                    status_code=412,
+                    detail={
+                        "code": "kline_not_ready",
+                        "message": "缠论分析所需的各级别行情尚未齐备，请先更新行情数据",
+                        "items": missing,
+                    },
+                )
         runtime = _get_runtime()
         try:
             run = watch_analysis.start_analysis(
@@ -434,3 +460,39 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 limit=limit,
             )
         return {"items": rows}
+
+    @app.get(
+        "/watch/{symbol}/kline/sources",
+        dependencies=[Depends(require_auth)],
+    )
+    def kline_sources(symbol: str) -> dict[str, Any]:
+        # Selectable data vendors for the card, in Settings-priority order.
+        symbol = _symbol_or_400(symbol)
+        return {"items": watch_kline.list_sources()}
+
+    @app.get(
+        "/watch/{symbol}/kline/status",
+        dependencies=[Depends(require_auth)],
+    )
+    def kline_status(symbol: str) -> dict[str, Any]:
+        # Per-level Chanlun readiness; readable after unfollow like history.
+        symbol = _symbol_or_400(symbol)
+        with _db_connection() as conn:
+            return watch_kline.list_level_states(symbol, conn)
+
+    @app.post(
+        "/watch/{symbol}/kline/update",
+        dependencies=[Depends(require_auth)],
+    )
+    def kline_update(symbol: str, body: KlineUpdateBody) -> dict[str, Any]:
+        # Direct data-API fetch (never AI); per-level failures stay
+        # independent and never overwrite other levels' existing bars.
+        symbol = _symbol_or_400(symbol)
+        try:
+            intervals = watch_kline.normalize_intervals(body.intervals)
+            source = watch_kline.normalize_source(body.source)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        with _db_connection() as conn:
+            watch_kline.update_levels(symbol, intervals, conn, source=source)
+            return watch_kline.list_level_states(symbol, conn)

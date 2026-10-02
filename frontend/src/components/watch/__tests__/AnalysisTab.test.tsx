@@ -7,6 +7,8 @@ import { AnalysisTab } from "../AnalysisTab";
 const listWatchAgents = vi.fn();
 const listWatchAnalyses = vi.fn();
 const startWatchAnalysis = vi.fn();
+const getWatchKlineStatus = vi.fn();
+const getWatchKlineSources = vi.fn();
 const runViewSpy = vi.fn();
 
 vi.mock("@/lib/api", async () => {
@@ -17,6 +19,8 @@ vi.mock("@/lib/api", async () => {
       listWatchAgents: (...args: unknown[]) => listWatchAgents(...args),
       listWatchAnalyses: (...args: unknown[]) => listWatchAnalyses(...args),
       startWatchAnalysis: (...args: unknown[]) => startWatchAnalysis(...args),
+      getWatchKlineStatus: (...args: unknown[]) => getWatchKlineStatus(...args),
+      getWatchKlineSources: (...args: unknown[]) => getWatchKlineSources(...args),
     },
   };
 });
@@ -77,6 +81,14 @@ function historyItem(over: Record<string, unknown> = {}) {
 describe("AnalysisTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getWatchKlineSources.mockResolvedValue({
+      items: [
+        { id: "tencent", available: true, requires_auth: false, reason: null,
+          intervals: ["1d", "1w", "1mo", "1q", "1y", "30m"] },
+        { id: "eastmoney", available: true, requires_auth: false, reason: null,
+          intervals: ["1d", "1w", "1mo", "1q", "1y", "30m"] },
+      ],
+    });
     listWatchAgents.mockResolvedValue(AGENTS);
     listWatchAnalyses.mockResolvedValue({ items: [] });
     startWatchAnalysis.mockResolvedValue({
@@ -84,6 +96,39 @@ describe("AnalysisTab", () => {
       status: "pending",
       kind: "role_run",
       trial_role: AGENTS.items[0].ref,
+    });
+    getWatchKlineStatus.mockResolvedValue({
+      items: [
+        { interval: "1d", required: true, status: "ready", fetch_failed: false,
+          bars_count: 120, earliest_bar_time: "2026-01-01",
+          latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00",
+          last_attempt_at: "2026-09-30T15:00:00", last_error: null },
+        { interval: "1w", required: true, status: "ready", fetch_failed: false,
+          bars_count: 60, earliest_bar_time: null, latest_bar_time: "2026-09-30",
+          last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00",
+          last_error: null },
+        { interval: "1mo", required: true, status: "ready", fetch_failed: false,
+          bars_count: 24, earliest_bar_time: null, latest_bar_time: "2026-09-30",
+          last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00",
+          last_error: null },
+        { interval: "1q", required: true, status: "ready", fetch_failed: false,
+          bars_count: 12, earliest_bar_time: null, latest_bar_time: "2026-09-30",
+          last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00",
+          last_error: null },
+        { interval: "1y", required: true, status: "ready", fetch_failed: false,
+          bars_count: 5, earliest_bar_time: null, latest_bar_time: "2026-09-30",
+          last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00",
+          last_error: null },
+        { interval: "30m", required: false, status: "ready", fetch_failed: false,
+          bars_count: 24, earliest_bar_time: null,
+          latest_bar_time: "2026-09-30 14:30", last_ok_at: "2026-09-30T15:00:00",
+          last_attempt_at: "2026-09-30T15:00:00", last_error: null },
+      ],
+      market_ref: {
+        last_trading_date: "2026-09-30",
+        threshold_date: "2026-09-29",
+        source: "trading_calendar",
+      },
     });
   });
 
@@ -224,5 +269,72 @@ describe("AnalysisTab", () => {
       expect(screen.getByText("No published analysts in this category")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("analysis-history-empty")).toBeInTheDocument();
+  });
+
+  it("blocks a Chanlun run with the 412 gate and offers a jump to update data", async () => {
+    const user = userEvent.setup();
+    const onGotoObjective = vi.fn();
+    startWatchAnalysis.mockRejectedValue(
+      new ApiError(
+        "缠论分析所需的各级别行情尚未齐备，请先更新行情数据",
+        412,
+        "kline_not_ready",
+        {
+          items: [
+            { interval: "1d", required: true, status: "not_fetched", fetch_failed: false },
+            { interval: "1w", required: true, status: "failed", fetch_failed: false },
+          ],
+        },
+      ),
+    );
+    render(
+      <AnalysisTab
+        category="technical"
+        symbol="600519.SH"
+        onGotoObjective={onGotoObjective}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Classic Technical Analyst")).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("radio", { name: /Chanlun/ }));
+    await user.click(screen.getByTestId("analysis-run-btn"));
+
+    const gate = await screen.findByTestId("chanlun-kline-gate");
+    expect(gate).toBeInTheDocument();
+    expect(screen.getByTestId("chanlun-gate-item-1d")).toHaveTextContent(/Not fetched/);
+    expect(screen.getByTestId("chanlun-gate-item-1w")).toHaveTextContent(/Fetch failed/);
+
+    await user.click(screen.getByTestId("chanlun-gate-go"));
+    expect(onGotoObjective).toHaveBeenCalledTimes(1);
+    // No run-view was opened for the blocked request.
+    expect(screen.queryByTestId("mock-run-view")).toBeNull();
+  });
+
+  it("warns (without blocking) when the selected Chanlun role lacks 30m bars", async () => {
+    const user = userEvent.setup();
+    getWatchKlineStatus.mockResolvedValue({
+      items: [
+        { interval: "30m", required: false, status: "not_fetched", fetch_failed: false },
+      ],
+      market_ref: { last_trading_date: null, threshold_date: null, source: "weekday" },
+    });
+    render(<AnalysisTab category="technical" symbol="600519.SH" />);
+    await waitFor(() =>
+      expect(screen.getByText("Classic Technical Analyst")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("chanlun-30m-warn")).toBeNull();
+
+    await user.click(screen.getByRole("radio", { name: /Chanlun/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("chanlun-30m-warn")).toBeInTheDocument(),
+    );
+
+    // A non-Chanlun selection clears the advisory warning.
+    await user.click(screen.getByRole("radio", { name: /Classic/ }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("chanlun-30m-warn")).toBeNull(),
+    );
   });
 });

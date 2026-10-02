@@ -21,7 +21,7 @@ import json
 import os
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import duckdb
@@ -101,6 +101,39 @@ CREATE TABLE IF NOT EXISTS chanlun_analysis (
 );
 CREATE INDEX IF NOT EXISTS idx_chanlun_analysis_symbol
     ON chanlun_analysis(symbol, analyzed_at);
+
+-- Multi-level K-line bars fetched for the Chanlun pre-run gate (M16).
+-- One row per symbol/interval/bar across intervals 30m,1d,1w,1mo,1q,1y.
+-- Bars are append/merge only — failed refreshes never delete old rows.
+CREATE TABLE IF NOT EXISTS watch_kline_bar (
+    symbol      VARCHAR NOT NULL,
+    interval    VARCHAR NOT NULL,
+    bar_time    VARCHAR NOT NULL,
+    open        DOUBLE,
+    high        DOUBLE,
+    low         DOUBLE,
+    close       DOUBLE,
+    volume      DOUBLE,
+    amount      DOUBLE,
+    source      VARCHAR,
+    updated_at  TIMESTAMP DEFAULT current_timestamp,
+    PRIMARY KEY (symbol, interval, bar_time)
+);
+
+-- Last fetch outcome per (symbol, interval); the readiness decision itself
+-- is derived by src.watchlist.kline from bars + this row.
+CREATE TABLE IF NOT EXISTS watch_kline_fetch_status (
+    symbol           VARCHAR NOT NULL,
+    interval         VARCHAR NOT NULL,
+    last_attempt_at  TIMESTAMP,
+    last_ok_at       TIMESTAMP,
+    last_error       VARCHAR,
+    bars_count       BIGINT DEFAULT 0,
+    earliest_bar_time VARCHAR,
+    latest_bar_time  VARCHAR,
+    source           VARCHAR,
+    PRIMARY KEY (symbol, interval)
+)
 """
 
 
@@ -122,10 +155,28 @@ def watchlist_connection(
 
 def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Idempotently create M16 tables/indexes (safe to run repeatedly)."""
-    for statement in _DDL.strip().split(";"):
+    # Strip full-line SQL comments first — their prose may contain ";" which
+    # would otherwise split a statement mid-comment.
+    ddl_text = "\n".join(
+        line for line in _DDL.splitlines() if not line.strip().startswith("--")
+    )
+    for statement in ddl_text.strip().split(";"):
         ddl = statement.strip()
         if ddl:
             conn.execute(ddl)
+    _migrate_kline_status_source(conn)
+
+
+def _migrate_kline_status_source(conn: duckdb.DuckDBPyConnection) -> None:
+    """Add the ``source`` column to pre-existing M16 status tables."""
+    exists = conn.execute(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_name = 'watch_kline_fetch_status' AND column_name = 'source'"
+    ).fetchone()
+    if exists is not None and int(exists[0]) == 0:
+        conn.execute(
+            "ALTER TABLE watch_kline_fetch_status ADD COLUMN source VARCHAR"
+        )
 
 
 # ----------------------------------------------------------------------
@@ -531,3 +582,262 @@ def list_chanlun_records(
         """,
         params,
     )
+
+
+# ----------------------------------------------------------------------
+# Multi-level K-line (Chanlun readiness, BDD rules 15-20)
+# ----------------------------------------------------------------------
+def upsert_kline_bars(
+    symbol: str,
+    interval: str,
+    rows: Sequence[dict[str, Any]],
+    *,
+    source: str,
+    conn: duckdb.DuckDBPyConnection,
+) -> int:
+    """Merge one level's bars (``INSERT OR REPLACE``); never deletes rows."""
+    normalized = normalize_a_share_symbol(symbol)
+    stamped = datetime.now()
+    records = [
+        (
+            normalized,
+            interval,
+            str(row["trade_date"]),
+            row.get("open"),
+            row.get("high"),
+            row.get("low"),
+            row.get("close"),
+            row.get("volume"),
+            row.get("amount"),
+            source,
+            stamped,
+        )
+        for row in rows
+        if row.get("trade_date")
+    ]
+    if records:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO watch_kline_bar
+                (symbol, interval, bar_time, open, high, low, close,
+                 volume, amount, source, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            records,
+        )
+    return len(records)
+
+
+def list_kline_bars(
+    symbol: str,
+    interval: str,
+    start: date | None = None,
+    end: date | None = None,
+    *,
+    conn: duckdb.DuckDBPyConnection,
+) -> list[dict[str, Any]]:
+    """Read previously stored bars for one level in ascending time order.
+
+    Backs the ``local`` data source (every online source incrementally
+    upserts its bars into the same table). Bounds compare lexically on
+    ISO labels, so minute bars (``YYYY-MM-DD HH:MM:SS``) are fully covered
+    by an inclusive upper bound of ``end 23:59:59``.
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    clauses = ["symbol = ?", "interval = ?"]
+    params: list[Any] = [normalized, interval]
+    if start is not None:
+        clauses.append("bar_time >= ?")
+        params.append(start.isoformat())
+    if end is not None:
+        clauses.append("bar_time <= ?")
+        params.append(f"{end.isoformat()} 23:59:59")
+    result = conn.execute(
+        f"""
+        SELECT bar_time, open, high, low, close, volume, amount
+        FROM watch_kline_bar
+        WHERE {' AND '.join(clauses)}
+        ORDER BY bar_time
+        """,
+        params,
+    ).fetchall()
+    return [
+        {
+            "trade_date": bar_time,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "amount": amount,
+        }
+        for bar_time, open_, high, low, close, volume, amount in result
+    ]
+
+
+def record_kline_fetch(
+    symbol: str,
+    interval: str,
+    *,
+    ok: bool,
+    error: str | None,
+    source: str | None = None,
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """Persist one fetch attempt; on success refresh the bar summary.
+
+    On success the status row adopts the serving ``source``; a failure keeps
+    the previous source (the old bars were served by it and stay in place).
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    now = datetime.now()
+    existing = conn.execute(
+        "SELECT last_ok_at, source FROM watch_kline_fetch_status "
+        "WHERE symbol = ? AND interval = ?",
+        [normalized, interval],
+    ).fetchone()
+
+    summary = conn.execute(
+        "SELECT count(*), min(bar_time), max(bar_time) FROM watch_kline_bar "
+        "WHERE symbol = ? AND interval = ?",
+        [normalized, interval],
+    ).fetchone()
+    bars_count = int(summary[0]) if summary else 0
+    earliest = summary[1] if summary else None
+    latest = summary[2] if summary else None
+    last_ok = now if ok else (existing[0] if existing else None)
+    last_error = None if ok else (error or "获取失败")
+    # Successful attempt stamps the new source; failed attempts keep the
+    # source that last served the level (None when it has never succeeded).
+    effective_source = source if ok else (existing[1] if existing else None)
+
+    if existing is not None:
+        conn.execute(
+            """
+            UPDATE watch_kline_fetch_status
+            SET last_attempt_at = ?, last_ok_at = ?, last_error = ?,
+                bars_count = ?, earliest_bar_time = ?, latest_bar_time = ?,
+                source = ?
+            WHERE symbol = ? AND interval = ?
+            """,
+            [
+                now,
+                last_ok,
+                last_error,
+                bars_count,
+                earliest,
+                latest,
+                effective_source,
+                normalized,
+                interval,
+            ],
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO watch_kline_fetch_status
+                (symbol, interval, last_attempt_at, last_ok_at, last_error,
+                 bars_count, earliest_bar_time, latest_bar_time, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                normalized,
+                interval,
+                now,
+                last_ok,
+                last_error,
+                bars_count,
+                earliest,
+                latest,
+                effective_source,
+            ],
+        )
+
+
+def list_kline_status_rows(
+    symbol: str,
+    conn: duckdb.DuckDBPyConnection,
+) -> list[dict[str, Any]]:
+    """Raw fetch-status rows for every interval ever attempted for a symbol."""
+    normalized = normalize_a_share_symbol(symbol)
+    return _query_dicts(
+        conn,
+        """
+        SELECT symbol, interval, last_attempt_at, last_ok_at, last_error,
+               bars_count, earliest_bar_time, latest_bar_time, source
+        FROM watch_kline_fetch_status
+        WHERE symbol = ?
+        ORDER BY interval
+        """,
+        [normalized],
+    )
+
+
+def resolve_market_dates(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    today: date,
+) -> tuple[date | None, date | None, str]:
+    """Resolve ``(last_trading_day, threshold_day, source)`` for freshness.
+
+    Tiers, in order:
+      1. ``trading_calendar`` (a_share) when its newest open day is within
+         12 days (covers Spring Festival / National Day breaks);
+      2. newest ``trade_date`` across the warehouse ``daily_bar`` table;
+      3. weekday rollback heuristic (skips Saturdays/Sundays only).
+
+    ``threshold_day`` is the 2nd-to-last trading day — a level's latest bar
+    must be on or after it (business rule 16: weekends/holidays deferred).
+    """
+    if _table_exists(conn, "trading_calendar"):
+        try:
+            row = conn.execute(
+                "SELECT max(cal_date) FROM trading_calendar "
+                "WHERE market = 'a_share' AND is_open"
+            ).fetchone()
+            newest = row[0] if row else None
+            if isinstance(newest, date) and newest >= today - timedelta(days=12):
+                open_days = [
+                    r[0]
+                    for r in conn.execute(
+                        """
+                        SELECT cal_date FROM trading_calendar
+                        WHERE market = 'a_share' AND is_open AND cal_date <= ?
+                        ORDER BY cal_date DESC
+                        LIMIT 2
+                        """,
+                        [today],
+                    ).fetchall()
+                ]
+                if open_days:
+                    threshold = open_days[1] if len(open_days) > 1 else open_days[0]
+                    return open_days[0], threshold, "trading_calendar"
+        except duckdb.CatalogException:
+            pass
+
+    if _table_exists(conn, "daily_bar"):
+        try:
+            row = conn.execute("SELECT max(trade_date) FROM daily_bar").fetchone()
+            if row and isinstance(row[0], date):
+                return row[0], row[0], "daily_bar"
+        except duckdb.CatalogException:
+            pass
+
+    if _table_exists(conn, "watch_kline_bar"):
+        try:
+            row = conn.execute(
+                "SELECT max(CAST(substr(bar_time, 1, 10) AS DATE)) "
+                "FROM watch_kline_bar WHERE interval = '1d'"
+            ).fetchone()
+            if row and isinstance(row[0], date):
+                return row[0], row[0], "watch_kline_bar"
+        except duckdb.CatalogException:
+            pass
+
+    found: list[date] = []
+    cursor = today
+    while len(found) < 2:
+        if cursor.weekday() < 5:
+            found.append(cursor)
+        cursor -= timedelta(days=1)
+    return found[0], found[1], "weekday"

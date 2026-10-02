@@ -2287,7 +2287,11 @@
       "historyEmpty": "Aún no hay análisis",
       "noAgents": "No hay roles publicados en esta categoría",
       "expand": "Expandir",
-      "collapse": "Contraer"
+      "collapse": "Contraer",
+      "gateTitle": "Los datos de mercado necesarios para el análisis Chanlun no están listos",
+      "gateDesc": "Los siguientes niveles de velas no están listos. Actualice los datos de mercado en la pestaña «Datos objetivos» antes de ejecutar el analista Chanlun.",
+      "gateGo": "Ir a actualizar los datos de mercado",
+      "warn30m": "No hay velas de 30 minutos; las conclusiones de temporización de nivel inferior pueden tener puntos ciegos, pero la ejecución no se bloquea."
     },
     "ch": {
       "title": "Historial de análisis Chanlun",
@@ -2299,6 +2303,59 @@
       "filter": "Filtrar",
       "unstructured": "Respuesta no estructurada — texto original",
       "recordEmpty": "Aún no hay análisis Chanlun"
+    },
+    "kline": {
+      "title": "Niveles de velas requeridos por el analista Chanlun",
+      "subtitle": "Se obtienen directamente de las fuentes de datos, sin IA. Los niveles diario/semanal/mensual/trimestral/anual deben estar listos antes de ejecutar Chanlun.",
+      "updateAll": "Actualizar todos los niveles (D/S/M/T/A)",
+      "levelCol": "Nivel",
+      "statusCol": "Estado",
+      "barsCol": "Velas",
+      "latestCol": "Última vela",
+      "updatedCol": "Último éxito",
+      "actionCol": "Acción",
+      "state": {
+        "ready": "Listo",
+        "insufficient": "Insuficiente",
+        "not_fetched": "No obtenido",
+        "failed": "Error de obtención"
+      },
+      "levels": {
+        "1d": "Diario",
+        "1w": "Semanal",
+        "1mo": "Mensual",
+        "1q": "Trimestral",
+        "1y": "Anual",
+        "30m": "30 minutos"
+      },
+      "retry": "Reintentar",
+      "failHint": "Sugerencias: inténtelo más tarde; compruebe la red; si el valor está suspendido o el mercado cerrado, reintente tras la reapertura. Los datos existentes se conservan si falla una actualización.",
+      "optional30m": "El nivel de 30 minutos es opcional y no es obligatorio para Chanlun; las fuentes públicas suelen no ofrecer velas de minutos.",
+      "fetch30m": "Intentar obtener velas de 30 minutos",
+      "loadFailed": "No se pudo cargar el estado de las velas; reinténtelo",
+      "updatePartial": "Algunos niveles fallaron; reinténtelos de forma individual abajo",
+      "updateDone": "Actualización de velas finalizada",
+      "sourceLabel": "Fuente de datos",
+      "reason": {
+        "not_installed": "no instalado",
+        "needs_auth": "requiere credenciales",
+        "no_adapter": "no compatible en la tarjeta de velas"
+      },
+      "sources": {
+        "tencent": "Tencent",
+        "mootdx": "Mootdx",
+        "eastmoney": "Eastmoney",
+        "baostock": "BaoStock",
+        "akshare": "AKShare",
+        "tushare": "Tushare",
+        "gildata": "Gildata",
+        "local": "DuckDB local"
+      },
+      "errorDialogTitle": "Error al obtener las velas",
+      "errorDialogHint": "No se pudieron obtener los siguientes niveles. Los datos existentes se conservan. Cambie de fuente de datos y reintente.",
+      "errorDialogRequest": "Solicitud",
+      "close": "Cerrar",
+      "retryFailed": "Reintentar niveles fallidos"
     },
     "status": {
       "pending": "Pendiente",
