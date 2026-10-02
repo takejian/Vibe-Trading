@@ -37,7 +37,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "Praça de habilidades"
+    "skillPlaza": "Praça de habilidades",
+    "watch": "Observados"
   },
   "runtime": {
     "monitorBadge": "Monitor de Runtime",
@@ -2186,6 +2187,129 @@
       "clear": "Limpar",
       "columnSkill": "Habilidade",
       "empty": "Ainda não há registros de avaliação."
+    }
+  },
+  "watch": {
+    "title": "Observados",
+    "subtitle": "Minha lista pessoal de ações A (privada)",
+    "addWatch": "Adicionar ativo",
+    "aiBatchCompare": "Comparar por IA",
+    "compareToast": "A comparação por IA chegará em breve",
+    "searchPlaceholder": "Buscar código, nome ou pinyin",
+    "searching": "Buscando…",
+    "searchNoResult": "Nenhuma ação A correspondente",
+    "col": {
+      "select": "Sel.",
+      "name": "Nome / Código",
+      "industry": "Setor",
+      "price": "Preço",
+      "marketCap": "Valor de mercado",
+      "pe": "P/L",
+      "pb": "P/VPA",
+      "actions": "Ações"
+    },
+    "action": {
+      "view": "Ver",
+      "cancel": "Remover",
+      "refresh": "Atualizar"
+    },
+    "confirmCancel": {
+      "title": "Remover da lista?",
+      "message": "Remover {{name}} ({{symbol}}) da lista? O histórico de análises é mantido."
+    },
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "empty": {
+      "title": "Nenhum ativo ainda",
+      "hint": "Adicione uma ação A para começar a acompanhar"
+    },
+    "quoteError": "Falha ao atualizar cotações; exibindo dados em cache",
+    "detail": {
+      "back": "Voltar à lista",
+      "notFound": "Ativo não está na lista",
+      "notFoundHint": "Adicione-o primeiro na página de observados",
+      "loadFailed": "Falha ao carregar detalhes"
+    },
+    "tabs": {
+      "overview": "Visão geral",
+      "objective": "Dados objetivos",
+      "fundamental": "Fundamental",
+      "technical": "Técnico",
+      "ai": "Análise de IA"
+    },
+    "ov": {
+      "name": "Nome",
+      "symbol": "Código",
+      "industry": "Setor",
+      "price": "Preço",
+      "marketCap": "Valor de mercado",
+      "listDate": "Data de listagem",
+      "registeredCapital": "Capital registrado",
+      "updatedAt": "Atualizado em",
+      "updateQuotes": "Atualizar preço e valuation",
+      "updateProfile": "Atualizar perfil da empresa",
+      "updating": "Atualizando…",
+      "updateSuccess": "Atualizado",
+      "updateFailed": "Falha ao atualizar, tente novamente"
+    },
+    "noData": "Sem dados",
+    "obj": {
+      "market": "Dados de mercado",
+      "valuation": "Valuation",
+      "financial": "Dados financeiros",
+      "instrument": "Cadastro do instrumento",
+      "fetchTitle": "Solicitar mais dados",
+      "fetchPlaceholder": "Descreva os dados necessários, ex.: dividendos dos últimos três anos",
+      "fetchButton": "Iniciar busca",
+      "fetchDisabled": "Digite primeiro a solicitação",
+      "fetchSuccess": "Busca iniciada",
+      "fetchRunning": "Coleta iniciada — executando em segundo plano; o registro aparecerá aqui ao concluir",
+      "fetchFailed": "Falha ao iniciar, tente novamente",
+      "recordsTitle": "Histórico de buscas",
+      "recordEmpty": "Nenhum registro ainda"
+    },
+    "rec": {
+      "note": "Solicitação",
+      "source": "Fonte",
+      "time": "Hora"
+    },
+    "an": {
+      "roleTitle": "Selecionar analista",
+      "questionLabel": "Pedido adicional (opcional)",
+      "questionPlaceholder": "Escreva sua pergunta de pesquisa…",
+      "run": "Iniciar análise",
+      "mustSelect": "Selecione exatamente um analista",
+      "inProgress": "Este analista já tem uma análise em andamento; aguarde",
+      "viewRun": "Ver execução",
+      "viewReport": "Ver relatório",
+      "chanlunBadge": "Chanlun",
+      "historyTitle": "Histórico",
+      "historyEmpty": "Sem histórico de análises",
+      "noAgents": "Nenhum papel publicado nesta categoria",
+      "expand": "Expandir",
+      "collapse": "Recolher"
+    },
+    "ch": {
+      "title": "Histórico de análise Chanlun",
+      "analyzedAt": "Analisado em",
+      "score": "Pontuação Chanlun",
+      "confidence": "Confiança",
+      "from": "De",
+      "to": "Até",
+      "filter": "Filtrar",
+      "unstructured": "Resposta não estruturada — texto original abaixo",
+      "recordEmpty": "Nenhuma análise Chanlun ainda"
+    },
+    "status": {
+      "pending": "Pendente",
+      "running": "Em andamento",
+      "completed": "Concluído",
+      "failed": "Falhou",
+      "cancelled": "Cancelado"
+    },
+    "error": {
+      "dataFailed": "Erro no serviço de dados, tente novamente",
+      "duplicate": "Este ativo já está na sua lista"
     }
   }
 }

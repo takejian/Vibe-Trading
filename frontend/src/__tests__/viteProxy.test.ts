@@ -18,4 +18,10 @@ describe("Vite API proxy config", () => {
   it("proxies authentication endpoints", () => {
     expect(config).toContain('"/auth"');
   });
+
+  it("proxies watchlist API calls while keeping /watch a browser route", () => {
+    // /watch is dual-role (SPA page + API prefix): it must use the
+    // HTML-fallback proxy variant, like /correlation and /options.
+    expect(config).toContain('"/watch": apiProxyWithHtmlFallback');
+  });
 });

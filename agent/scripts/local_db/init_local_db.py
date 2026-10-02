@@ -42,10 +42,11 @@ sys.path.insert(0, str(AGENT_DIR))
 
 from backtest.loaders.eastmoney_client import KLT_BY_INTERVAL, fetch_kline, resolve_secid  # noqa: E402
 from backtest.loaders.tencent_loader import DataLoader as TencentLoader  # noqa: E402
+from src.config.paths import get_market_db_path  # noqa: E402
 
 logger = logging.getLogger("init_local_db")
 
-DEFAULT_DB_PATH = Path.home() / ".vibe-trading" / "data" / "market.duckdb"
+DEFAULT_DB_PATH = get_market_db_path()
 SCHEMA_PATH = HERE / "schema.sql"
 
 FRANKFURTER_URL = "https://api.frankfurter.dev/v1/{start}..{end}"

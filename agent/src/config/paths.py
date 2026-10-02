@@ -64,6 +64,20 @@ def get_custom_skills_dir() -> Path:
     return get_runtime_root() / "swarm" / "skills"
 
 
+def get_watchlist_dir() -> Path:
+    """Return the user-level directory holding the personal watchlist store."""
+    return get_runtime_root() / "watchlist"
+
+
+def get_market_db_path() -> Path:
+    """Return the local DuckDB market warehouse path.
+
+    Defaults to ``<runtime_root>/data/market.duckdb`` (i.e.
+    ``~/.vibe-trading/data/market.duckdb``) and honors ``VIBE_TRADING_HOME``.
+    """
+    return get_runtime_root() / "data" / "market.duckdb"
+
+
 def get_user_skills_dir() -> Path:
     """Return the user-level directory holding installed (imported) skills."""
     return get_runtime_root() / "skills" / "user"

@@ -32,7 +32,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "ساحة المهارات"
+    "skillPlaza": "ساحة المهارات",
+    "watch": "المراقبة"
   },
   "runtime": {
     "monitorBadge": "مراقبة التداول",
@@ -2186,6 +2187,129 @@
       "clear": "مسح",
       "columnSkill": "المهارة",
       "empty": "لا توجد سجلات تقييم بعد."
+    }
+  },
+  "watch": {
+    "title": "قائمة المراقبة",
+    "subtitle": "قائمتي الشخصية لأسهم الفئة A (خاصة)",
+    "addWatch": "إضافة رمز",
+    "aiBatchCompare": "مقارنة جماعية بالذكاء الاصطناعي",
+    "compareToast": "ستتوفر المقارنة الجماعية قريبًا",
+    "searchPlaceholder": "ابحث بالرمز أو الاسم أو البينيين",
+    "searching": "جارٍ البحث…",
+    "searchNoResult": "لا توجد رموز أسهم A مطابقة",
+    "col": {
+      "select": "تحديد",
+      "name": "الاسم / الرمز",
+      "industry": "القطاع",
+      "price": "السعر",
+      "marketCap": "القيمة السوقية",
+      "pe": "مكرر الربحية",
+      "pb": "مكرر القيمة الدفترية",
+      "actions": "إجراءات"
+    },
+    "action": {
+      "view": "عرض",
+      "cancel": "إزالة",
+      "refresh": "تحديث"
+    },
+    "confirmCancel": {
+      "title": "إزالة من قائمة المراقبة؟",
+      "message": "إزالة {{name}} ({{symbol}}) من قائمة المراقبة؟ يُحتفظ بسجل التحليلات."
+    },
+    "confirm": "تأكيد",
+    "cancel": "إلغاء",
+    "empty": {
+      "title": "لا توجد رموز بعد",
+      "hint": "أضف سهم الفئة A لبدء التتبع"
+    },
+    "quoteError": "فشل تحديث الأسعار؛ تُعرض البيانات المخزنة مؤقتًا",
+    "detail": {
+      "back": "العودة إلى القائمة",
+      "notFound": "الرمز غير موجود في قائمة المراقبة",
+      "notFoundHint": "أضفه أولاً من صفحة قائمة المراقبة",
+      "loadFailed": "فشل تحميل التفاصيل"
+    },
+    "tabs": {
+      "overview": "نظرة عامة",
+      "objective": "بيانات موضوعية",
+      "fundamental": "أساسيات",
+      "technical": "التحليل الفني",
+      "ai": "تحليل الذكاء الاصطناعي"
+    },
+    "ov": {
+      "name": "الاسم",
+      "symbol": "الرمز",
+      "industry": "القطاع",
+      "price": "السعر",
+      "marketCap": "القيمة السوقية",
+      "listDate": "تاريخ الإدراج",
+      "registeredCapital": "رأس المال المسجل",
+      "updatedAt": "حُدّث في",
+      "updateQuotes": "تحديث السعر والتقييم",
+      "updateProfile": "تحديث ملف الشركة",
+      "updating": "جارٍ التحديث…",
+      "updateSuccess": "تم التحديث",
+      "updateFailed": "فشل التحديث، يُرجى إعادة المحاولة"
+    },
+    "noData": "لا توجد بيانات",
+    "obj": {
+      "market": "بيانات السوق",
+      "valuation": "التقييم",
+      "financial": "البيانات المالية",
+      "instrument": "البيانات الرئيسية للأداة",
+      "fetchTitle": "طلب بيانات إضافية",
+      "fetchPlaceholder": "صف البيانات المطلوبة، مثل أرباح آخر ثلاث سنوات",
+      "fetchButton": "بدء الجلب",
+      "fetchDisabled": "أدخل طلب البيانات أولاً",
+      "fetchSuccess": "بدأ الجلب",
+      "fetchRunning": "بدأ الجلب — يعمل في الخلفية؛ سيظهر السجل هنا بعد اكتماله",
+      "fetchFailed": "فشل البدء، يُرجى إعادة المحاولة",
+      "recordsTitle": "سجل الجلب",
+      "recordEmpty": "لا توجد سجلات بعد"
+    },
+    "rec": {
+      "note": "الطلب",
+      "source": "المصدر",
+      "time": "الوقت"
+    },
+    "an": {
+      "roleTitle": "اختر محللًا",
+      "questionLabel": "طلب إضافي (اختياري)",
+      "questionPlaceholder": "أدخل سؤال البحث المحدد…",
+      "run": "بدء التحليل",
+      "mustSelect": "اختر محللًا واحدًا بالضبط للبدء",
+      "inProgress": "هذا المحلل لديه تحليل جارٍ بالفعل؛ انتظر حتى يكتمل",
+      "viewRun": "عرض التشغيل",
+      "viewReport": "عرض التقرير",
+      "chanlunBadge": "تشانلون",
+      "historyTitle": "السجل",
+      "historyEmpty": "لا يوجد سجل تحليلات بعد",
+      "noAgents": "لا توجد أدوار منشورة في هذه الفئة",
+      "expand": "توسيع",
+      "collapse": "طي"
+    },
+    "ch": {
+      "title": "سجل تحليل تشانلون",
+      "analyzedAt": "حُلّل في",
+      "score": "درجة تشانلون",
+      "confidence": "درجة الثقة",
+      "from": "من",
+      "to": "إلى",
+      "filter": "تصفية",
+      "unstructured": "استجابة غير منظمة — النص الأصلي أدناه",
+      "recordEmpty": "لا يوجد تحليل تشانلون بعد"
+    },
+    "status": {
+      "pending": "قيد الانتظار",
+      "running": "قيد التشغيل",
+      "completed": "مكتمل",
+      "failed": "فشل",
+      "cancelled": "ملغى"
+    },
+    "error": {
+      "dataFailed": "خطأ في خدمة البيانات، يُرجى إعادة المحاولة",
+      "duplicate": "هذا الرمز موجود بالفعل في قائمة المراقبة"
     }
   }
 }

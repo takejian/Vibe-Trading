@@ -905,6 +905,83 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ broker }),
     }),
+
+  // --- M16 personal A-share watchlist -------------------------------------
+  listWatch: () => request<WatchListResponse>("/watch/list"),
+  addWatch: (body: AddWatchRequest) =>
+    request<WatchEntry>("/watch", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeWatch: (symbol: string) =>
+    request<{ ok: boolean; symbol: string }>(
+      `/watch/${encodeURIComponent(symbol)}`,
+      { method: "DELETE" },
+    ),
+  searchWatch: (q: string) =>
+    request<{ items: WatchCandidate[] }>(
+      `/watch/search?q=${encodeURIComponent(q)}`,
+    ),
+  getWatchProfile: (symbol: string) =>
+    request<WatchProfileResponse>(
+      `/watch/${encodeURIComponent(symbol)}/profile`,
+    ),
+  refreshWatchQuotes: (symbol: string) =>
+    request<{ symbol: string; quote: QuoteSnapshot; updated_at: string }>(
+      `/watch/${encodeURIComponent(symbol)}/refresh-quotes`,
+      { method: "POST" },
+    ),
+  refreshWatchProfile: (symbol: string) =>
+    request<CompanyProfile>(
+      `/watch/${encodeURIComponent(symbol)}/refresh-profile`,
+      { method: "POST" },
+    ),
+  getObjective: (symbol: string) =>
+    request<ObjectiveResponse>(
+      `/watch/${encodeURIComponent(symbol)}/objective`,
+    ),
+  startObjectiveFetch: (symbol: string, note: string) =>
+    request<WatchRunSummary>(
+      `/watch/${encodeURIComponent(symbol)}/objective-fetch`,
+      { method: "POST", body: JSON.stringify({ note }) },
+    ),
+  listWatchAgents: (category?: WatchCategory) => {
+    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    return request<{ items: WatchAgent[] }>(`/watch/agents${query}`);
+  },
+  startWatchAnalysis: (
+    symbol: string,
+    body: { category: WatchCategory; role_ref: string; question?: string },
+  ) =>
+    request<WatchRunSummary>(
+      `/watch/${encodeURIComponent(symbol)}/analyze`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  listWatchAnalyses: (
+    symbol: string,
+    options?: WatchAnalysisQuery,
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.category) params.set("category", options.category);
+    if (options?.roleRef) params.set("role_ref", options.roleRef);
+    if (options?.from) params.set("from", options.from);
+    if (options?.to) params.set("to", options.to);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request<{ items: WatchAnalysisSummary[] }>(
+      `/watch/${encodeURIComponent(symbol)}/analyses${query ? `?${query}` : ""}`,
+    );
+  },
+  listChanlun: (symbol: string, options?: ChanlunHistoryQuery) => {
+    const params = new URLSearchParams();
+    if (options?.from) params.set("from", options.from);
+    if (options?.to) params.set("to", options.to);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    return request<{ items: ChanlunRecord[] }>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun${query ? `?${query}` : ""}`,
+    );
+  },
 };
 
 // --- Scheduled research types ---
@@ -2344,4 +2421,150 @@ export interface ToolTrailItem {
   preview?: string;
   call_id?: string;
   timestamp?: number;
+}
+
+// --- M16 watchlist types (contract with src/api/watchlist_routes.py) ---
+
+export type WatchCategory = "fundamental" | "technical" | "general";
+
+export interface QuoteSnapshot {
+  price: number | null;
+  total_market_cap: number | null;
+  pe: number | null;
+  pb: number | null;
+  industry: string | null;
+  quote_updated_at: string | null;
+}
+
+export interface WatchEntry {
+  symbol: string;
+  name: string;
+  industry: string | null;
+  added_at: string;
+  updated_at: string;
+  quote: QuoteSnapshot | null;
+}
+
+export interface WatchListResponse {
+  items: WatchEntry[];
+  quote_error: string | null;
+}
+
+export interface AddWatchRequest {
+  symbol: string;
+  name?: string;
+  industry?: string | null;
+}
+
+export interface WatchCandidate {
+  symbol: string;
+  name: string;
+  industry: string | null;
+}
+
+export interface CompanyProfile {
+  symbol: string;
+  name: string;
+  industry: string | null;
+  list_date: string | null;
+  registered_capital: number | null;
+  total_shares: number | null;
+  updated_at: string | null;
+}
+
+export interface WatchProfileResponse {
+  symbol: string;
+  instrument: Record<string, unknown> | null;
+  latest_valuation: Record<string, unknown> | null;
+  entry: WatchEntry;
+}
+
+export interface ObjectiveRawData {
+  instrument: Record<string, unknown>[];
+  daily_bar: Record<string, unknown>[];
+  valuation: Record<string, unknown>[];
+  financial: Record<string, unknown>[];
+}
+
+export interface ObjectiveRecord {
+  id: string;
+  symbol: string;
+  category: string;
+  request_note: string | null;
+  payload: string;
+  source: string | null;
+  run_id: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ObjectiveResponse {
+  symbol: string;
+  raw: ObjectiveRawData;
+  fetches: ObjectiveRecord[];
+}
+
+export interface WatchRunSummary {
+  id: string;
+  status: string;
+  kind: string;
+  trial_role: string | null;
+}
+
+export interface WatchAgent {
+  ref: string;
+  name: string;
+  purpose: string;
+  category: WatchCategory;
+  is_chanlun: boolean;
+}
+
+export interface WatchAnalysisQuery {
+  category?: WatchCategory;
+  roleRef?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
+export interface WatchAnalysisSummary {
+  id: string;
+  status: string;
+  role_ref: string | null;
+  role_name: string;
+  category: WatchCategory;
+  is_chanlun: boolean;
+  research_target: string;
+  research_question: string;
+  created_at: string | null;
+  completed_at: string | null;
+  final_report_excerpt: string;
+  /** Full conclusion (AC-11); rendered with MarkdownContent on expand. */
+  final_report?: string | null;
+  qualified: boolean;
+}
+
+export interface ChanlunHistoryQuery {
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
+export interface ChanlunRecord {
+  id: string;
+  run_id: string;
+  symbol: string;
+  analyzed_at: string;
+  dim1_structure_read: string | null;
+  dim2_active_pivots: string | null;
+  dim3_divergence: string | null;
+  dim4_buy_sell_points: string | null;
+  dim5_multi_level_plan: string | null;
+  dim6_elliott_corroboration: string | null;
+  dim7_chanlun_score: string | null;
+  score: number | null;
+  confidence: number | null;
+  structured: boolean;
+  raw_report: string | null;
+  created_at: string;
 }

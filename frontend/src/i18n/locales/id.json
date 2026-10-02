@@ -37,7 +37,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "Plaza Keterampilan"
+    "skillPlaza": "Plaza Keterampilan",
+    "watch": "Pantauan"
   },
   "runtime": {
     "monitorBadge": "Monitor Runtime",
@@ -2186,6 +2187,129 @@
       "clear": "Bersihkan",
       "columnSkill": "Keterampilan",
       "empty": "Belum ada catatan evaluasi."
+    }
+  },
+  "watch": {
+    "title": "Daftar Pantauan",
+    "subtitle": "Daftar pantau saham A pribadi Anda (rahasia)",
+    "addWatch": "Tambah simbol",
+    "aiBatchCompare": "Banding massal AI",
+    "compareToast": "Perbandingan massal AI segera hadir",
+    "searchPlaceholder": "Cari kode, nama, atau pinyin",
+    "searching": "Mencari…",
+    "searchNoResult": "Tidak ada saham A yang cocok",
+    "col": {
+      "select": "Pilih",
+      "name": "Nama / Kode",
+      "industry": "Industri",
+      "price": "Harga",
+      "marketCap": "Kap. pasar",
+      "pe": "PER",
+      "pb": "PBV",
+      "actions": "Aksi"
+    },
+    "action": {
+      "view": "Lihat",
+      "cancel": "Berhenti memantau",
+      "refresh": "Muat ulang"
+    },
+    "confirmCancel": {
+      "title": "Hapus dari daftar pantauan?",
+      "message": "Hapus {{name}} ({{symbol}}) dari daftar pantauan? Riwayat analisis tetap disimpan."
+    },
+    "confirm": "Konfirmasi",
+    "cancel": "Batal",
+    "empty": {
+      "title": "Belum ada simbol",
+      "hint": "Tambahkan saham A untuk mulai memantau"
+    },
+    "quoteError": "Gagal memperbarui kuotasi; menampilkan data cache",
+    "detail": {
+      "back": "Kembali ke daftar",
+      "notFound": "Simbol tidak ada di daftar pantauan",
+      "notFoundHint": "Tambahkan terlebih dahulu dari halaman daftar",
+      "loadFailed": "Gagal memuat detail"
+    },
+    "tabs": {
+      "overview": "Ringkasan",
+      "objective": "Data objektif",
+      "fundamental": "Fundamental",
+      "technical": "Teknikal",
+      "ai": "Analisis AI"
+    },
+    "ov": {
+      "name": "Nama",
+      "symbol": "Kode",
+      "industry": "Industri",
+      "price": "Harga",
+      "marketCap": "Kapitalisasi pasar",
+      "listDate": "Tanggal listing",
+      "registeredCapital": "Modal terdaftar",
+      "updatedAt": "Diperbarui pada",
+      "updateQuotes": "Perbarui harga & valuasi",
+      "updateProfile": "Perbarui profil perusahaan",
+      "updating": "Memperbarui…",
+      "updateSuccess": "Diperbarui",
+      "updateFailed": "Pembaruan gagal, coba lagi"
+    },
+    "noData": "Tidak ada data",
+    "obj": {
+      "market": "Data pasar",
+      "valuation": "Valuasi",
+      "financial": "Data keuangan",
+      "instrument": "Data induk instrumen",
+      "fetchTitle": "Minta data tambahan",
+      "fetchPlaceholder": "Jelaskan data yang dibutuhkan, mis. dividen tiga tahun terakhir",
+      "fetchButton": "Mulai ambil",
+      "fetchDisabled": "Isi permintaan data terlebih dahulu",
+      "fetchSuccess": "Pengambilan dimulai",
+      "fetchRunning": "Pengambilan dimulai — berjalan di latar belakang; catatan muncul di sini setelah selesai",
+      "fetchFailed": "Gagal memulai, coba lagi",
+      "recordsTitle": "Riwayat pengambilan",
+      "recordEmpty": "Belum ada catatan"
+    },
+    "rec": {
+      "note": "Permintaan",
+      "source": "Sumber",
+      "time": "Waktu"
+    },
+    "an": {
+      "roleTitle": "Pilih analis",
+      "questionLabel": "Permintaan tambahan (opsional)",
+      "questionPlaceholder": "Tulis pertanyaan riset spesifik Anda…",
+      "run": "Mulai analisis",
+      "mustSelect": "Pilih tepat satu analis untuk memulai",
+      "inProgress": "Analis ini sudah memiliki analisis yang berjalan; tunggu hingga selesai",
+      "viewRun": "Lihat proses",
+      "viewReport": "Lihat laporan",
+      "chanlunBadge": "Chanlun",
+      "historyTitle": "Riwayat",
+      "historyEmpty": "Belum ada riwayat analisis",
+      "noAgents": "Tidak ada peran terbit di kategori ini",
+      "expand": "Bentangkan",
+      "collapse": "Ringkas"
+    },
+    "ch": {
+      "title": "Riwayat analisis Chanlun",
+      "analyzedAt": "Dianalisis pada",
+      "score": "Skor Chanlun",
+      "confidence": "Keyakinan",
+      "from": "Dari",
+      "to": "Sampai",
+      "filter": "Filter",
+      "unstructured": "Respons tidak terstruktur — teks mentah di bawah",
+      "recordEmpty": "Belum ada analisis Chanlun"
+    },
+    "status": {
+      "pending": "Menunggu",
+      "running": "Berjalan",
+      "completed": "Selesai",
+      "failed": "Gagal",
+      "cancelled": "Dibatalkan"
+    },
+    "error": {
+      "dataFailed": "Kesalahan layanan data, coba lagi",
+      "duplicate": "Simbol ini sudah ada di daftar pantauan Anda"
     }
   }
 }

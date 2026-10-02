@@ -50,9 +50,9 @@ def load_layer_map(path=LAYER_MAP_PATH):
             if name in layer_of:
                 raise ValueError("duplicate node %r in layer map" % name)
             layer_of[name] = layer
-    if len(layer_of) != 32:
+    if len(layer_of) != 33:
         raise ValueError(
-            "layer map must register all 32 src nodes, found %d" % len(layer_of)
+            "layer map must register all 33 src nodes, found %d" % len(layer_of)
         )
     allowlist = {}
     for entry in raw["grandfathered_reverse_edges"]:

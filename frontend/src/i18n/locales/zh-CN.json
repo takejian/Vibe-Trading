@@ -32,7 +32,8 @@
     "macroAnalysis": "宏观经济分析",
     "swarmStudio": "智能体团队",
     "roleSquare": "角色广场",
-    "skillPlaza": "技能广场"
+    "skillPlaza": "技能广场",
+    "watch": "关注"
   },
   "runtime": {
     "monitorBadge": "交易监控",
@@ -2186,6 +2187,129 @@
       "clear": "清空",
       "columnSkill": "技能名",
       "empty": "暂无评估记录。"
+    }
+  },
+  "watch": {
+    "title": "关注",
+    "subtitle": "我的 A 股自选清单（仅本人可见）",
+    "addWatch": "添加标的",
+    "aiBatchCompare": "AI 批量对比",
+    "compareToast": "AI 批量对比功能即将上线",
+    "searchPlaceholder": "输入代码 / 名称 / 拼音搜索",
+    "searching": "搜索中…",
+    "searchNoResult": "未找到匹配的 A 股标的",
+    "col": {
+      "select": "勾选",
+      "name": "名称 / 代码",
+      "industry": "行业",
+      "price": "现价",
+      "marketCap": "总市值",
+      "pe": "市盈率 PE",
+      "pb": "市净率 PB",
+      "actions": "操作"
+    },
+    "action": {
+      "view": "查看",
+      "cancel": "取消关注",
+      "refresh": "刷新"
+    },
+    "confirmCancel": {
+      "title": "确认取消关注？",
+      "message": "确定将 {{name}}（{{symbol}}）移出自选清单？分析历史仍会保留。"
+    },
+    "confirm": "确认",
+    "cancel": "取消",
+    "empty": {
+      "title": "暂无关注标的",
+      "hint": "添加 A 股标的，开始跟踪行情与分析"
+    },
+    "quoteError": "行情更新失败，当前显示缓存数据",
+    "detail": {
+      "back": "返回关注列表",
+      "notFound": "该标的不在关注列表",
+      "notFoundHint": "请先在关注列表页添加该标的",
+      "loadFailed": "详情加载失败"
+    },
+    "tabs": {
+      "overview": "概览",
+      "objective": "客观数据",
+      "fundamental": "基本面",
+      "technical": "技术面",
+      "ai": "AI 分析"
+    },
+    "ov": {
+      "name": "名称",
+      "symbol": "代码",
+      "industry": "行业",
+      "price": "现价",
+      "marketCap": "总市值",
+      "listDate": "上市日期",
+      "registeredCapital": "注册资本",
+      "updatedAt": "更新时间",
+      "updateQuotes": "更新股价与估值",
+      "updateProfile": "更新获取基本信息",
+      "updating": "更新中…",
+      "updateSuccess": "更新成功",
+      "updateFailed": "更新失败，请重试"
+    },
+    "noData": "暂无数据",
+    "obj": {
+      "market": "行情数据",
+      "valuation": "估值数据",
+      "financial": "财报数据",
+      "instrument": "证券主数据",
+      "fetchTitle": "补充抓取",
+      "fetchPlaceholder": "描述需要补充的数据，例如：近三年分红情况",
+      "fetchButton": "发起抓取",
+      "fetchDisabled": "请先填写抓取需求",
+      "fetchSuccess": "已发起抓取",
+      "fetchRunning": "抓取已开始，正在后台运行；完成后记录将出现在此处",
+      "fetchFailed": "发起抓取失败，请稍后重试",
+      "recordsTitle": "抓取记录",
+      "recordEmpty": "暂无抓取记录"
+    },
+    "rec": {
+      "note": "抓取需求",
+      "source": "来源",
+      "time": "时间"
+    },
+    "an": {
+      "roleTitle": "选择分析角色",
+      "questionLabel": "补充诉求（可选）",
+      "questionPlaceholder": "填写具体研究诉求…",
+      "run": "开始分析",
+      "mustSelect": "必须且只能选择一个角色",
+      "inProgress": "该智能体已有分析正在进行，请等待完成",
+      "viewRun": "查看运行",
+      "viewReport": "查看报告",
+      "chanlunBadge": "缠论",
+      "historyTitle": "历史分析",
+      "historyEmpty": "暂无分析历史",
+      "noAgents": "该分类下暂无已发布角色",
+      "expand": "展开",
+      "collapse": "收起"
+    },
+    "ch": {
+      "title": "缠论分析历史",
+      "analyzedAt": "分析时间",
+      "score": "缠论打分",
+      "confidence": "结构置信度",
+      "from": "开始日期",
+      "to": "结束日期",
+      "filter": "筛选",
+      "unstructured": "非结构化返回，以下为原文",
+      "recordEmpty": "暂无缠论分析记录"
+    },
+    "status": {
+      "pending": "等待中",
+      "running": "进行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "error": {
+      "dataFailed": "数据服务异常，请重试",
+      "duplicate": "该标的已在关注列表"
     }
   }
 }

@@ -18,6 +18,7 @@ const PROXY_PATHS = [
   "/shadow-reports",
   "/scheduled-runs",
   "/options",
+  "/watch",
 ];
 
 export default defineConfig(({ mode }) => {
@@ -49,6 +50,10 @@ export default defineConfig(({ mode }) => {
         "^/runs/[^/]+/?$": apiProxyWithHtmlFallback,
         "/runs": apiProxy,
         "/correlation": apiProxyWithHtmlFallback,
+        // /watch is both the SPA watchlist route (/watch, /watch/:symbol)
+        // and the API prefix (/watch/list, /watch/search …) — JSON calls
+        // proxy to the backend while HTML navigations render the SPA.
+        "/watch": apiProxyWithHtmlFallback,
         // /options is both the SPA Options Lab route and an API prefix
         // (/options/payoff, /options/chain) — same dual role as /correlation.
         // Overrides the plain PROXY_PATHS entry above.

@@ -19,7 +19,8 @@
       "strategy_discovery",
       "strategy_store",
       "tools",
-      "trading"
+      "trading",
+      "watchlist"
     ],
     "L3": ["agent", "session", "swarm"],
     "L4": ["api", "openbb_bridge", "preflight", "ui_services"]

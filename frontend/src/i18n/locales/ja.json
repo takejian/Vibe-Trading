@@ -32,7 +32,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "スキル広場"
+    "skillPlaza": "スキル広場",
+    "watch": "ウォッチ"
   },
   "runtime": {
     "monitorBadge": "取引モニター",
@@ -2186,6 +2187,129 @@
       "clear": "クリア",
       "columnSkill": "スキル",
       "empty": "評価記録はまだありません。"
+    }
+  },
+  "watch": {
+    "title": "ウォッチリスト",
+    "subtitle": "個人の A 株ウォッチリスト（本人のみ）",
+    "addWatch": "銘柄を追加",
+    "aiBatchCompare": "AI 一括比較",
+    "compareToast": "AI 一括比較は近日公開です",
+    "searchPlaceholder": "コード・名称・ピンインで検索",
+    "searching": "検索中…",
+    "searchNoResult": "一致する A 株銘柄がありません",
+    "col": {
+      "select": "選択",
+      "name": "名称 / コード",
+      "industry": "業種",
+      "price": "現在値",
+      "marketCap": "時価総額",
+      "pe": "PER",
+      "pb": "PBR",
+      "actions": "操作"
+    },
+    "action": {
+      "view": "表示",
+      "cancel": "ウォッチ解除",
+      "refresh": "更新"
+    },
+    "confirmCancel": {
+      "title": "ウォッチを解除しますか？",
+      "message": "{{name}}（{{symbol}}）をウォッチリストから削除しますか？分析履歴は保持されます。"
+    },
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "empty": {
+      "title": "銘柄がまだありません",
+      "hint": "A 株銘柄を追加して追跡を始めましょう"
+    },
+    "quoteError": "相場更新に失敗しました。キャッシュデータを表示中です",
+    "detail": {
+      "back": "ウォッチリストに戻る",
+      "notFound": "この銘柄はウォッチリストにありません",
+      "notFoundHint": "先にウォッチリストページで追加してください",
+      "loadFailed": "詳細の読み込みに失敗しました"
+    },
+    "tabs": {
+      "overview": "概要",
+      "objective": "客観データ",
+      "fundamental": "ファンダメンタル",
+      "technical": "テクニカル",
+      "ai": "AI 分析"
+    },
+    "ov": {
+      "name": "名称",
+      "symbol": "コード",
+      "industry": "業種",
+      "price": "現在値",
+      "marketCap": "時価総額",
+      "listDate": "上場日",
+      "registeredCapital": "登録資本金",
+      "updatedAt": "更新日時",
+      "updateQuotes": "株価・バリュエーション更新",
+      "updateProfile": "企業情報を更新",
+      "updating": "更新中…",
+      "updateSuccess": "更新しました",
+      "updateFailed": "更新に失敗しました。再試行してください"
+    },
+    "noData": "データなし",
+    "obj": {
+      "market": "相場データ",
+      "valuation": "バリュエーション",
+      "financial": "財務データ",
+      "instrument": "銘柄マスター",
+      "fetchTitle": "データ追加取得",
+      "fetchPlaceholder": "必要なデータを記入（例：過去3年の配当）",
+      "fetchButton": "取得開始",
+      "fetchDisabled": "取得内容を先に入力してください",
+      "fetchSuccess": "取得を開始しました",
+      "fetchRunning": "取得を開始しました（バックグラウンド実行中）。完了後にここへ記録されます",
+      "fetchFailed": "取得開始に失敗しました。再試行してください",
+      "recordsTitle": "取得履歴",
+      "recordEmpty": "取得履歴はまだありません"
+    },
+    "rec": {
+      "note": "取得依頼",
+      "source": "ソース",
+      "time": "日時"
+    },
+    "an": {
+      "roleTitle": "アナリストを選択",
+      "questionLabel": "追加要望（任意）",
+      "questionPlaceholder": "具体的なリサーチ質問を入力…",
+      "run": "分析開始",
+      "mustSelect": "アナリストを1人選択してください",
+      "inProgress": "このアナリストの分析はすでに実行中です。完了をお待ちください",
+      "viewRun": "実行を表示",
+      "viewReport": "レポートを表示",
+      "chanlunBadge": "チャンルン",
+      "historyTitle": "履歴",
+      "historyEmpty": "分析履歴はまだありません",
+      "noAgents": "このカテゴリに公開済みロールがありません",
+      "expand": "展開",
+      "collapse": "折りたたむ"
+    },
+    "ch": {
+      "title": "纏論（チャンロン）分析履歴",
+      "analyzedAt": "分析日時",
+      "score": "纏論スコア",
+      "confidence": "信頼度",
+      "from": "開始日",
+      "to": "終了日",
+      "filter": "絞り込み",
+      "unstructured": "非構造化レスポンス — 原文を表示",
+      "recordEmpty": "纏論分析はまだありません"
+    },
+    "status": {
+      "pending": "待機中",
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗",
+      "cancelled": "キャンセル済み"
+    },
+    "error": {
+      "dataFailed": "データサービスエラー。再試行してください",
+      "duplicate": "この銘柄はすでにウォッチリストにあります"
     }
   }
 }

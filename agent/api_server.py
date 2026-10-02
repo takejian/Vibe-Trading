@@ -252,6 +252,10 @@ register_swarm_routes(app)
 
 from src.api.swarm_routes import _get_swarm_runtime  # noqa: F401, E402
 
+# --- Watchlist (personal A-share favorites) ---
+from src.api.watchlist_routes import register_watchlist_routes  # noqa: E402
+register_watchlist_routes(app)
+
 # --- Live trading ---
 from src.api.live_routes import register_live_routes  # noqa: E402
 register_live_routes(app)

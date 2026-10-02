@@ -37,7 +37,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "Skill Plaza"
+    "skillPlaza": "Skill Plaza",
+    "watch": "Watch"
   },
   "runtime": {
     "monitorBadge": "Runtime Monitor",
@@ -2186,6 +2187,129 @@
       "clear": "Clear",
       "columnSkill": "Skill",
       "empty": "No evaluation records yet."
+    }
+  },
+  "watch": {
+    "title": "Watchlist",
+    "subtitle": "My personal A-share watchlist (private)",
+    "addWatch": "Add symbol",
+    "aiBatchCompare": "AI batch compare",
+    "compareToast": "AI batch compare is coming soon",
+    "searchPlaceholder": "Search code, name or pinyin",
+    "searching": "Searching…",
+    "searchNoResult": "No matching A-share symbols",
+    "col": {
+      "select": "Select",
+      "name": "Name / Code",
+      "industry": "Industry",
+      "price": "Price",
+      "marketCap": "Market cap",
+      "pe": "P/E",
+      "pb": "P/B",
+      "actions": "Actions"
+    },
+    "action": {
+      "view": "View",
+      "cancel": "Unwatch",
+      "refresh": "Refresh"
+    },
+    "confirmCancel": {
+      "title": "Remove from watchlist?",
+      "message": "Remove {{name}} ({{symbol}}) from your watchlist? Analysis history is kept."
+    },
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "empty": {
+      "title": "No symbols yet",
+      "hint": "Add an A-share symbol to start tracking"
+    },
+    "quoteError": "Quote refresh failed; showing cached data",
+    "detail": {
+      "back": "Back to watchlist",
+      "notFound": "Symbol not in watchlist",
+      "notFoundHint": "Add it from the watchlist page first",
+      "loadFailed": "Failed to load details"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "objective": "Objective data",
+      "fundamental": "Fundamentals",
+      "technical": "Technical",
+      "ai": "AI analysis"
+    },
+    "ov": {
+      "name": "Name",
+      "symbol": "Code",
+      "industry": "Industry",
+      "price": "Price",
+      "marketCap": "Market cap",
+      "listDate": "Listing date",
+      "registeredCapital": "Registered capital",
+      "updatedAt": "Updated at",
+      "updateQuotes": "Refresh quotes & valuation",
+      "updateProfile": "Refresh company profile",
+      "updating": "Updating…",
+      "updateSuccess": "Updated",
+      "updateFailed": "Update failed, please retry"
+    },
+    "noData": "No data",
+    "obj": {
+      "market": "Market data",
+      "valuation": "Valuation",
+      "financial": "Financials",
+      "instrument": "Instrument master",
+      "fetchTitle": "Request more data",
+      "fetchPlaceholder": "Describe the data you need, e.g. dividends over the past three years",
+      "fetchButton": "Start fetch",
+      "fetchDisabled": "Enter a data request first",
+      "fetchSuccess": "Fetch started",
+      "fetchRunning": "Fetch started — running in the background; the record appears here after it finishes",
+      "fetchFailed": "Failed to start fetch, please retry",
+      "recordsTitle": "Fetch history",
+      "recordEmpty": "No fetch records yet"
+    },
+    "rec": {
+      "note": "Request",
+      "source": "Source",
+      "time": "Time"
+    },
+    "an": {
+      "roleTitle": "Select an analyst",
+      "questionLabel": "Additional request (optional)",
+      "questionPlaceholder": "Add your specific research question…",
+      "run": "Start analysis",
+      "mustSelect": "Select exactly one analyst to start",
+      "inProgress": "This analyst already has a run in progress; wait for it to finish",
+      "viewRun": "View run",
+      "viewReport": "View report",
+      "chanlunBadge": "Chanlun",
+      "historyTitle": "History",
+      "historyEmpty": "No analysis history yet",
+      "noAgents": "No published analysts in this category",
+      "expand": "Expand",
+      "collapse": "Collapse"
+    },
+    "ch": {
+      "title": "Chanlun analysis history",
+      "analyzedAt": "Analyzed at",
+      "score": "Chanlun score",
+      "confidence": "Confidence",
+      "from": "From",
+      "to": "To",
+      "filter": "Filter",
+      "unstructured": "Non-structured response — raw text below",
+      "recordEmpty": "No chanlun analysis yet"
+    },
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "error": {
+      "dataFailed": "Data service error, please retry",
+      "duplicate": "This symbol is already in your watchlist"
     }
   }
 }

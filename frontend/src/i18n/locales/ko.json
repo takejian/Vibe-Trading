@@ -32,7 +32,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "스킬 광장"
+    "skillPlaza": "스킬 광장",
+    "watch": "관심"
   },
   "runtime": {
     "monitorBadge": "거래 모니터",
@@ -2186,6 +2187,129 @@
       "clear": "지우기",
       "columnSkill": "스킬",
       "empty": "평가 기록이 없습니다."
+    }
+  },
+  "watch": {
+    "title": "관심 목록",
+    "subtitle": "개인 A주 관심 목록(본인만 보기)",
+    "addWatch": "종목 추가",
+    "aiBatchCompare": "AI 일괄 비교",
+    "compareToast": "AI 일괄 비교 기능이 곧 제공됩니다",
+    "searchPlaceholder": "코드/명칭/병음 검색",
+    "searching": "검색 중…",
+    "searchNoResult": "일치하는 A주 종목이 없습니다",
+    "col": {
+      "select": "선택",
+      "name": "명칭 / 코드",
+      "industry": "업종",
+      "price": "현재가",
+      "marketCap": "시가총액",
+      "pe": "PER",
+      "pb": "PBR",
+      "actions": "작업"
+    },
+    "action": {
+      "view": "보기",
+      "cancel": "관심 해제",
+      "refresh": "새로고침"
+    },
+    "confirmCancel": {
+      "title": "관심 목록에서 제거할까요?",
+      "message": "{{name}} ({{symbol}}) 을(를) 관심 목록에서 제거할까요? 분석 이력은 유지됩니다."
+    },
+    "confirm": "확인",
+    "cancel": "취소",
+    "empty": {
+      "title": "관심 종목이 없습니다",
+      "hint": "A주 종목을 추가하고 추적을 시작하세요"
+    },
+    "quoteError": "시세 갱신 실패, 캐시 데이터를 표시합니다",
+    "detail": {
+      "back": "관심 목록으로",
+      "notFound": "관심 목록에 없는 종목입니다",
+      "notFoundHint": "먼저 관심 목록 페이지에서 추가하세요",
+      "loadFailed": "상세 불러오기 실패"
+    },
+    "tabs": {
+      "overview": "개요",
+      "objective": "객관 데이터",
+      "fundamental": "펀더멘털",
+      "technical": "기술적 분석",
+      "ai": "AI 분석"
+    },
+    "ov": {
+      "name": "명칭",
+      "symbol": "코드",
+      "industry": "업종",
+      "price": "현재가",
+      "marketCap": "시가총액",
+      "listDate": "상장일",
+      "registeredCapital": "등록 자본금",
+      "updatedAt": "업데이트 시각",
+      "updateQuotes": "주가 및 밸류에이션 갱신",
+      "updateProfile": "기업 정보 갱신",
+      "updating": "갱신 중…",
+      "updateSuccess": "갱신 완료",
+      "updateFailed": "갱신 실패, 다시 시도하세요"
+    },
+    "noData": "데이터 없음",
+    "obj": {
+      "market": "시세 데이터",
+      "valuation": "밸류에이션",
+      "financial": "재무 데이터",
+      "instrument": "종목 마스터",
+      "fetchTitle": "추가 데이터 요청",
+      "fetchPlaceholder": "필요한 데이터를 입력하세요(예: 최근 3년 배당)",
+      "fetchButton": "가져오기 시작",
+      "fetchDisabled": "먼저 요청 내용을 입력하세요",
+      "fetchSuccess": "가져오기를 시작했습니다",
+      "fetchRunning": "가져오기 시작 — 백그라운드에서 실행 중이며 완료 후 여기에 기록됩니다",
+      "fetchFailed": "시작 실패, 다시 시도하세요",
+      "recordsTitle": "가져오기 기록",
+      "recordEmpty": "가져오기 기록이 없습니다"
+    },
+    "rec": {
+      "note": "요청 내용",
+      "source": "출처",
+      "time": "시각"
+    },
+    "an": {
+      "roleTitle": "분석가 선택",
+      "questionLabel": "추가 요청(선택)",
+      "questionPlaceholder": "구체적인 리서치 질문을 입력하세요…",
+      "run": "분석 시작",
+      "mustSelect": "분석가를 정확히 한 명 선택하세요",
+      "inProgress": "이 분석가의 분석이 이미 진행 중입니다. 완료를 기다려 주세요",
+      "viewRun": "실행 보기",
+      "viewReport": "보고서 보기",
+      "chanlunBadge": "찬룬",
+      "historyTitle": "이력",
+      "historyEmpty": "분석 이력이 없습니다",
+      "noAgents": "이 카테고리에 공개된 역할이 없습니다",
+      "expand": "펼치기",
+      "collapse": "접기"
+    },
+    "ch": {
+      "title": "찬룬 분석 이력",
+      "analyzedAt": "분석 시각",
+      "score": "찬룬 점수",
+      "confidence": "신뢰도",
+      "from": "시작일",
+      "to": "종료일",
+      "filter": "필터",
+      "unstructured": "비정형 응답 — 원문을 표시합니다",
+      "recordEmpty": "찬룬 분석이 없습니다"
+    },
+    "status": {
+      "pending": "대기 중",
+      "running": "진행 중",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소됨"
+    },
+    "error": {
+      "dataFailed": "데이터 서비스 오류, 다시 시도하세요",
+      "duplicate": "이 종목은 이미 관심 목록에 있습니다"
     }
   }
 }

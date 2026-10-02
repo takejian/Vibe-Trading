@@ -37,7 +37,8 @@
     "macroAnalysis": "Macro Analysis",
     "swarmStudio": "Agent Teams",
     "roleSquare": "Role Square",
-    "skillPlaza": "Skill-Marktplatz"
+    "skillPlaza": "Skill-Marktplatz",
+    "watch": "Watchlist"
   },
   "runtime": {
     "monitorBadge": "Runtime-Monitor",
@@ -2186,6 +2187,129 @@
       "clear": "Leeren",
       "columnSkill": "Skill",
       "empty": "Noch keine Auswertungen."
+    }
+  },
+  "watch": {
+    "title": "Watchlist",
+    "subtitle": "Meine persönliche A-Aktien-Watchlist (privat)",
+    "addWatch": "Wertpapier hinzufügen",
+    "aiBatchCompare": "KI-Vergleich",
+    "compareToast": "Der KI-Vergleich kommt in Kürze",
+    "searchPlaceholder": "Code, Name oder Pinyin suchen",
+    "searching": "Suche läuft…",
+    "searchNoResult": "Keine passenden A-Aktien gefunden",
+    "col": {
+      "select": "Auswahl",
+      "name": "Name / Code",
+      "industry": "Branche",
+      "price": "Kurs",
+      "marketCap": "Marktkap.",
+      "pe": "KGV",
+      "pb": "KBV",
+      "actions": "Aktionen"
+    },
+    "action": {
+      "view": "Ansehen",
+      "cancel": "Entfernen",
+      "refresh": "Aktualisieren"
+    },
+    "confirmCancel": {
+      "title": "Von der Watchlist entfernen?",
+      "message": "{{name}} ({{symbol}}) von der Watchlist entfernen? Der Analyseverlauf bleibt erhalten."
+    },
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen",
+    "empty": {
+      "title": "Noch keine Wertpapiere",
+      "hint": "A-Aktie hinzufügen und Verfolgung starten"
+    },
+    "quoteError": "Kursaktualisierung fehlgeschlagen, gecachte Daten werden angezeigt",
+    "detail": {
+      "back": "Zur Watchlist",
+      "notFound": "Wertpapier nicht in der Watchlist",
+      "notFoundHint": "Zuerst auf der Watchlist-Seite hinzufügen",
+      "loadFailed": "Details konnten nicht geladen werden"
+    },
+    "tabs": {
+      "overview": "Übersicht",
+      "objective": "Objektivdaten",
+      "fundamental": "Fundamental",
+      "technical": "Technisch",
+      "ai": "KI-Analyse"
+    },
+    "ov": {
+      "name": "Name",
+      "symbol": "Code",
+      "industry": "Branche",
+      "price": "Kurs",
+      "marketCap": "Marktkapitalisierung",
+      "listDate": "Börsengang",
+      "registeredCapital": "Grundkapital",
+      "updatedAt": "Aktualisiert am",
+      "updateQuotes": "Kurse & Bewertung aktualisieren",
+      "updateProfile": "Unternehmensprofil aktualisieren",
+      "updating": "Aktualisierung…",
+      "updateSuccess": "Aktualisiert",
+      "updateFailed": "Aktualisierung fehlgeschlagen, bitte erneut versuchen"
+    },
+    "noData": "Keine Daten",
+    "obj": {
+      "market": "Marktdaten",
+      "valuation": "Bewertung",
+      "financial": "Finanzdaten",
+      "instrument": "Stammdaten",
+      "fetchTitle": "Weitere Daten anfordern",
+      "fetchPlaceholder": "Beschreiben Sie die benötigten Daten, z. B. Dividenden der letzten drei Jahre",
+      "fetchButton": "Abruf starten",
+      "fetchDisabled": "Bitte zuerst Anfrage eingeben",
+      "fetchSuccess": "Abruf gestartet",
+      "fetchRunning": "Abruf gestartet – läuft im Hintergrund; der Datensatz erscheint hier nach Abschluss",
+      "fetchFailed": "Start fehlgeschlagen, bitte erneut versuchen",
+      "recordsTitle": "Abrufverlauf",
+      "recordEmpty": "Noch keine Abrufe"
+    },
+    "rec": {
+      "note": "Anfrage",
+      "source": "Quelle",
+      "time": "Zeit"
+    },
+    "an": {
+      "roleTitle": "Analyst wählen",
+      "questionLabel": "Zusatzanfrage (optional)",
+      "questionPlaceholder": "Konkrete Research-Frage eingeben…",
+      "run": "Analyse starten",
+      "mustSelect": "Bitte genau einen Analysten wählen",
+      "inProgress": "Für diesen Analysten läuft bereits eine Analyse; bitte warten",
+      "viewRun": "Lauf ansehen",
+      "viewReport": "Bericht ansehen",
+      "chanlunBadge": "Chanlun",
+      "historyTitle": "Verlauf",
+      "historyEmpty": "Noch kein Analyseverlauf",
+      "noAgents": "Keine veröffentlichten Rollen in dieser Kategorie",
+      "expand": "Erweitern",
+      "collapse": "Einklappen"
+    },
+    "ch": {
+      "title": "Chanlun-Analyseverlauf",
+      "analyzedAt": "Analysiert am",
+      "score": "Chanlun-Score",
+      "confidence": "Konfidenz",
+      "from": "Von",
+      "to": "Bis",
+      "filter": "Filter",
+      "unstructured": "Unstrukturierte Antwort — Originaltext unten",
+      "recordEmpty": "Noch keine Chanlun-Analyse"
+    },
+    "status": {
+      "pending": "Wartend",
+      "running": "Läuft",
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen"
+    },
+    "error": {
+      "dataFailed": "Datendienst-Fehler, bitte erneut versuchen",
+      "duplicate": "Dieses Wertpapier ist bereits in der Watchlist"
     }
   }
 }

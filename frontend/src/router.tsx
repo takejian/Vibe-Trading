@@ -46,6 +46,12 @@ const RoleSquare = lazy(() =>
 const SkillPlaza = lazy(() =>
   import("@/pages/SkillPlaza").then((m) => ({ default: m.SkillPlaza })),
 );
+const Watchlist = lazy(() =>
+  import("@/pages/Watchlist").then((m) => ({ default: m.Watchlist })),
+);
+const WatchDetail = lazy(() =>
+  import("@/pages/WatchDetail").then((m) => ({ default: m.WatchDetail })),
+);
 
 function PageLoader() {
   return (
@@ -74,6 +80,8 @@ export const router = createBrowserRouter([
       { path: "/swarm", element: wrap(SwarmStudio) },
       { path: "/roles", element: wrap(RoleSquare) },
       { path: "/skills", element: wrap(SkillPlaza) },
+      { path: "/watch", element: wrap(Watchlist) },
+      { path: "/watch/:symbol", element: wrap(WatchDetail) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/scheduled", element: wrap(Scheduled) },
       { path: "/reports", element: wrap(Reports) },
