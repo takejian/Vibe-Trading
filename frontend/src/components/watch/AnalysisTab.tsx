@@ -108,18 +108,20 @@ export function AnalysisTab({
     return [...map.entries()];
   }, [history]);
 
-  const start = async () => {
+  const start = async (skipGate = false) => {
     if (!roleRef) return;
     setStarting(true);
     setError409(false);
     setErrorOther("");
-    setGateItems(null);
+    if (!skipGate) setGateItems(null);
     try {
       const run = await api.startWatchAnalysis(symbol, {
         category,
         role_ref: roleRef,
         ...(question.trim() ? { question: question.trim() } : {}),
+        ...(skipGate ? { skip_kline_gate: true } : {}),
       });
+      setGateItems(null);
       setActiveRunId(run.id);
       setActiveRunReadOnly(false);
     } catch (err) {
@@ -284,16 +286,28 @@ export function AnalysisTab({
               </li>
             ))}
           </ul>
-          {onGotoObjective && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {onGotoObjective && (
+              <button
+                type="button"
+                onClick={onGotoObjective}
+                className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90"
+                data-testid="chanlun-gate-go"
+              >
+                {t("watch.an.gateGo")}
+              </button>
+            )}
             <button
               type="button"
-              onClick={onGotoObjective}
-              className="mt-3 inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90"
-              data-testid="chanlun-gate-go"
+              disabled={starting}
+              onClick={() => void start(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="chanlun-gate-skip"
             >
-              {t("watch.an.gateGo")}
+              {starting && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+              {t("watch.an.gateSkip")}
             </button>
-          )}
+          </div>
         </div>
       )}
       {warn30m && category === "technical" && selectedAgent?.is_chanlun && (

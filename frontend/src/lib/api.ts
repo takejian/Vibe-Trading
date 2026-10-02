@@ -956,7 +956,12 @@ export const api = {
   },
   startWatchAnalysis: (
     symbol: string,
-    body: { category: WatchCategory; role_ref: string; question?: string },
+    body: {
+      category: WatchCategory;
+      role_ref: string;
+      question?: string;
+      skip_kline_gate?: boolean;
+    },
   ) =>
     request<WatchRunSummary>(
       `/watch/${encodeURIComponent(symbol)}/analyze`,

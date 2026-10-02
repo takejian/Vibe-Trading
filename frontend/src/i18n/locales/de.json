@@ -2289,8 +2289,9 @@
       "expand": "Erweitern",
       "collapse": "Einklappen",
       "gateTitle": "Die für die Chanlun-Analyse erforderlichen Marktdaten sind nicht bereit",
-      "gateDesc": "Folgende Kerzenebenen sind nicht bereit. Aktualisieren Sie die Marktdaten im Reiter „Objektive Daten“, bevor Sie die Chanlun-Analyse starten.",
+      "gateDesc": "Folgende Kerzenebenen sind nicht bereit. Aktualisieren Sie die Marktdaten im Reiter „Objektive Daten“, oder überspringen Sie den Hinweis und fahren Sie fort – Schlussfolgerungen für fehlende Ebenen werden als Datenlücken gekennzeichnet.",
       "gateGo": "Marktdaten aktualisieren",
+      "gateSkip": "Überspringen und Analyse fortsetzen",
       "warn30m": "Keine 30-Minuten-Kerzen verfügbar; Timing-Schlüsse auf niedrigeren Ebenen können Lücken haben, der Lauf wird aber nicht blockiert."
     },
     "ch": {
@@ -2311,6 +2312,7 @@
       "levelCol": "Ebene",
       "statusCol": "Status",
       "barsCol": "Kerzen",
+      "firstCol": "Erste Kerze",
       "latestCol": "Neueste Kerze",
       "updatedCol": "Letzter Erfolg",
       "actionCol": "Aktion",

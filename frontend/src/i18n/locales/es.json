@@ -2289,8 +2289,9 @@
       "expand": "Expandir",
       "collapse": "Contraer",
       "gateTitle": "Los datos de mercado necesarios para el análisis Chanlun no están listos",
-      "gateDesc": "Los siguientes niveles de velas no están listos. Actualice los datos de mercado en la pestaña «Datos objetivos» antes de ejecutar el analista Chanlun.",
+      "gateDesc": "Los siguientes niveles de velas no están listos. Se recomienda actualizar los datos de mercado en la pestaña «Datos objetivos» primero, o puede omitir el aviso y continuar; las conclusiones de los niveles faltantes se marcarán como puntos ciegos de datos.",
       "gateGo": "Ir a actualizar los datos de mercado",
+      "gateSkip": "Omitir y continuar el análisis",
       "warn30m": "No hay velas de 30 minutos; las conclusiones de temporización de nivel inferior pueden tener puntos ciegos, pero la ejecución no se bloquea."
     },
     "ch": {
@@ -2311,6 +2312,7 @@
       "levelCol": "Nivel",
       "statusCol": "Estado",
       "barsCol": "Velas",
+      "firstCol": "Primera vela",
       "latestCol": "Última vela",
       "updatedCol": "Último éxito",
       "actionCol": "Acción",

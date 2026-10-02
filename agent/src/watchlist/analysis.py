@@ -203,8 +203,15 @@ def start_analysis(
     entries: Sequence[dict[str, Any]],
     runtime: Any,
     watch_store: Any = None,
+    data_context: str | None = None,
 ) -> Any:
-    """Validate, de-duplicate, and start one analyst role run."""
+    """Validate, de-duplicate, and start one analyst role run.
+
+    ``data_context`` carries the platform-archived objective-data block
+    (e.g. the Chanlun multi-level K-line brief, BDD rule 21); it is
+    appended to the research question so the role analyzes the archived
+    data instead of fetching market data itself.
+    """
     normalized = normalize_a_share_symbol(symbol)
     name = _entry_name(watch_store, normalized)
 
@@ -221,6 +228,9 @@ def start_analysis(
 
     target = _display_name(normalized, name)
     question = default_question(category, normalized, name, brief)
+    context = (data_context or "").strip()
+    if context:
+        question = f"{question}\n\n{context}"
     return runtime.start_run(
         "",
         {},

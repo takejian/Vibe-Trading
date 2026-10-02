@@ -2289,8 +2289,9 @@
       "expand": "Expand",
       "collapse": "Collapse",
       "gateTitle": "Required market data is not ready",
-      "gateDesc": "The following K-line levels are not ready. Update market data on the Objective-data tab before running the Chanlun analyst.",
+      "gateDesc": "The following K-line levels are not ready. We recommend updating market data on the Objective-data tab first, or you can skip the prompt and run anyway — conclusions for missing levels will be flagged as data blind spots.",
       "gateGo": "Go to update market data",
+      "gateSkip": "Skip and continue analysis",
       "warn30m": "30-minute bars are unavailable; lower-level timing conclusions may have blind spots, but the run is not blocked."
     },
     "ch": {
@@ -2311,6 +2312,7 @@
       "levelCol": "Level",
       "statusCol": "Status",
       "barsCol": "Bars",
+      "firstCol": "First bar",
       "latestCol": "Latest bar",
       "updatedCol": "Last success",
       "actionCol": "Action",

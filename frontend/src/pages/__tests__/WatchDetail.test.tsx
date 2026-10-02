@@ -113,11 +113,11 @@ describe("WatchDetail", () => {
     });
     getWatchKlineStatus.mockResolvedValue({
       items: [
-        { interval: "1d", required: true, status: "ready", fetch_failed: false, bars_count: 120, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
-        { interval: "1w", required: true, status: "ready", fetch_failed: false, bars_count: 60, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
-        { interval: "1mo", required: true, status: "ready", fetch_failed: false, bars_count: 24, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
-        { interval: "1q", required: true, status: "ready", fetch_failed: false, bars_count: 12, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
-        { interval: "1y", required: true, status: "ready", fetch_failed: false, bars_count: 5, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: null },
+        { interval: "1d", required: true, status: "ready", fetch_failed: false, bars_count: 120, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: "2024-09-02" },
+        { interval: "1w", required: true, status: "ready", fetch_failed: false, bars_count: 60, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: "2024-09-02" },
+        { interval: "1mo", required: true, status: "ready", fetch_failed: false, bars_count: 24, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: "2024-09-02" },
+        { interval: "1q", required: true, status: "ready", fetch_failed: false, bars_count: 12, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: "2024-09-02" },
+        { interval: "1y", required: true, status: "ready", fetch_failed: false, bars_count: 5, latest_bar_time: "2026-09-30", last_ok_at: "2026-09-30T15:00:00", last_attempt_at: "2026-09-30T15:00:00", last_error: null, earliest_bar_time: "2024-09-02" },
         { interval: "30m", required: false, status: "not_fetched", fetch_failed: false, bars_count: 0, latest_bar_time: null, last_ok_at: null, last_attempt_at: null, last_error: null, earliest_bar_time: null },
       ],
       market_ref: { last_trading_date: "2026-09-30", threshold_date: "2026-09-29", source: "trading_calendar" },

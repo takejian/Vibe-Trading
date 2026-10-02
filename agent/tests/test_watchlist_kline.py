@@ -1,7 +1,8 @@
 """Tests for the multi-level K-line Chanlun readiness feature (BDD US-08A/US-11).
 
 Covers the pure readiness rules, DuckDB persistence, the direct (never-LLM)
-fetch orchestration and the HTTP contract incl. the 412 pre-run gate.
+fetch orchestration and the HTTP contract incl. the 412 advisory
+pre-run prompt (skippable) and the archived-bars data brief.
 """
 
 from __future__ import annotations
@@ -263,8 +264,29 @@ def test_list_level_states_seeds_all_intervals(conn):
     assert required == set(kline.REQUIRED_INTERVALS)
 
 
+def test_build_chanlun_data_brief_embeds_bars_and_names_blind_spots(conn):
+    watch_db.upsert_kline_bars(
+        "600519.SH", "1d", _bars("1d", 130), source="eastmoney", conn=conn
+    )
+    watch_db.record_kline_fetch(
+        "600519.SH", "1d", ok=True, error=None, source="eastmoney", conn=conn
+    )
+    brief = kline.build_chanlun_data_brief("600519.SH", conn, today=TODAY)
+    assert "平台客观数据" in brief
+    assert "日线（1d，缠论必需级别）" in brief
+    assert "共 130 根" in brief
+    assert "来源 eastmoney" in brief
+    assert "2026-10-02,1,1,1,1,1" in brief
+    # Header is CSV OHLCV and bars are ascending.
+    assert "时间,开盘,最高,最低,收盘,成交量" in brief
+    # Other five levels are absent and declared blind spots.
+    assert "年线（1y，缠论必需级别）" in brief
+    assert "30分钟线（30m，可选增强级别）" in brief
+    assert brief.count("本次未提供该级别行情") == 5
+
+
 # ----------------------------------------------------------------------
-# HTTP contract + 412 gate
+# HTTP contract + 412 advisory prompt
 # ----------------------------------------------------------------------
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -274,6 +296,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     class _Runtime:
         def __init__(self):
             self.started = 0
+            self.last_role_run = None
             self._store = self
 
         def list_runs(self, limit=10_000):
@@ -281,6 +304,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
         def start_run(self, preset, user_vars, role_run=None, **kw):
             self.started += 1
+            self.last_role_run = role_run
 
             class _Run:
                 id = "run-x"
@@ -351,12 +375,13 @@ def test_update_rejects_unknown_interval(client):
     assert resp.status_code == 400
 
 
-def test_chanlun_run_blocked_until_all_required_levels_ready(client):
+def test_chanlun_run_prompts_when_levels_missing_but_can_be_skipped(client):
     test_client, runtime = client
     resp = test_client.post(
         "/watch/600519.SH/analyze",
         json={"category": "technical", "role_ref": CHANLUN_REF},
     )
+    # First attempt is an advisory prompt (412), no run created yet.
     assert resp.status_code == 412
     detail = resp.json()["detail"]
     assert detail["code"] == "kline_not_ready"
@@ -371,13 +396,36 @@ def test_chanlun_run_blocked_until_all_required_levels_ready(client):
     )
     assert resp.status_code == 200
 
-    # Quarter still missing → still blocked, now naming only that level.
+    # Quarter still missing → prompted again, now naming only that level.
     resp = test_client.post(
         "/watch/600519.SH/analyze",
         json={"category": "technical", "role_ref": CHANLUN_REF},
     )
     assert resp.status_code == 412
     assert [i["interval"] for i in resp.json()["detail"]["items"]] == ["1q"]
+
+    # Investor skips the prompt (BDD rule 18): run starts, and the run
+    # question carries the archived-data brief (BDD rule 21) with every
+    # unavailable level declared a blind spot.
+    resp = test_client.post(
+        "/watch/600519.SH/analyze",
+        json={
+            "category": "technical",
+            "role_ref": CHANLUN_REF,
+            "skip_kline_gate": True,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "run-x"
+    assert runtime.started == 1
+    question = runtime.last_role_run["question"]
+    assert "平台客观数据" in question
+    assert "不要再调用任何行情工具" in question
+    # 1d/1w/1mo/1y archived → bars embedded; 1q absent → blind spot.
+    assert "日线（1d，缠论必需级别）" in question
+    assert "季线（1q，缠论必需级别）" in question
+    assert "2026-10-02,1,1,1,1,1" in question
+    assert question.count("数据盲区") >= 2
 
 
 def test_chanlun_run_allowed_when_required_levels_ready_30m_optional(client):
@@ -403,6 +451,15 @@ def test_chanlun_run_allowed_when_required_levels_ready_30m_optional(client):
     assert resp.status_code == 200
     assert resp.json()["id"] == "run-x"
     assert runtime.started == 1
+
+    # The run analyzes the archived objective bars (no self-fetch).
+    question = runtime.last_role_run["question"]
+    assert "平台客观数据" in question
+    assert "日线（1d，缠论必需级别）" in question
+    assert "季线（1q，缠论必需级别）" in question
+    assert "2026-10-02,1,1,1,1,1" in question
+    # 30m never fetched: listed as an optional blind spot, not as a block.
+    assert "30分钟线（30m，可选增强级别）" in question
 
 
 def test_non_chanlun_role_is_not_gated(client):
@@ -474,10 +531,22 @@ def test_source_catalog_follows_a_share_chain_order():
     }
     assert by_id["eastmoney"]["available"] is True
     assert by_id["tushare"]["requires_auth"] is True
-    # No online adapter for the card yet — selectable vocabulary present but
-    # disabled with a machine-readable reason.
-    assert by_id["local"]["available"] is False
-    assert by_id["local"]["reason"] == kline_sources.REASON_NO_ADAPTER
+    # Vendors with adapters advertise all six levels; token-gated vendors
+    # without credentials stay disabled with a machine-readable reason.
+    assert by_id["baostock"]["available"] is True
+    assert set(by_id["baostock"]["intervals"]) == {
+        "1d", "1w", "1mo", "1q", "1y", "30m"
+    }
+    assert set(by_id["mootdx"]["intervals"]) == {
+        "1d", "1w", "1mo", "1q", "1y", "30m"
+    }
+    # Local DuckDB warehouse needs neither install nor credentials.
+    assert by_id["local"]["available"] is True
+    assert set(by_id["local"]["intervals"]) == {
+        "1d", "1w", "1mo", "1q", "1y", "30m"
+    }
+    assert by_id["gildata"]["available"] is False
+    assert by_id["gildata"]["reason"] == kline_sources.REASON_NEEDS_AUTH
 
 
 def test_normalize_source_defaults_eastmoney_and_rejects_bad_choices():
@@ -486,7 +555,7 @@ def test_normalize_source_defaults_eastmoney_and_rejects_bad_choices():
     with pytest.raises(ValueError):
         kline.normalize_source("not-a-vendor")
     with pytest.raises(ValueError):
-        kline.normalize_source("local")  # catalog member, no card adapter
+        kline.normalize_source("gildata")  # catalog member, missing token
 
 
 def test_update_levels_dispatches_to_selected_source_and_stamps_it(conn):
@@ -595,10 +664,10 @@ def test_update_endpoint_rejects_unavailable_source(client):
     test_client, _ = client
     resp = test_client.post(
         "/watch/600519.SH/kline/update",
-        json={"source": "local"},
+        json={"source": "gildata"},
     )
     assert resp.status_code == 400
-    assert "local" in resp.json()["detail"]
+    assert "gildata" in resp.json()["detail"]
 
 
 def test_tencent_adapter_aggregates_quarter_and_year_from_monthly(monkeypatch):
@@ -638,3 +707,337 @@ def test_tencent_adapter_aggregates_quarter_and_year_from_monthly(monkeypatch):
     assert years[0]["trade_date"] == "2026-06-30"
     assert (years[0]["open"], years[0]["close"]) == (10, 16)
     assert years[0]["volume"] == 750
+
+
+# ----------------------------------------------------------------------
+# BaoStock / mootdx / local DuckDB adapters
+# ----------------------------------------------------------------------
+import sys
+import types
+
+import pandas as pd
+
+
+class _FakeBaostockRS:
+    def __init__(self, fields, rows, error_code="0", error_msg="success"):
+        self.fields = fields
+        self._rows = rows
+        self.error_code = error_code
+        self.error_msg = error_msg
+        self._idx = -1
+
+    def next(self):
+        self._idx += 1
+        return self._idx < len(self._rows)
+
+    def get_row_data(self):
+        return self._rows[self._idx]
+
+
+def _install_fake_baostock(monkeypatch, rows_by_freq):
+    """rows_by_freq: {frequency: (fields, rows)}; records call kwargs."""
+    calls = []
+
+    fake = types.ModuleType("baostock")
+
+    def _login():
+        result = types.SimpleNamespace(error_code="0", error_msg="success")
+        return result
+
+    def _logout():
+        return types.SimpleNamespace(error_code="0")
+
+    def _query(code, fields, **kwargs):
+        calls.append({"code": code, "fields": fields, **kwargs})
+        freq = kwargs["frequency"]
+        fieldnames, rows = rows_by_freq[freq]
+        assert fields.split(",") == fieldnames
+        return _FakeBaostockRS(fieldnames, rows)
+
+    fake.login = _login
+    fake.logout = _logout
+    fake.query_history_k_data_plus = _query
+    monkeypatch.setitem(sys.modules, "baostock", fake)
+    monkeypatch.setattr(kline_sources, "_baostock_session_ok", False)
+    return calls
+
+
+def test_baostock_adapter_daily_30m_and_quarter(monkeypatch):
+    daily_fields = ["date", "open", "high", "low", "close", "volume", "amount"]
+    minute_fields = ["date", "time", "open", "high", "low", "close",
+                     "volume", "amount"]
+    rows_by_freq = {
+        "d": (
+            daily_fields,
+            [
+                ["2026-09-28", "10", "11", "9", "10.5", "100", "1000"],
+                # suspended session -> empty OHLC, must be skipped
+                ["2026-09-29", "", "", "", "", "", ""],
+                ["2026-09-30", "10.5", "11.2", "10.2", "10.8", "120", "1200"],
+            ],
+        ),
+        "30": (
+            minute_fields,
+            [
+                ["2026-09-30", "20260930100000000", "10", "10.5", "9.9",
+                 "10.2", "50", "500"],
+                ["2026-09-30", "20260930103000000", "10.2", "10.6", "10.1",
+                 "10.4", "60", "600"],
+            ],
+        ),
+        "m": (
+            daily_fields,
+            [
+                ["2026-01-30", "10", "12", "9", "11", "100", "1"],
+                ["2026-02-27", "11", "13", "10", "12", "110", "1"],
+                ["2026-03-31", "12", "14", "11", "13", "120", "1"],
+            ],
+        ),
+    }
+    calls = _install_fake_baostock(monkeypatch, rows_by_freq)
+
+    daily = kline_sources._fetch_baostock(
+        "600519.SH", "1d", date(2026, 9, 1), date(2026, 10, 1)
+    )
+    assert [row["trade_date"] for row in daily] == ["2026-09-28", "2026-09-30"]
+    assert daily[1]["close"] == 10.8
+    assert calls[0]["code"] == "sh.600519"
+    assert calls[0]["frequency"] == "d"
+    assert calls[0]["adjustflag"] == "2"
+    assert "time" not in calls[0]["fields"]
+
+    minute = kline_sources._fetch_baostock(
+        "000001.SZ", "30m", date(2026, 9, 1), date(2026, 10, 1)
+    )
+    assert calls[-1]["code"] == "sz.000001"
+    assert minute[0]["trade_date"] == "2026-09-30 10:00:00"
+    assert minute[1]["trade_date"] == "2026-09-30 10:30:00"
+
+    quarters = kline_sources._fetch_baostock(
+        "600519.SH", "1q", date(2026, 1, 1), date(2026, 4, 1)
+    )
+    assert calls[-1]["frequency"] == "m"
+    assert len(quarters) == 1
+    assert quarters[0]["trade_date"] == "2026-03-31"
+    assert (quarters[0]["open"], quarters[0]["close"]) == (10, 13)
+    assert quarters[0]["volume"] == 330
+
+
+def test_baostock_adapter_surfaces_query_error(monkeypatch):
+    calls = []
+    fake = types.ModuleType("baostock")
+    fake.login = lambda: types.SimpleNamespace(error_code="0", error_msg="ok")
+    fake.logout = lambda: types.SimpleNamespace(error_code="0")
+
+    def _query(code, fields, **kwargs):
+        calls.append(kwargs)
+        return _FakeBaostockRS([], [], error_code="10004012",
+                               error_msg="日线指标参数传入错误")
+    fake.query_history_k_data_plus = _query
+    monkeypatch.setitem(sys.modules, "baostock", fake)
+    monkeypatch.setattr(kline_sources, "_baostock_session_ok", False)
+
+    with pytest.raises(WatchlistDataError, match="日线指标参数传入错误"):
+        kline_sources._fetch_baostock(
+            "600519.SH", "1d", date(2026, 9, 1), date(2026, 10, 1)
+        )
+
+
+class _FakeMootdxClient:
+    def __init__(self, pages):
+        self.pages = pages
+        self.calls = []
+
+    def bars(self, symbol, frequency, start, offset):
+        self.calls.append((symbol, frequency, start, offset))
+        page = self.pages.get(start)
+        if page is None:
+            return pd.DataFrame()
+        return pd.DataFrame(page)
+
+
+def _mootdx_frame(day, *, minute=False):
+    stamp = pd.Timestamp(f"{day} 10:00:00") if minute else pd.Timestamp(day)
+    return {
+        "datetime": stamp,
+        "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5,
+        "vol": 100, "amount": 1000.0,
+    }
+
+
+def _install_fake_mootdx(monkeypatch, client):
+    fake_pkg = types.ModuleType("mootdx")
+    fake_quotes = types.ModuleType("mootdx.quotes")
+    fake_quotes.Quotes = types.SimpleNamespace(
+        factory=lambda **kwargs: client
+    )
+    fake_pkg.quotes = fake_quotes
+    monkeypatch.setitem(sys.modules, "mootdx", fake_pkg)
+    monkeypatch.setitem(sys.modules, "mootdx.quotes", fake_quotes)
+    monkeypatch.setattr(kline_sources, "_mootdx_client", None)
+
+
+def test_mootdx_adapter_paginates_and_maps(monkeypatch):
+    # First page ends inside the window (oldest > start) -> must page again;
+    # second page is short -> pagination stops.
+    page0 = [
+        _mootdx_frame(f"2026-08-{d:02d}")
+        for d in range(1, 31)
+    ] + [_mootdx_frame("2026-09-30")]
+    page0 = page0[-800:] if len(page0) > 800 else page0
+    # Force "inside window" oldest by using 800 rows of August/September via
+    # padding unique July days so oldest stays after 2026-01-01 anyway.
+    page0 = [_mootdx_frame(f"2026-07-{((d % 28) + 1):02d}") for d in range(600)]
+    page0 += [_mootdx_frame(f"2026-09-{((d % 28) + 1):02d}") for d in range(200)]
+    page1 = [_mootdx_frame("2025-12-15"), _mootdx_frame("2025-11-03")]
+    client = _FakeMootdxClient({0: page0, 800: page1})
+    _install_fake_mootdx(monkeypatch, client)
+
+    rows = kline_sources._fetch_mootdx(
+        "600519.SH", "1d", date(2026, 1, 1), date(2026, 10, 2)
+    )
+    # Two pages requested with TDX category 9 (day), offsets 0 and 800.
+    assert [call[1] for call in client.calls] == [9, 9]
+    assert [call[2] for call in client.calls] == [0, 800]
+    assert client.calls[0][0] == "600519"
+    assert rows, "window rows expected"
+    assert all(row["trade_date"] >= "2026-01-01" for row in rows)
+    assert all(row["trade_date"] <= "2026-10-02" for row in rows)
+    assert rows[0]["close"] == 10.5
+
+
+def test_mootdx_adapter_30m_labels_and_quarter_resample(monkeypatch):
+    client = _FakeMootdxClient({
+        0: [_mootdx_frame("2026-09-30", minute=True)]
+    })
+    _install_fake_mootdx(monkeypatch, client)
+    minute = kline_sources._fetch_mootdx(
+        "600519.SH", "30m", date(2026, 9, 1), date(2026, 10, 1)
+    )
+    assert client.calls[0][1] == 2
+    assert minute[0]["trade_date"] == "2026-09-30 10:00:00"
+
+    monthly_client = _FakeMootdxClient({
+        0: [
+            _mootdx_frame("2026-01-30"),
+            _mootdx_frame("2026-02-27"),
+            _mootdx_frame("2026-03-31"),
+        ]
+    })
+    _install_fake_mootdx(monkeypatch, monthly_client)
+    quarters = kline_sources._fetch_mootdx(
+        "600519.SH", "1q", date(2026, 1, 1), date(2026, 4, 1)
+    )
+    assert monthly_client.calls[0][1] == 6
+    assert len(quarters) == 1
+    assert quarters[0]["trade_date"] == "2026-03-31"
+
+
+def test_mootdx_adapter_resets_client_on_transport_error(monkeypatch):
+    class _BoomClient:
+        def bars(self, **kwargs):
+            raise ConnectionError("tdx reset")
+
+    monkeypatch.setattr(kline_sources, "_mootdx_client", _BoomClient())
+    with pytest.raises(WatchlistDataError, match="tdx reset"):
+        kline_sources._fetch_mootdx(
+            "600519.SH", "1d", date(2026, 9, 1), date(2026, 10, 1)
+        )
+    assert kline_sources._mootdx_client is None
+
+
+def test_local_adapter_reads_incrementally_stored_duckdb_bars(conn, monkeypatch):
+    watch_db.upsert_kline_bars(
+        "600519.SH", "1d", _bars("1d", 130), source="tencent", conn=conn
+    )
+    watch_db.record_kline_fetch(
+        "600519.SH", "1d", ok=True, error=None, source="tencent", conn=conn
+    )
+    minute_rows = [
+        {
+            "trade_date": "2026-09-30 10:00:00",
+            "open": 10, "high": 11, "low": 9, "close": 10.5,
+            "volume": 100, "amount": 1,
+        },
+        {
+            "trade_date": "2026-09-30 10:30:00",
+            "open": 10.5, "high": 11.2, "low": 10.2, "close": 11,
+            "volume": 110, "amount": 1,
+        },
+    ]
+    watch_db.upsert_kline_bars(
+        "600519.SH", "30m", minute_rows, source="baostock", conn=conn
+    )
+    watch_db.record_kline_fetch(
+        "600519.SH", "30m", ok=True, error=None, source="baostock", conn=conn
+    )
+    # The adapter opens its own connection; point it at the same in-memory DB
+    # via a shared cursor (mirrors how the HTTP layer already opens cursors).
+    monkeypatch.setattr(
+        watch_db, "watchlist_connection", lambda *a, **k: conn.cursor()
+    )
+
+    daily = kline_sources.fetch_source_level(
+        "local", "600519.SH", "1d",
+        TODAY - timedelta(days=400), TODAY,
+    )
+    assert len(daily) == 130
+    assert daily[0]["trade_date"] < daily[-1]["trade_date"]
+
+    minute = kline_sources.fetch_source_level(
+        "local", "600519.SH", "30m",
+        TODAY - timedelta(days=10), TODAY,
+    )
+    assert [row["trade_date"] for row in minute] == [
+        "2026-09-30 10:00:00",
+        "2026-09-30 10:30:00",
+    ]
+
+    # No stored bars for a fresh symbol -> normalized empty-payload failure.
+    with pytest.raises(WatchlistDataError, match="未返回"):
+        kline_sources.fetch_source_level(
+            "local", "000002.SZ", "1d",
+            TODAY - timedelta(days=400), TODAY,
+        )
+
+
+def test_local_update_is_read_only_and_keeps_provenance(conn):
+    watch_db.upsert_kline_bars(
+        "600519.SH", "1d", _bars("1d", 130), source="baostock", conn=conn
+    )
+    watch_db.record_kline_fetch(
+        "600519.SH", "1d", ok=True, error=None, source="baostock", conn=conn
+    )
+
+    attempted = kline.update_levels(
+        "600519.SH", ["1d"], conn, source="local"
+    )
+    assert attempted == ["1d"]
+
+    # Bars were not re-stamped with "local".
+    sources = {
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT source FROM watch_kline_bar "
+            "WHERE symbol='600519.SH' AND interval='1d'"
+        ).fetchall()
+    }
+    assert sources == {"baostock"}
+    # The status badge keeps advertising the bars' real origin.
+    status = conn.execute(
+        "SELECT source, last_error FROM watch_kline_fetch_status "
+        "WHERE symbol='600519.SH' AND interval='1d'"
+    ).fetchone()
+    assert status[0] == "baostock"
+    assert status[1] is None
+
+    # Empty warehouse for the level -> per-level failure, no bars deleted.
+    kline.update_levels("000002.SZ", ["1d"], conn, source="local")
+    assert conn.execute(
+        "SELECT count(*) FROM watch_kline_bar "
+        "WHERE symbol='000002.SZ' AND interval='1d'"
+    ).fetchone()[0] == 0
+    assert "本地 DuckDB" in conn.execute(
+        "SELECT last_error FROM watch_kline_fetch_status "
+        "WHERE symbol='000002.SZ' AND interval='1d'"
+    ).fetchone()[0]

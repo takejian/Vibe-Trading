@@ -271,12 +271,12 @@ describe("AnalysisTab", () => {
     expect(screen.getByTestId("analysis-history-empty")).toBeInTheDocument();
   });
 
-  it("blocks a Chanlun run with the 412 gate and offers a jump to update data", async () => {
+  it("shows the advisory 412 Chanlun prompt; jump to update or skip & run", async () => {
     const user = userEvent.setup();
     const onGotoObjective = vi.fn();
-    startWatchAnalysis.mockRejectedValue(
+    startWatchAnalysis.mockRejectedValueOnce(
       new ApiError(
-        "缠论分析所需的各级别行情尚未齐备，请先更新行情数据",
+        "缠论分析所需的各级别行情尚未齐备",
         412,
         "kline_not_ready",
         {
@@ -306,10 +306,20 @@ describe("AnalysisTab", () => {
     expect(screen.getByTestId("chanlun-gate-item-1d")).toHaveTextContent(/Not fetched/);
     expect(screen.getByTestId("chanlun-gate-item-1w")).toHaveTextContent(/Fetch failed/);
 
+    // First choice: leave for the Objective-data tab; no run created.
     await user.click(screen.getByTestId("chanlun-gate-go"));
     expect(onGotoObjective).toHaveBeenCalledTimes(1);
-    // No run-view was opened for the blocked request.
     expect(screen.queryByTestId("mock-run-view")).toBeNull();
+
+    // Second choice: skip the prompt and the run starts (BDD rule 18).
+    await user.click(screen.getByTestId("chanlun-gate-skip"));
+    await waitFor(() => expect(startWatchAnalysis).toHaveBeenCalledTimes(2));
+    expect(startWatchAnalysis).toHaveBeenLastCalledWith("600519.SH", {
+      category: "technical",
+      role_ref: "technical_analysis_panel:chanlun_analyst",
+      skip_kline_gate: true,
+    });
+    expect(await screen.findByTestId("mock-run-view")).toHaveTextContent("run-new");
   });
 
   it("warns (without blocking) when the selected Chanlun role lacks 30m bars", async () => {

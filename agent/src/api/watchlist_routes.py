@@ -141,6 +141,9 @@ class AnalyzeBody(BaseModel):
     category: str
     role_ref: str
     question: str = ""
+    # Investor-acknowledged skip of the advisory Chanlun kline prompt
+    # (BDD rule 18: the check is a non-blocking prompt, not a hard gate).
+    skip_kline_gate: bool = False
 
 
 class KlineUpdateBody(BaseModel):
@@ -362,23 +365,33 @@ def register_watchlist_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail="不支持的分析分类")
         if not body.role_ref.strip():
             raise HTTPException(status_code=400, detail="必须选择一个智能体")
+        data_context: str | None = None
         if (
             body.category == "technical"
             and body.role_ref.strip() == CHANLUN_ROLE_REF
         ):
-            # Chanlun pre-run gate (BDD rule 18): all five required K-line
-            # levels must be ready; the optional 30m level never blocks.
+            # Chanlun pre-run prompt (BDD rule 18): advisory by default.
+            # The first attempt returns 412 listing non-ready levels; the
+            # UI offers "update data" or "skip & run anyway" (re-POST with
+            # skip_kline_gate=true). The optional 30m level never prompts.
             with _db_connection() as gate_conn:
                 states = watch_kline.list_level_states(symbol, gate_conn)
-            missing = watch_kline.missing_required_levels(states)
-            if missing:
-                raise HTTPException(
-                    status_code=412,
-                    detail={
-                        "code": "kline_not_ready",
-                        "message": "缠论分析所需的各级别行情尚未齐备，请先更新行情数据",
-                        "items": missing,
-                    },
+                missing = watch_kline.missing_required_levels(states)
+                if missing and not body.skip_kline_gate:
+                    raise HTTPException(
+                        status_code=412,
+                        detail={
+                            "code": "kline_not_ready",
+                            "message": "缠论分析所需的各级别行情尚未齐备，"
+                            "可先更新行情数据，或跳过提示继续运行",
+                            "items": missing,
+                        },
+                    )
+                # BDD rule 21: the run analyzes the archived objective bars
+                # only — the brief is injected and the role must not fetch
+                # market data itself (applies whether or not levels missing).
+                data_context = watch_kline.build_chanlun_data_brief(
+                    symbol, gate_conn
                 )
         runtime = _get_runtime()
         try:
@@ -390,6 +403,7 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 entries=_get_catalog_entries(),
                 runtime=runtime,
                 watch_store=store,
+                data_context=data_context,
             )
         except watch_analysis.AnalysisInProgress as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

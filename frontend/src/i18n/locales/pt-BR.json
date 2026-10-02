@@ -2289,8 +2289,9 @@
       "expand": "Expandir",
       "collapse": "Recolher",
       "gateTitle": "Os dados de mercado exigidos pela análise Chanlun não estão prontos",
-      "gateDesc": "Os seguintes níveis de candles não estão prontos. Atualize os dados de mercado na aba «Dados objetivos» antes de executar o analista Chanlun.",
+      "gateDesc": "Os seguintes níveis de candles não estão prontos. Recomendamos atualizar os dados de mercado na aba «Dados objetivos» primeiro, ou você pode ignorar o aviso e continuar; as conclusões dos níveis ausentes serão sinalizadas como pontos cegos de dados.",
       "gateGo": "Atualizar dados de mercado",
+      "gateSkip": "Pular e continuar a análise",
       "warn30m": "Não há candles de 30 minutos; conclusões de timing de nível inferior podem ter pontos cegos, mas a execução não é bloqueada."
     },
     "ch": {
@@ -2311,6 +2312,7 @@
       "levelCol": "Nível",
       "statusCol": "Status",
       "barsCol": "Candles",
+      "firstCol": "Primeiro candle",
       "latestCol": "Último candle",
       "updatedCol": "Último sucesso",
       "actionCol": "Ação",

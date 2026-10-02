@@ -290,6 +290,9 @@ export function KlineReadinessCard({ symbol }: { symbol: string }) {
                 {t("watch.kline.barsCol")}
               </th>
               <th className="whitespace-nowrap px-2 py-1.5">
+                {t("watch.kline.firstCol")}
+              </th>
+              <th className="whitespace-nowrap px-2 py-1.5">
                 {t("watch.kline.latestCol")}
               </th>
               <th className="whitespace-nowrap px-2 py-1.5">
@@ -335,6 +338,14 @@ export function KlineReadinessCard({ symbol }: { symbol: string }) {
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5">
                     {row.bars_count}
+                  </td>
+                  <td
+                    className="whitespace-nowrap px-2 py-1.5"
+                    data-testid={`kline-earliest-${row.interval}`}
+                  >
+                    {row.earliest_bar_time
+                      ? String(row.earliest_bar_time).slice(0, 10)
+                      : t("watch.noData")}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5">
                     {row.latest_bar_time
@@ -423,7 +434,19 @@ export function KlineReadinessCard({ symbol }: { symbol: string }) {
                 {sourceName(optional.source)}
               </span>
             )}
-            {optional.latest_bar_time && (
+            {optional.earliest_bar_time && (
+              <span
+                className="text-xs text-muted-foreground"
+                data-testid="kline-earliest-30m"
+              >
+                {String(optional.earliest_bar_time).slice(0, 16)}
+                {optional.latest_bar_time ? " → " : ""}
+                {optional.latest_bar_time
+                  ? String(optional.latest_bar_time).slice(0, 16)
+                  : ""}
+              </span>
+            )}
+            {!optional.earliest_bar_time && optional.latest_bar_time && (
               <span className="text-xs text-muted-foreground">
                 {optional.bars_count} · {String(optional.latest_bar_time).slice(0, 16)}
               </span>

@@ -65,7 +65,7 @@ function level(
     status,
     fetch_failed: status === "failed",
     bars_count: status === "ready" ? 100 : 0,
-    earliest_bar_time: null,
+    earliest_bar_time: status === "ready" ? "2024-09-02" : null,
     latest_bar_time: status === "ready" ? "2026-09-30" : null,
     last_ok_at: status === "ready" ? "2026-09-30T15:00:00" : null,
     last_attempt_at: "2026-09-30T15:00:00",
@@ -130,6 +130,15 @@ describe("KlineReadinessCard", () => {
     expect(screen.getByTestId("kline-source-badge-1d")).toHaveTextContent(
       "Eastmoney",
     );
+
+    // The first-bar column shows each level's earliest stored bar time.
+    expect(screen.getByTestId("kline-earliest-1d")).toHaveTextContent(
+      "2024-09-02",
+    );
+    expect(screen.getByTestId("kline-earliest-1y")).toHaveTextContent(
+      "2024-09-02",
+    );
+    expect(screen.getByTestId("kline-earliest-1w")).toHaveTextContent("No data");
 
     // Failed/not-ready required levels each expose an inline retry button;
     // the ready levels do not.

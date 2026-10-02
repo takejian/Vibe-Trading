@@ -675,6 +675,26 @@ def list_kline_bars(
     ]
 
 
+def latest_kline_bar_source(
+    symbol: str,
+    interval: str,
+    *,
+    conn: duckdb.DuckDBPyConnection,
+) -> str | None:
+    """Provenance of the newest stored bar for one level (``local`` reads)."""
+    normalized = normalize_a_share_symbol(symbol)
+    row = conn.execute(
+        """
+        SELECT source FROM watch_kline_bar
+        WHERE symbol = ? AND interval = ?
+        ORDER BY bar_time DESC
+        LIMIT 1
+        """,
+        [normalized, interval],
+    ).fetchone()
+    return row[0] if row else None
+
+
 def record_kline_fetch(
     symbol: str,
     interval: str,

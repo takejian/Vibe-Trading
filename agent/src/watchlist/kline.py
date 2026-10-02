@@ -210,6 +210,13 @@ def normalize_source(source: str | None) -> str:
     return source_id
 
 
+def _level_window(interval: str, day: date) -> tuple[date, date]:
+    """Fetch window for one level (30m uses a short recent window)."""
+    if interval == "30m":
+        return day - timedelta(days=_30M_LOOKBACK_DAYS), day
+    return day - timedelta(days=365 * _LOOKBACK_YEARS[interval] + 30), day
+
+
 def fetch_level(
     symbol: str,
     interval: str,
@@ -232,12 +239,7 @@ def fetch_level(
     normalized = normalize_a_share_symbol(symbol)
     if interval not in _KLT:
         raise ValueError(f"不支持的行情级别: {interval!r}")
-    day = today or date.today()
-    if interval == "30m":
-        start = day - timedelta(days=_30M_LOOKBACK_DAYS)
-    else:
-        start = day - timedelta(days=365 * _LOOKBACK_YEARS[interval] + 30)
-    end = day
+    start, end = _level_window(interval, today or date.today())
 
     if source == "eastmoney":
         fetch = fetcher or _default_kline_fetcher
@@ -286,6 +288,35 @@ def update_levels(
     normalized = normalize_a_share_symbol(symbol)
     chosen = normalize_intervals(intervals)
     for interval in chosen:
+        if source == "local":
+            # Offline read of the local DuckDB warehouse: never overwrite the
+            # stored bars nor their original provenance (every online source
+            # incrementally upserts into this same table).
+            start, end = _level_window(interval, today or date.today())
+            rows = watch_db.list_kline_bars(
+                normalized, interval, start, end, conn=conn
+            )
+            if not rows:
+                error = "本地 DuckDB 中暂无该级别 K 线，请先用其他数据源更新"
+                logger.warning(
+                    "kline local read empty: %s %s", normalized, interval
+                )
+                watch_db.record_kline_fetch(
+                    normalized, interval, ok=False, error=error, conn=conn
+                )
+                continue
+            provenance = watch_db.latest_kline_bar_source(
+                normalized, interval, conn=conn
+            )
+            watch_db.record_kline_fetch(
+                normalized,
+                interval,
+                ok=True,
+                error=None,
+                source=provenance or "local",
+                conn=conn,
+            )
+            continue
         try:
             rows = fetch_level(
                 normalized,
@@ -403,3 +434,135 @@ def missing_required_levels(states: dict[str, Any]) -> list[dict[str, Any]]:
         for item in states.get("items", [])
         if item.get("required") and item.get("status") != READY
     ]
+
+
+# ---------------------------------------------------------------------------
+# Agent-facing data brief (BDD rule 21): watchlist runs analyze ONLY the
+# platform-archived objective bars; the role never fetches market data.
+# ---------------------------------------------------------------------------
+_BRIEF_LEVEL_NAMES: dict[str, str] = {
+    "1y": "年线",
+    "1q": "季线",
+    "1mo": "月线",
+    "1w": "周线",
+    "1d": "日线",
+    "30m": "30分钟线",
+}
+_BRIEF_STATUS: dict[str, str] = {
+    READY: "已齐备",
+    INSUFFICIENT: "数据不足",
+    NOT_FETCHED: "未获取",
+    FAILED: "获取失败",
+}
+
+
+def _fmt_bar_number(value: Any) -> str:
+    """Compact numeric rendering for CSV bars (no trailing zeros)."""
+    if value is None:
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number == int(number):
+        return str(int(number))
+    return f"{number:.4f}".rstrip("0").rstrip(".")
+
+
+def _render_bar_block(
+    normalized: str,
+    interval: str,
+    state: dict[str, Any],
+    conn: duckdb.DuckDBPyConnection,
+) -> str | None:
+    """One level section with its archived bars; ``None`` when no bars."""
+    bars = watch_db.list_kline_bars(normalized, interval, conn=conn)
+    if not bars:
+        return None
+    required = interval in REQUIRED_INTERVALS
+    kind = "缠论必需级别" if required else "可选增强级别"
+    name = _BRIEF_LEVEL_NAMES[interval]
+    status = _BRIEF_STATUS.get(str(state.get("status")), str(state.get("status")))
+    source = state.get("source") or "未知来源"
+    earliest = state.get("earliest_bar_time") or str(bars[0]["trade_date"])
+    latest = state.get("latest_bar_time") or str(bars[-1]["trade_date"])
+    rows = [
+        ",".join(
+            (
+                str(bar["trade_date"]),
+                _fmt_bar_number(bar.get("open")),
+                _fmt_bar_number(bar.get("high")),
+                _fmt_bar_number(bar.get("low")),
+                _fmt_bar_number(bar.get("close")),
+                _fmt_bar_number(bar.get("volume")),
+            )
+        )
+        for bar in bars
+    ]
+    return (
+        f"- {name}（{interval}，{kind}）：共 {len(bars)} 根，"
+        f"区间 {_brief_date_label(earliest)} 至 {_brief_date_label(latest)}，"
+        f"来源 {source}，齐备状态：{status}\n"
+        "  时间,开盘,最高,最低,收盘,成交量\n"
+        + "\n".join(f"  {row}" for row in rows)
+    )
+
+
+def _brief_date_label(value: str | None) -> str:
+    """Trim a bar label to its date part for brief headers."""
+    return str(value or "")[:10]
+
+
+def build_chanlun_data_brief(
+    symbol: str,
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    today: date | None = None,
+) -> str:
+    """Render every archived K-line level into the Chanlun run question.
+
+    Business contract (BDD rule 21): the watchlist Chanlun run analyzes
+    ONLY the platform-archived objective bars carried in this brief and
+    must not fetch market data itself. Levels without archived bars are
+    declared explicit blind spots (required ones gate the run via
+    :func:`missing_required_levels` unless the investor skips the prompt;
+    the optional 30-minute level never blocks).
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    states = list_level_states(normalized, conn, today=today)
+    by_interval = {item["interval"]: item for item in states["items"]}
+
+    blocks: list[str] = []
+    missing: list[str] = []
+    for interval in ALL_INTERVALS:
+        state = by_interval[interval]
+        block = _render_bar_block(normalized, interval, state, conn)
+        if block is not None:
+            blocks.append(block)
+            continue
+        required = interval in REQUIRED_INTERVALS
+        kind = "缠论必需级别" if required else "可选增强级别"
+        label = _BRIEF_STATUS.get(str(state.get("status")), str(state.get("status")))
+        missing.append(
+            f"- {_BRIEF_LEVEL_NAMES[interval]}（{interval}，{kind}）：{label}，"
+            "本次未提供该级别行情；不得依据该级别给出结构结论或具体价位，"
+            "须在报告对应维度明确标注该级别为数据盲区。"
+        )
+
+    parts = [
+        "【平台客观数据 · 已归档 K 线行情（本次分析的唯一行情依据）】",
+        "以下行情来自该标的「客观数据」页已归档、平台共享的 K 线行情。"
+        "请直接基于这些行情完成包含处理、分型、笔、线段、中枢、背驰与三类买卖点的"
+        "全部结构推导；分析过程中不要再调用任何行情工具自行抓取、补抓或核对行情。"
+        "所有分型端点、中枢 ZG/ZD/ZZ/GG/DD、触发价/失效价与 MACD 背驰比较，"
+        "都必须取自下列行情数据。",
+    ]
+    if blocks:
+        parts.append("已归档行情（按级别，时间升序）：\n" + "\n".join(blocks))
+    if missing:
+        parts.append("未提供行情的级别：\n" + "\n".join(missing))
+    parts.append(
+        "对未提供行情的级别一律不得编造行情或价位，并在对应维度结论中明确标注"
+        "「数据盲区」；可选的 30 分钟级别缺失不影响日/周/月/季/年级别的结论。"
+    )
+    return "\n\n".join(parts)

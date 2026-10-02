@@ -131,6 +131,28 @@ def test_start_analysis_success(watch_store: WatchlistStore) -> None:
     assert "600519.SH" in payload["question"]
 
 
+def test_start_analysis_appends_archived_data_context(
+    watch_store: WatchlistStore,
+) -> None:
+    # BDD rule 21: archived objective bars ride along in the question so
+    # the role analyzes platform data instead of fetching its own.
+    runtime = FakeRuntime()
+    brief = "【平台客观数据 · 已归档 K 线行情】\n日线（1d）：130 根 ..."
+    svc.start_analysis(
+        symbol="600519.SH",
+        category="technical",
+        role_ref=CHANLUN_REF,
+        entries=ENTRIES,
+        runtime=runtime,
+        watch_store=watch_store,
+        data_context=brief,
+    )
+    question = runtime.start_calls[0]["question"]
+    assert "技术面" in question  # default template preserved
+    assert question.rstrip().endswith(brief)
+    assert "\n\n【平台客观数据" in question
+
+
 def test_start_analysis_validation_errors(
     watch_store: WatchlistStore,
 ) -> None:

@@ -2289,8 +2289,9 @@
       "expand": "Bentangkan",
       "collapse": "Ringkas",
       "gateTitle": "Data pasar yang dibutuhkan analisis Chanlun belum siap",
-      "gateDesc": "Level candlestick berikut belum siap. Perbarui data pasar di tab «Data Objektif» sebelum menjalankan analis Chanlun.",
+      "gateDesc": "Level candlestick berikut belum siap. Sebaiknya perbarui data pasar di tab «Data Objektif» terlebih dahulu, atau lewati peringatan dan lanjutkan; kesimpulan untuk level yang hilang akan ditandai sebagai titik buta data.",
       "gateGo": "Perbarui data pasar",
+      "gateSkip": "Lewati dan lanjutkan analisis",
       "warn30m": "Candle 30 menit tidak tersedia; kesimpulan waktu level rendah mungkin memiliki titik buta, tetapi eksekusi tidak diblokir."
     },
     "ch": {
@@ -2311,6 +2312,7 @@
       "levelCol": "Level",
       "statusCol": "Status",
       "barsCol": "Jumlah candle",
+      "firstCol": "Candle pertama",
       "latestCol": "Candle terbaru",
       "updatedCol": "Keberhasilan terakhir",
       "actionCol": "Aksi",

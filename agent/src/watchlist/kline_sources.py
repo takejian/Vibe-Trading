@@ -461,6 +461,225 @@ def _fetch_tushare(symbol: str, interval: str, start: date, end: date) -> list[d
 
 
 # ---------------------------------------------------------------------------
+# BaoStock (free TCP service; qfq; d/w/m + 5/15/30/60-minute)
+# ---------------------------------------------------------------------------
+
+_baostock_session_ok = False
+
+
+def _baostock_code(symbol: str) -> str:
+    code, _, suffix = symbol.partition(".")
+    suffix = suffix.upper()
+    if suffix == "SH":
+        return f"sh.{code}"
+    if suffix == "SZ":
+        return f"sz.{code}"
+    raise WatchlistDataError(
+        f"BaoStock 暂不支持该市场的标的: {symbol}（仅支持沪深 A 股）"
+    )
+
+
+def _baostock_login() -> None:
+    """Login once per process; BaoStock keeps a module-global session."""
+    global _baostock_session_ok
+    if _baostock_session_ok:
+        return
+    import baostock as bs
+
+    result = bs.login()
+    if getattr(result, "error_code", "1") != "0":
+        raise WatchlistDataError(
+            f"BaoStock 登录失败: {getattr(result, 'error_msg', 'unknown error')}"
+        )
+    _baostock_session_ok = True
+
+
+def _fetch_baostock(
+    symbol: str, interval: str, start: date, end: date
+) -> list[dict[str, Any]]:
+    try:
+        import baostock as bs  # noqa: F401 - login side effect / rs API
+    except ImportError as exc:
+        raise WatchlistDataError(
+            "BaoStock 未安装（pip install baostock）"
+        ) from exc
+
+    code = _baostock_code(symbol)
+    if interval == "30m":
+        frequency, target, minute = "30", "30m", True
+    elif interval in {"1d", "1w", "1mo"}:
+        frequency = {"1d": "d", "1w": "w", "1mo": "m"}[interval]
+        target, minute = interval, False
+    else:
+        # Quarter/year: same-source monthly aggregation keeps one caliber.
+        frequency, target, minute = "m", interval, False
+
+    fields = (
+        "date,time,open,high,low,close,volume,amount"
+        if minute
+        else "date,open,high,low,close,volume,amount"
+    )
+    _baostock_login()
+    rs = bs.query_history_k_data_plus(
+        code,
+        fields,
+        start_date=start.isoformat(),
+        end_date=end.isoformat(),
+        frequency=frequency,
+        adjustflag="2",  # forward-adjusted (qfq)
+    )
+    if getattr(rs, "error_code", "1") != "0":
+        raise WatchlistDataError(
+            f"BaoStock 行情接口返回错误: {getattr(rs, 'error_msg', 'unknown error')}"
+        )
+
+    rows: list[dict[str, Any]] = []
+    while rs.error_code == "0" and rs.next():
+        record = dict(zip(rs.fields, rs.get_row_data()))
+        # Suspended sessions come back with empty OHLC strings; skip them.
+        if any(not record.get(key) for key in ("open", "high", "low", "close")):
+            continue
+        if minute:
+            stamp = str(record["time"])  # YYYYMMDDHHMMSS + millis
+            label = (
+                f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]} "
+                f"{stamp[8:10]}:{stamp[10:12]}:00"
+            )
+        else:
+            label = record["date"]
+        rows.append(
+            _to_bar(
+                label,
+                record["open"],
+                record["high"],
+                record["low"],
+                record["close"],
+                record.get("volume"),
+                record.get("amount"),
+            )
+        )
+    rows.sort(key=lambda row: row["trade_date"])
+    if target in {"1q", "1y"}:
+        rows = resample_bars(rows, target)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# mootdx (通达信 quotes over TCP; 30m native; Q/Y from monthly)
+# ---------------------------------------------------------------------------
+
+# TDX category codes (mootdx get_frequency): 9=day, 5=week, 6=month, 2=30m.
+_MOOTDX_FREQ = {"1d": 9, "1w": 5, "1mo": 6, "30m": 2}
+_MOOTDX_PAGE = 800
+_MOOTDX_MAX_PAGES = 8
+_mootdx_client: Any = None
+
+
+def _mootdx_get_client() -> Any:
+    """Lazy singleton; factory() probes the fastest reachable TDX server."""
+    global _mootdx_client
+    if _mootdx_client is not None:
+        return _mootdx_client
+    try:
+        from mootdx.quotes import Quotes
+    except ImportError as exc:
+        raise WatchlistDataError(
+            "mootdx 未安装（pip install mootdx）"
+        ) from exc
+    try:
+        _mootdx_client = Quotes.factory(market="std", timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        raise WatchlistDataError(f"mootdx 连接通达信服务器失败: {exc}") from exc
+    return _mootdx_client
+
+
+def _mootdx_frame_to_bars(frame: Any, *, minute: bool) -> list[dict[str, Any]]:
+    if frame is None or len(frame) == 0:
+        return []
+    rows: list[dict[str, Any]] = []
+    for record in frame.to_dict("records"):
+        stamp = record.get("datetime")
+        if stamp is None:
+            continue
+        text = str(stamp).replace("T", " ")
+        label = text[:16] + ":00" if minute else text[:10]
+        rows.append(
+            _to_bar(
+                label,
+                record.get("open"),
+                record.get("high"),
+                record.get("low"),
+                record.get("close"),
+                record.get("volume", record.get("vol")),
+                record.get("amount"),
+            )
+        )
+    rows.sort(key=lambda row: row["trade_date"])
+    return rows
+
+
+def _fetch_mootdx(
+    symbol: str, interval: str, start: date, end: date
+) -> list[dict[str, Any]]:
+    bare = symbol.split(".")[0]
+    minute = interval == "30m"
+    if interval in _MOOTDX_FREQ:
+        frequency, target = _MOOTDX_FREQ[interval], interval
+    else:
+        # Quarter/year aggregated from this source's own monthly bars.
+        frequency, target = _MOOTDX_FREQ["1mo"], interval
+
+    client = _mootdx_get_client()
+    collected: list[dict[str, Any]] = []
+    lower = start.isoformat()
+    upper = f"{end.isoformat()} 23:59:59"
+    for page in range(_MOOTDX_MAX_PAGES):
+        try:
+            frame = client.bars(
+                symbol=bare,
+                frequency=frequency,
+                start=page * _MOOTDX_PAGE,
+                offset=_MOOTDX_PAGE,
+            )
+        except Exception as exc:  # noqa: BLE001
+            globals()["_mootdx_client"] = None
+            raise WatchlistDataError(f"mootdx 行情接口请求失败: {exc}") from exc
+        page_rows = _mootdx_frame_to_bars(frame, minute=minute)
+        if not page_rows:
+            break
+        collected.extend(page_rows)
+        # A short final page means no older history; otherwise stop once the
+        # window's lower bound is covered.
+        if len(page_rows) < _MOOTDX_PAGE or page_rows[0]["trade_date"] <= lower:
+            break
+
+    # Dedup overlapping pages, then keep the requested window.
+    unique = {row["trade_date"]: row for row in collected}
+    rows = [row for label, row in unique.items() if lower <= label <= upper]
+    rows.sort(key=lambda row: row["trade_date"])
+    if target in {"1q", "1y"}:
+        rows = resample_bars(rows, target)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Local DuckDB warehouse (bars incrementally stored by every online source)
+# ---------------------------------------------------------------------------
+
+
+def _fetch_local(
+    symbol: str, interval: str, start: date, end: date
+) -> list[dict[str, Any]]:
+    from src.watchlist import db as watch_db
+
+    conn = watch_db.watchlist_connection()
+    try:
+        return watch_db.list_kline_bars(symbol, interval, start, end, conn=conn)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -468,6 +687,9 @@ _ADAPTERS: dict[str, SourceAdapter] = {
     "tencent": _fetch_tencent,
     "akshare": _fetch_akshare,
     "tushare": _fetch_tushare,
+    "baostock": _fetch_baostock,
+    "mootdx": _fetch_mootdx,
+    "local": _fetch_local,
 }
 
 #: Per-source Chinese hints attached to unavailability errors.
