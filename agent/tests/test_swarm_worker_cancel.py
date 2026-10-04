@@ -74,7 +74,7 @@ class _ScriptedLLM:
         """No-op: the stub owns no HTTP client."""
         return None
 
-    def stream_chat(self, messages, tools=None, on_text_chunk=None, timeout=None, should_cancel=None):
+    def stream_chat(self, messages, tools=None, on_text_chunk=None, timeout=None, should_cancel=None, idle_timeout_s=None):
         """Return the scripted response, optionally cancelling "mid-stream"."""
         self.calls += 1
         self.should_cancel_seen.append(should_cancel)
@@ -177,21 +177,22 @@ def test_cancel_event_is_forwarded_to_stream_chat_as_should_cancel(tmp_path):
 
     assert llm.should_cancel_seen, "stream_chat was never called"
     predicate = llm.should_cancel_seen[0]
-    assert predicate == cancel_event.is_set, (
-        "the worker must hand cancel_event.is_set to stream_chat as should_cancel, "
-        "the same cooperative predicate AgentLoop uses"
-    )
+    assert callable(predicate), "should_cancel must remain a cooperative predicate"
+    # The combined predicate fires on user cancel (and on the worker
+    # deadline, which is far from reached in this 60s-budget run).
     assert predicate() is False
     cancel_event.set()
     assert predicate() is True
 
 
-def test_no_cancel_event_leaves_stream_chat_signature_untouched(tmp_path):
-    """Callers that never pass cancel_event (older call sites, tests with stubs
-    whose stream_chat has no should_cancel parameter) must see no new kwarg."""
+def test_stream_predicate_exists_without_cancel_event_and_reflects_deadline(tmp_path):
+    """With no cancel_event the worker still passes a cooperative predicate:
+    the per-chunk worker-deadline guard that stops a trickling stream from
+    overrunning the wall-clock budget. It is simply False while in budget."""
     llm = _ScriptedLLM(_tool_call_response())
     registry = _Registry()
 
     _run(tmp_path, llm, registry, cancel_event=None)
 
-    assert llm.should_cancel_seen and all(p is None for p in llm.should_cancel_seen)
+    assert llm.should_cancel_seen, "stream_chat was never called"
+    assert all(callable(p) and p() is False for p in llm.should_cancel_seen)

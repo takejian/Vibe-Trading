@@ -88,6 +88,19 @@ def _stream_retry_max_delay_s() -> float:
     return get_env_config().swarm.swarm_stream_retry_max_delay_s
 
 
+def _llm_idle_timeout_s() -> float:
+    """Per-chunk idle ceiling for swarm LLM streams (0 disables).
+
+    The per-call HTTP timeout bounds individual reads, not the total
+    lifetime of a stream: a provider that stalls between deltas (slow
+    reasoning or tool-call payload generation) can otherwise hold a
+    worker past its wall-clock deadline indefinitely.
+    """
+    from src.config.accessor import get_env_config
+
+    return get_env_config().swarm.swarm_llm_idle_timeout_s
+
+
 def _escalated_stream_retry_delay_s(streak: int) -> float:
     """Return the capped exponential delay for the one-based failure streak.
 
@@ -115,6 +128,7 @@ def _escalated_stream_retry_delay_s(streak: int) -> float:
 _HEARTBEAT_INTERVAL_S = _heartbeat_interval_s()
 _STREAM_RETRY_DELAY_S = _stream_retry_delay_s()
 _STREAM_RETRY_MAX_DELAY_S = _stream_retry_max_delay_s()
+_LLM_IDLE_TIMEOUT_S = _llm_idle_timeout_s()
 _MAX_TOKEN_ESTIMATE = 60_000
 
 
@@ -653,6 +667,34 @@ def _run_worker_impl(
     consecutive_content_filter_count = 0
     stream_failure_streak = 0
 
+    def _return_timeout(elapsed: float) -> WorkerResult:
+        """Finalize and return a timeout result (loop-top or mid-stream).
+
+        Shared by the between-iteration deadline check and the
+        should_cancel mid-stream stop so both report the same concrete
+        reason (elapsed/configured/iterations).
+        """
+        timeout_reason = (
+            f"Worker timed out after {elapsed:.0f}s "
+            f"(timeout={timeout:.0f}s, {iteration} iterations)"
+        )
+        timeout_summary = _best_summary(messages, last_assistant_content) or timeout_reason
+        timeout_summary = _resolve_summary(artifact_dir, timeout_summary)
+        _emit(event_callback, "worker_timeout", agent_id, task_id, {"elapsed": elapsed})
+        _finalize_run(artifact_dir, timeout_summary, messages)
+        return WorkerResult(
+            status="timeout",
+            summary=timeout_summary,
+            artifact_paths=_collect_artifacts(artifact_dir),
+            iterations=iteration,
+            error=timeout_reason,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+            content_filter_warnings=compute_content_filter_warnings(
+                content_filter_count, iteration + 1,
+            ),
+        )
+
     for iteration in range(max_iterations):
         # Microcompact: clear old tool results to prevent token bloat
         tool_msgs = [m for m in messages if m.get("role") == "tool"]
@@ -665,26 +707,7 @@ def _run_worker_impl(
         # Check timeout
         elapsed = time.monotonic() - t0
         if elapsed > timeout:
-            timeout_reason = (
-                f"Worker timed out after {elapsed:.0f}s "
-                f"(timeout={timeout:.0f}s, {iteration} iterations)"
-            )
-            summary = _best_summary(messages, last_assistant_content) or timeout_reason
-            summary = _resolve_summary(artifact_dir, summary)
-            _emit(event_callback, "worker_timeout", agent_id, task_id, {"elapsed": elapsed})
-            _finalize_run(artifact_dir, summary, messages)
-            return WorkerResult(
-                status="timeout",
-                summary=summary,
-                artifact_paths=_collect_artifacts(artifact_dir),
-                iterations=iteration,
-                error=timeout_reason,
-                input_tokens=total_input_tokens,
-                output_tokens=total_output_tokens,
-                content_filter_warnings=compute_content_filter_warnings(
-                    content_filter_count, iteration + 1,
-                ),
-            )
+            return _return_timeout(elapsed)
 
         # Check cancellation — before dispatching this iteration's LLM call,
         # so a cancel signalled between iterations never starts new work.
@@ -790,8 +813,23 @@ def _run_worker_impl(
                 """
                 remaining_timeout = max(10, int(timeout - (time.monotonic() - t0)))
                 stream_kwargs: dict[str, Any] = {}
-                if cancel_event is not None:
-                    stream_kwargs["should_cancel"] = cancel_event.is_set
+
+                def _should_stop_stream() -> bool:
+                    """Stop the live stream on user cancel OR exhausted deadline.
+
+                    The HTTP-level timeout only bounds individual reads,
+                    so a trickling/stalling stream otherwise keeps the
+                    worker alive minutes past its wall-clock budget (the
+                    deadline is otherwise checked only between iterations).
+                    Polled per inbound delta by ChatLLM.stream_chat.
+                    """
+                    if cancel_event is not None and cancel_event.is_set():
+                        return True
+                    return (time.monotonic() - t0) >= timeout
+
+                stream_kwargs["should_cancel"] = _should_stop_stream
+                if _LLM_IDLE_TIMEOUT_S > 0:
+                    stream_kwargs["idle_timeout_s"] = _LLM_IDLE_TIMEOUT_S
                 with HeartbeatTimer(
                     tool_name=f"llm:{agent_spec.model_name or 'default'}",
                     interval=_HEARTBEAT_INTERVAL_S,
@@ -819,6 +857,11 @@ def _run_worker_impl(
             except ProviderStreamError as stream_exc:
                 if not stream_exc.retryable:
                     raise
+                if time.monotonic() - t0 > timeout:
+                    # Budget already exhausted (e.g. idle ceiling fired
+                    # late): do not spend the retry window; land with the
+                    # concrete timeout reason instead of a generic failure.
+                    return _return_timeout(time.monotonic() - t0)
                 stream_failure_streak += 1
                 retry_delay_s = (
                     min(stream_exc.retry_after_s, _STREAM_RETRY_MAX_DELAY_S)
@@ -846,7 +889,12 @@ def _run_worker_impl(
                 else:
                     time.sleep(retry_delay_s)
                 if cancel_event is None or not cancel_event.is_set():
-                    response = _stream_once()
+                    try:
+                        response = _stream_once()
+                    except ProviderStreamError:
+                        if time.monotonic() - t0 > timeout:
+                            return _return_timeout(time.monotonic() - t0)
+                        raise
             else:
                 stream_failure_streak = 0
 
@@ -869,6 +917,11 @@ def _run_worker_impl(
                         content_filter_count, iteration + 1,
                     ),
                 )
+            # The deadline predicate may have stopped this stream
+            # mid-flight. Skip its partial tool calls and return the
+            # concrete worker timeout immediately.
+            if time.monotonic() - t0 > timeout:
+                return _return_timeout(time.monotonic() - t0)
         except Exception as exc:
             error_msg = f"LLM call failed at iteration {iteration}: {exc}"
             logger.warning(error_msg)

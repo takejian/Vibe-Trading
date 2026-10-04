@@ -71,7 +71,7 @@ class _ScriptedWorkerLLM:
         """No-op: the stub owns no HTTP client."""
         return None
 
-    def stream_chat(self, messages, tools=None, on_text_chunk=None, timeout=None):
+    def stream_chat(self, messages, tools=None, on_text_chunk=None, timeout=None, should_cancel=None, idle_timeout_s=None):
         """Play the next scripted entry, or repeat the final response."""
         self.calls += 1
         if self._script:

@@ -343,7 +343,7 @@ class _ScriptedLLM:
             ),
         ]
 
-    def stream_chat(self, messages, tools=None, timeout=None, on_text_chunk=None):
+    def stream_chat(self, messages, tools=None, timeout=None, on_text_chunk=None, should_cancel=None, idle_timeout_s=None):
         return self._responses.pop(0)
 
     def close(self) -> None:

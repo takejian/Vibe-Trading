@@ -397,6 +397,14 @@ class SwarmConfig(_EnvBase):
     swarm_stream_retry_max_delay_s: float = Field(
         alias="SWARM_STREAM_RETRY_MAX_DELAY_S", default=30.0, ge=0
     )
+    # Per-chunk idle ceiling for swarm LLM streams. The HTTP read timeout
+    # cannot bound a connection that stays alive while the provider stalls
+    # server-side (long reasoning / slow tool-call generation): when no
+    # stream delta arrives for this long the call fails as a retryable
+    # stream timeout. 0 disables the idle ceiling.
+    swarm_llm_idle_timeout_s: float = Field(
+        alias="SWARM_LLM_IDLE_TIMEOUT_S", default=180.0, ge=0
+    )
     swarm_worker_retry_base_delay_s: float = Field(
         alias="SWARM_WORKER_RETRY_BASE_DELAY_S", default=1.0, ge=0
     )
