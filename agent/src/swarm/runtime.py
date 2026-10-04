@@ -84,6 +84,20 @@ def _worker_retry_budget_s(max_retries: int) -> float:
     )
 
 
+def _merge_worker_errors(previous: str | None, current: str | None) -> str | None:
+    """Combine errors across retry attempts, newest first, deduped.
+
+    When a retry ends in timeout after an earlier LLM/provider failure,
+    the actionable root cause must not be lost behind the generic
+    timeout message — web UI failure panels show every concrete reason.
+    """
+    if previous and current:
+        if previous == current:
+            return current
+        return current + chr(10) + "(previous attempt error: " + previous + ")"
+    return current or previous
+
+
 def _wait_for_worker_retry(
     delay_s: float,
     cancel_event: threading.Event | None,
@@ -1151,6 +1165,7 @@ class SwarmRuntime:
         cumulative_input_tokens = 0
         cumulative_output_tokens = 0
         result: WorkerResult | None = None
+        previous_error: str | None = None
 
         for attempt in range(max_retries + 1):
             if attempt > 0:
@@ -1211,14 +1226,21 @@ class SwarmRuntime:
             cumulative_output_tokens += result.output_tokens
 
             if result.status != "failed":
-                # Success (or timeout/token_limit/completed) — no more retries
+                # Timeout/completed/etc. are terminal: surface this
+                # attempt reason plus every earlier failed attempt.
+                merged_error = _merge_worker_errors(previous_error, result.error)
                 result = result.model_copy(
                     update={
                         "input_tokens": cumulative_input_tokens,
                         "output_tokens": cumulative_output_tokens,
+                        "error": merged_error,
                     }
                 )
                 return result
+
+            # Remember each failed attempt for the next retry / final merge.
+            if result.error:
+                previous_error = _merge_worker_errors(previous_error, result.error)
 
         # All retries exhausted, return the last failed result with cumulative tokens
         if result is not None:
@@ -1226,6 +1248,7 @@ class SwarmRuntime:
                 update={
                     "input_tokens": cumulative_input_tokens,
                     "output_tokens": cumulative_output_tokens,
+                    "error": _merge_worker_errors(previous_error, result.error),
                 }
             )
         return result  # type: ignore[return-value]

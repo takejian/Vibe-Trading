@@ -267,6 +267,23 @@ def build_worker_prompt(
             "as fundamentals, holders, options, or corporate metadata."
         )
 
+    if "objective_kline" in (agent_spec.tools or []):
+        prompt_parts.append(
+            "## Objective K-line Policy (A-shares)\n\n"
+            "For an A-share symbol's multi-level OHLCV bars (day / week / "
+            "month / quarter / year / 30m), call `objective_kline` FIRST. "
+            "It reads the platform-archived objective data (the 「客观数据」 "
+            "page) and only fetches online when that level's local archive "
+            "is missing or stale (refresh='auto' is the default), then "
+            "archives the fresh bars. Do NOT bypass it with other "
+            "market-data tools, yfinance/eastmoney/baostock scripts or "
+            "curl just because a network call seems easier. Read the "
+            "payload's `level_status`, `fresh` and `refresh_error` "
+            "fields: a level that is not ready or returns status=error "
+            "is a data blind spot — say so and give no prices/structure "
+            "for it instead of guessing."
+        )
+
     # Universal anti-fabrication rule. The grounding_block carries a similar
     # instruction but only renders when user_vars supplies explicit symbols.
     # Free-form prompts ("look at A-share short-term sentiment") otherwise
@@ -648,7 +665,11 @@ def _run_worker_impl(
         # Check timeout
         elapsed = time.monotonic() - t0
         if elapsed > timeout:
-            summary = _best_summary(messages, last_assistant_content) or f"Worker timed out after {elapsed:.0f}s ({iteration} iterations)"
+            timeout_reason = (
+                f"Worker timed out after {elapsed:.0f}s "
+                f"(timeout={timeout:.0f}s, {iteration} iterations)"
+            )
+            summary = _best_summary(messages, last_assistant_content) or timeout_reason
             summary = _resolve_summary(artifact_dir, summary)
             _emit(event_callback, "worker_timeout", agent_id, task_id, {"elapsed": elapsed})
             _finalize_run(artifact_dir, summary, messages)
@@ -657,6 +678,7 @@ def _run_worker_impl(
                 summary=summary,
                 artifact_paths=_collect_artifacts(artifact_dir),
                 iterations=iteration,
+                error=timeout_reason,
                 input_tokens=total_input_tokens,
                 output_tokens=total_output_tokens,
                 content_filter_warnings=compute_content_filter_warnings(

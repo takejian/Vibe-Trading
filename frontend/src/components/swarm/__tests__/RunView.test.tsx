@@ -177,3 +177,21 @@ describe("RunView layout and conclusion panel", () => {
     expect(body.textContent).toContain("Click a role");
   });
 });
+
+describe("RunView failure reasons", () => {
+  it("lists every failed task concrete error when the run failed", async () => {
+    const run = buildRun();
+    run.status = "failed";
+    run.final_report = null;
+    run.completed_at = "2026-09-30T10:05:00+00:00";
+    run.tasks[0].status = "failed";
+    run.tasks[0].error =
+      "LLM call failed at iteration 1: provider_stream_error provider=glm model=glm-5.3-flash: OpenAITimeoutError: Request timed out.";
+    getSwarmRun.mockResolvedValue(run);
+
+    render(<RunView runId="swarm-777" readOnly />);
+    const reasons = await screen.findByTestId("run-failure-reasons");
+    expect(reasons.textContent).toContain("首席风险官");
+    expect(reasons.textContent).toContain("OpenAITimeoutError");
+  });
+});

@@ -339,16 +339,27 @@ agents:
          verdict leads)
       7. **Chanlun score** — −5..+5; structural confidence 0–100%
 
+      ### Market data (HARD RULE)
+      - Pull every level's OHLCV bars with `objective_kline` — it first
+        reads the platform's archived objective data (the 「客观数据」
+        page) and goes online ONLY when the local archive for that level
+        is missing or stale; do not bypass it with any other market-data
+        tool or raw eastmoney/baostock scripts
+      - Fetch the {timeframe} level, one level above and one below at
+        minimum (e.g. weekly / daily / 30m); inspect each payload's
+        level_status/fresh/refresh_error fields
+
       Label every level explicitly (e.g. weekly/daily/30m) to avoid mixing
       degrees. Every fractal endpoint, ZG/ZD/ZZ/GG/DD, trigger and
       invalidation price must be READ OFF DATA: pull bars at {timeframe} and
-      one level above/below with `get_market_data`, run inclusion
+      one level above/below with `objective_kline`, run inclusion
       processing and fractal/bi/pivot detection with `czsc` in `bash` (or
       compute from the bars directly), and measure MACD areas for
       divergence yourself. A level you did not derive from retrieved bars is
-      fabricated — if the bars cannot be retrieved, say so and give no
-      levels.
-    tools: [bash, read_file, write_file, load_skill, get_market_data, technical_indicators, pattern]
+      fabricated — if the bars cannot be retrieved (status=error or a
+      non-ready level_status), say so explicitly, mark that level a data
+      blind spot, and give no levels/prices for it.
+    tools: [bash, read_file, write_file, load_skill, objective_kline, technical_indicators, pattern]
     skills: [chanlun, elliott-wave]
     max_iterations: 50
     timeout_seconds: 1800

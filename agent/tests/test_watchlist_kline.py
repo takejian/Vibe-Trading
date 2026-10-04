@@ -264,25 +264,11 @@ def test_list_level_states_seeds_all_intervals(conn):
     assert required == set(kline.REQUIRED_INTERVALS)
 
 
-def test_build_chanlun_data_brief_embeds_bars_and_names_blind_spots(conn):
-    watch_db.upsert_kline_bars(
-        "600519.SH", "1d", _bars("1d", 130), source="eastmoney", conn=conn
-    )
-    watch_db.record_kline_fetch(
-        "600519.SH", "1d", ok=True, error=None, source="eastmoney", conn=conn
-    )
-    brief = kline.build_chanlun_data_brief("600519.SH", conn, today=TODAY)
-    assert "平台客观数据" in brief
-    assert "日线（1d，缠论必需级别）" in brief
-    assert "共 130 根" in brief
-    assert "来源 eastmoney" in brief
-    assert "2026-10-02,1,1,1,1,1" in brief
-    # Header is CSV OHLCV and bars are ascending.
-    assert "时间,开盘,最高,最低,收盘,成交量" in brief
-    # Other five levels are absent and declared blind spots.
-    assert "年线（1y，缠论必需级别）" in brief
-    assert "30分钟线（30m，可选增强级别）" in brief
-    assert brief.count("本次未提供该级别行情") == 5
+def test_build_chanlun_data_brief_was_replaced_by_objective_kline_tool():
+    # BDD rule 21 (tool-callback design): bars are no longer rendered into
+    # the prompt; the objective_kline tool serves them local-first with an
+    # online fallback when stale.
+    assert not hasattr(kline, "build_chanlun_data_brief")
 
 
 # ----------------------------------------------------------------------
@@ -404,9 +390,9 @@ def test_chanlun_run_prompts_when_levels_missing_but_can_be_skipped(client):
     assert resp.status_code == 412
     assert [i["interval"] for i in resp.json()["detail"]["items"]] == ["1q"]
 
-    # Investor skips the prompt (BDD rule 18): run starts, and the run
-    # question carries the archived-data brief (BDD rule 21) with every
-    # unavailable level declared a blind spot.
+    # Investor skips the prompt (BDD rule 18): run starts. BDD rule 21 uses
+    # a tool callback — archived bars are read through objective_kline at
+    # runtime and are never injected into the research question.
     resp = test_client.post(
         "/watch/600519.SH/analyze",
         json={
@@ -419,13 +405,10 @@ def test_chanlun_run_prompts_when_levels_missing_but_can_be_skipped(client):
     assert resp.json()["id"] == "run-x"
     assert runtime.started == 1
     question = runtime.last_role_run["question"]
-    assert "平台客观数据" in question
-    assert "不要再调用任何行情工具" in question
-    # 1d/1w/1mo/1y archived → bars embedded; 1q absent → blind spot.
-    assert "日线（1d，缠论必需级别）" in question
-    assert "季线（1q，缠论必需级别）" in question
-    assert "2026-10-02,1,1,1,1,1" in question
-    assert question.count("数据盲区") >= 2
+    assert "600519.SH" in question  # the target is still rendered
+    assert "平台客观数据" not in question
+    assert "时间,开盘,最高,最低,收盘,成交量" not in question
+    assert "2026-10-02,1,1,1,1,1" not in question
 
 
 def test_chanlun_run_allowed_when_required_levels_ready_30m_optional(client):
@@ -452,14 +435,13 @@ def test_chanlun_run_allowed_when_required_levels_ready_30m_optional(client):
     assert resp.json()["id"] == "run-x"
     assert runtime.started == 1
 
-    # The run analyzes the archived objective bars (no self-fetch).
+    # The run reads archived bars via the objective_kline tool — no bars
+    # are embedded into the research question.
     question = runtime.last_role_run["question"]
-    assert "平台客观数据" in question
-    assert "日线（1d，缠论必需级别）" in question
-    assert "季线（1q，缠论必需级别）" in question
-    assert "2026-10-02,1,1,1,1,1" in question
-    # 30m never fetched: listed as an optional blind spot, not as a block.
-    assert "30分钟线（30m，可选增强级别）" in question
+    assert "600519.SH" in question
+    assert "平台客观数据" not in question
+    assert "时间,开盘,最高,最低,收盘,成交量" not in question
+    assert "2026-10-02,1,1,1,1,1" not in question
 
 
 def test_non_chanlun_role_is_not_gated(client):

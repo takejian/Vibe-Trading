@@ -365,7 +365,6 @@ def register_watchlist_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail="不支持的分析分类")
         if not body.role_ref.strip():
             raise HTTPException(status_code=400, detail="必须选择一个智能体")
-        data_context: str | None = None
         if (
             body.category == "technical"
             and body.role_ref.strip() == CHANLUN_ROLE_REF
@@ -374,6 +373,9 @@ def register_watchlist_routes(app: FastAPI) -> None:
             # The first attempt returns 412 listing non-ready levels; the
             # UI offers "update data" or "skip & run anyway" (re-POST with
             # skip_kline_gate=true). The optional 30m level never prompts.
+            # BDD rule 21: the run itself reads archived bars via the
+            # objective_kline tool (local-first, online fallback) — bars are
+            # never injected into the prompt.
             with _db_connection() as gate_conn:
                 states = watch_kline.list_level_states(symbol, gate_conn)
                 missing = watch_kline.missing_required_levels(states)
@@ -387,12 +389,6 @@ def register_watchlist_routes(app: FastAPI) -> None:
                             "items": missing,
                         },
                     )
-                # BDD rule 21: the run analyzes the archived objective bars
-                # only — the brief is injected and the role must not fetch
-                # market data itself (applies whether or not levels missing).
-                data_context = watch_kline.build_chanlun_data_brief(
-                    symbol, gate_conn
-                )
         runtime = _get_runtime()
         try:
             run = watch_analysis.start_analysis(
@@ -403,7 +399,6 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 entries=_get_catalog_entries(),
                 runtime=runtime,
                 watch_store=store,
-                data_context=data_context,
             )
         except watch_analysis.AnalysisInProgress as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

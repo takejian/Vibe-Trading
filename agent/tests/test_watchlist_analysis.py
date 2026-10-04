@@ -131,13 +131,12 @@ def test_start_analysis_success(watch_store: WatchlistStore) -> None:
     assert "600519.SH" in payload["question"]
 
 
-def test_start_analysis_appends_archived_data_context(
+def test_start_analysis_never_injects_market_data_into_question(
     watch_store: WatchlistStore,
 ) -> None:
-    # BDD rule 21: archived objective bars ride along in the question so
-    # the role analyzes platform data instead of fetching its own.
+    # BDD rule 21 (tool-callback design): market data is served by the
+    # objective_kline tool at runtime, never appended to the question.
     runtime = FakeRuntime()
-    brief = "【平台客观数据 · 已归档 K 线行情】\n日线（1d）：130 根 ..."
     svc.start_analysis(
         symbol="600519.SH",
         category="technical",
@@ -145,12 +144,11 @@ def test_start_analysis_appends_archived_data_context(
         entries=ENTRIES,
         runtime=runtime,
         watch_store=watch_store,
-        data_context=brief,
     )
     question = runtime.start_calls[0]["question"]
     assert "技术面" in question  # default template preserved
-    assert question.rstrip().endswith(brief)
-    assert "\n\n【平台客观数据" in question
+    assert "平台客观数据" not in question
+    assert "已归档 K 线" not in question
 
 
 def test_start_analysis_validation_errors(
