@@ -134,6 +134,38 @@ def test_get_analyst_role(entries: list[dict]) -> None:
     assert rcf.get_analyst_role("not:real", entries) is None
 
 
+def test_team_names_populate_source_team(entries: list[dict]) -> None:
+    """The L4-supplied preset-title map drives the ``team`` source label."""
+    team_names = {
+        "technical_analysis_panel": "Technical Analysis Panel",
+        "equity_research_team": "Equity Research Team",
+        "custom": "自建角色",
+    }
+    roles = {
+        role["ref"]: role
+        for role in rcf.list_analyst_roles(None, entries, team_names=team_names)
+    }
+    assert (
+        roles["technical_analysis_panel:chanlun_analyst"]["team"]
+        == "Technical Analysis Panel"
+    )
+    assert roles["equity_research_team:stock_picker"]["team"] == "Equity Research Team"
+    assert roles["my_fin_girl"]["team"] == "自建角色"
+
+
+def test_team_names_default_without_map(entries: list[dict]) -> None:
+    """Without a map, built-in roles fall back to the raw preset name and
+    custom roles carry an empty team (L2 never imports swarm)."""
+    roles = {
+        role["ref"]: role for role in rcf.list_analyst_roles(None, entries)
+    }
+    assert (
+        roles["technical_analysis_panel:chanlun_analyst"]["team"]
+        == "technical_analysis_panel"
+    )
+    assert roles["my_generalist"]["team"] == ""
+
+
 def test_real_shipped_catalog_flags_chanlun() -> None:
     """Integration against shipped preset YAMLs (no network)."""
     entries = list_approved_role_refs()

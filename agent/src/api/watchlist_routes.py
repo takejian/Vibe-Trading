@@ -63,6 +63,23 @@ def _get_catalog_entries() -> list[dict[str, Any]]:
     return list_approved_role_refs()
 
 
+def _get_team_names() -> dict[str, str]:
+    """Preset-name -> human team-title map for role-source labels.
+
+    Built-in roles originate from a swarm preset (agent team); custom roles
+    are grouped under the ``"custom"`` label. L4 -> L3 dependency localized
+    here so the L2 role filter stays swarm-free.
+    """
+    from src.swarm.presets import list_presets
+
+    names = {
+        str(summary["name"]): str(summary.get("title") or summary["name"])
+        for summary in list_presets()
+    }
+    names["custom"] = "自建角色"
+    return names
+
+
 @contextmanager
 def _db_connection():
     conn = watch_db.watchlist_connection()
@@ -354,7 +371,11 @@ def register_watchlist_routes(app: FastAPI) -> None:
         from src.watchlist.role_catalog_filter import list_analyst_roles
 
         return {
-            "items": list_analyst_roles(category, _get_catalog_entries())
+            "items": list_analyst_roles(
+                category,
+                _get_catalog_entries(),
+                team_names=_get_team_names(),
+            )
         }
 
     @app.post("/watch/{symbol}/analyze", dependencies=[Depends(require_auth)])

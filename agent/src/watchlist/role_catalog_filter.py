@@ -51,6 +51,9 @@ _FUNDAMENTAL_KEYWORDS = (
 CHANLUN_ROLE_REF = "technical_analysis_panel:chanlun_analyst"
 CHANLUN_ROLE_NAME = "chanlun (chan theory) analyst"
 
+#: Team-map key used for user-created custom roles (they belong to no preset).
+CUSTOM_TEAM_KEY = "custom"
+
 
 def _normalize_name(name: str) -> str:
     return " ".join(str(name or "").lower().split())
@@ -98,20 +101,42 @@ def classify_role(entry: dict[str, Any]) -> tuple[str, bool]:
     return category, chanlun
 
 
+def _team_display(ref: str, team_names: dict[str, str] | None) -> str:
+    """Resolve the source-agent-team label for a role ref.
+
+    Built-in refs (``preset:agent``) use the preset title supplied by the
+    L4 caller (L2 must not import the swarm package); without a map the raw
+    preset name is used. Custom roles resolve to the ``"custom"`` map entry
+    or an empty string.
+    """
+    if ":" in ref:
+        preset = ref.split(":", 1)[0]
+        if team_names is not None and preset in team_names:
+            return team_names[preset]
+        return preset
+    if team_names is not None:
+        return team_names.get(CUSTOM_TEAM_KEY, "")
+    return ""
+
+
 def list_analyst_roles(
     category: str | None,
     entries: list[dict[str, Any]],
+    team_names: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Attach ``category``/``is_chanlun`` to approved catalog entries.
+    """Attach ``category``/``is_chanlun``/``team`` to approved catalog entries.
 
     Args:
         category: Optional filter; must be one of the three categories.
         entries: The approved-role catalog as returned by
             ``src.swarm.role_catalog.list_approved_role_refs`` (fetched by
             the L4 caller). Only approved roles should be passed in.
+        team_names: Optional preset-name -> human team-title map (plus a
+            ``"custom"`` entry for user-created roles), assembled by the L4
+            caller so this L2 module never imports the swarm package.
 
     Returns:
-        Sorted ``[{ref, name, purpose, category, is_chanlun}]`` list.
+        Sorted ``[{ref, name, purpose, category, is_chanlun, team}]`` list.
     """
     if category is not None and category not in CATEGORIES:
         raise ValueError(
@@ -131,6 +156,7 @@ def list_analyst_roles(
                 "purpose": entry.get("purpose") or "",
                 "category": resolved_category,
                 "is_chanlun": is_chanlun,
+                "team": _team_display(str(entry["ref"]), team_names),
             }
         )
     roles.sort(key=lambda role: role["name"])

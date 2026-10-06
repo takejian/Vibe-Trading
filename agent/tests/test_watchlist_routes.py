@@ -342,8 +342,14 @@ def test_analyze_validation_and_success(client) -> None:
 def test_agents_catalog(client) -> None:
     c, _s, _r = client
     resp = c.get("/watch/agents", params={"category": "technical"})
-    refs = {item["ref"] for item in resp.json()["items"]}
+    items = resp.json()["items"]
+    refs = {item["ref"] for item in items}
     assert CHANLUN_REF in refs and FETCH_REF not in refs
+    # Every role carries its source agent team; the built-in Chanlun role
+    # comes from the Technical Analysis Panel preset.
+    assert all("team" in item for item in items)
+    chanlun = next(item for item in items if item["ref"] == CHANLUN_REF)
+    assert chanlun["team"] == "Technical Analysis Panel"
     assert c.get("/watch/agents", params={"category": "bad"}).status_code == 422
 
 

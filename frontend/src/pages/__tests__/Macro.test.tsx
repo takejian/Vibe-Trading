@@ -1,7 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router";
 import { Macro } from "../Macro";
+import { resetMacroEvalCache } from "@/components/macro/macroEvalRecords";
 
 const PROMPTS = [
   {
@@ -59,6 +61,19 @@ const listMacroPrompts = vi.fn();
 const listMacroEconomies = vi.fn();
 const listMacroJudgments = vi.fn();
 const updateMacroPrompt = vi.fn();
+const listSwarmPresets = vi.fn();
+const listRoleGroups = vi.fn();
+const listRoleRuns = vi.fn();
+const listSwarmRuns = vi.fn();
+const getSwarmRun = vi.fn();
+const navigate = vi.fn();
+
+vi.mock("react-router", async () => {
+  const actual = await vi.importActual<typeof import("react-router")>(
+    "react-router",
+  );
+  return { ...actual, useNavigate: () => navigate };
+});
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -69,12 +84,18 @@ vi.mock("@/lib/api", async () => {
       listMacroEconomies: (...args: unknown[]) => listMacroEconomies(...args),
       listMacroJudgments: (...args: unknown[]) => listMacroJudgments(...args),
       updateMacroPrompt: (...args: unknown[]) => updateMacroPrompt(...args),
+      listSwarmPresets: (...args: unknown[]) => listSwarmPresets(...args),
+      listRoleGroups: (...args: unknown[]) => listRoleGroups(...args),
+      listRoleRuns: (...args: unknown[]) => listRoleRuns(...args),
+      listSwarmRuns: (...args: unknown[]) => listSwarmRuns(...args),
+      getSwarmRun: (...args: unknown[]) => getSwarmRun(...args),
     },
   };
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetMacroEvalCache();
   listMacroPrompts.mockResolvedValue({ status: "ok", prompts: PROMPTS });
   listMacroEconomies.mockResolvedValue({
     status: "ok",
@@ -86,6 +107,19 @@ beforeEach(() => {
     judgments: [JUDGMENT, { ...JUDGMENT, statistics_date: "2026-07" }],
   });
   updateMacroPrompt.mockResolvedValue({ status: "ok", prompt: PROMPTS[0] });
+  listSwarmPresets.mockResolvedValue([
+    {
+      name: "macro_strategy_forum",
+      title: "Macro Strategy Forum",
+      description: "",
+      agent_count: 4,
+      variables: [],
+    },
+  ]);
+  listRoleGroups.mockResolvedValue({ groups: [] });
+  listRoleRuns.mockResolvedValue([]);
+  listSwarmRuns.mockResolvedValue([]);
+  getSwarmRun.mockResolvedValue(null);
 });
 
 describe("Macro page", () => {
@@ -156,5 +190,58 @@ describe("Macro page", () => {
 
     // Only read calls happened; the reserved entry triggers nothing.
     expect(updateMacroPrompt).not.toHaveBeenCalled();
+  });
+
+  it("defaults to the cycle tab and lazily mounts the team and role tabs", async () => {
+    const user = userEvent.setup();
+    render(<Macro />);
+
+    await screen.findByTestId("macro-page");
+    const cyclePanel = screen.getByTestId("macro-panel-cycle");
+    expect(cyclePanel).not.toHaveAttribute("hidden");
+    // Team/role panels are not mounted before first activation.
+    expect(screen.queryByTestId("macro-panel-team")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("macro-panel-role")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("macro-tab-team"));
+    const teamPanel = await screen.findByTestId("macro-panel-team");
+    expect(teamPanel).not.toHaveAttribute("hidden");
+    expect(within(teamPanel).getByTestId("macro-team-tab")).toBeInTheDocument();
+    expect(cyclePanel).toHaveAttribute("hidden");
+
+    await user.click(screen.getByTestId("macro-tab-role"));
+    const rolePanel = await screen.findByTestId("macro-panel-role");
+    expect(rolePanel).not.toHaveAttribute("hidden");
+    expect(teamPanel).toHaveAttribute("hidden");
+
+    // Switching back keeps previously mounted panels in the DOM (state kept alive).
+    await user.click(screen.getByTestId("macro-tab-cycle"));
+    expect(cyclePanel).not.toHaveAttribute("hidden");
+    expect(teamPanel).toHaveAttribute("hidden");
+    expect(rolePanel).toHaveAttribute("hidden");
+  });
+  it("lazily mounts the indicator board tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Macro />
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId("macro-page");
+    expect(screen.queryByTestId("macro-panel-board")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("macro-tab-board"));
+    const boardPanel = await screen.findByTestId("macro-panel-board");
+    expect(boardPanel).not.toHaveAttribute("hidden");
+    expect(
+      within(boardPanel).getByTestId("macro-board-tab"),
+    ).toBeInTheDocument();
+    expect(listRoleRuns).toHaveBeenCalledWith({ limit: 100 });
+
+    // Returning to the cycle tab keeps the board mounted but hidden.
+    await user.click(screen.getByTestId("macro-tab-cycle"));
+    expect(screen.getByTestId("macro-panel-cycle")).not.toHaveAttribute("hidden");
+    expect(boardPanel).toHaveAttribute("hidden");
   });
 });

@@ -39,21 +39,26 @@ vi.mock("@/components/swarm/RunView", () => ({
   },
 }));
 
+const CHANLUN_REF = "technical_analysis_panel:chanlun_analyst";
+const CLASSIC_REF = "technical_analysis_panel:classic_ta_analyst";
+
 const AGENTS = {
   items: [
     {
-      ref: "technical_analysis_panel:chanlun_analyst",
+      ref: CHANLUN_REF,
       name: "Chanlun (Chan Theory) Analyst",
       purpose: "中枢背驰买卖点",
       category: "technical" as const,
       is_chanlun: true,
+      team: "Technical Analysis Panel",
     },
     {
-      ref: "technical_analysis_panel:classic_ta_analyst",
+      ref: CLASSIC_REF,
       name: "Classic Technical Analyst",
       purpose: "均线 MACD",
       category: "technical" as const,
       is_chanlun: false,
+      team: "Technical Analysis Panel",
     },
   ],
 };
@@ -133,25 +138,31 @@ describe("AnalysisTab", () => {
   });
 
   it("requests the given category catalog and disables run until a role is chosen", async () => {
+    const user = userEvent.setup();
     render(
       <AnalysisTab category="technical" symbol="600519.SH" symbolName="贵州茅台" />,
     );
     await waitFor(() =>
-      expect(screen.getByText("Classic Technical Analyst")).toBeInTheDocument(),
+      expect(screen.getByText(/Classic Technical Analyst/)).toBeInTheDocument(),
     );
     expect(listWatchAgents).toHaveBeenCalledWith("technical");
     expect(screen.getByTestId("analysis-run-btn")).toBeDisabled();
     expect(screen.getByText("Select exactly one analyst to start")).toBeInTheDocument();
-    // Chanlun role carries a visual marker.
+    // Every option labels the source agent team in parentheses.
+    expect(
+      screen.getByText(/Classic Technical Analyst \(Technical Analysis Panel\)/),
+    ).toBeInTheDocument();
+    // Chanlun role carries a visual marker once selected.
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CHANLUN_REF);
     expect(screen.getByTestId("chanlun-badge")).toHaveTextContent("Chanlun");
   });
 
   it("starts an analysis with the selected role; question omitted when empty", async () => {
     const user = userEvent.setup();
     render(<AnalysisTab category="technical" symbol="600519.SH" />);
-    await screen.findByText("Classic Technical Analyst");
+    await screen.findByText(/Classic Technical Analyst/);
 
-    await user.click(screen.getByRole("radio", { name: /Classic Technical/ }));
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CLASSIC_REF);
     await user.click(screen.getByTestId("analysis-run-btn"));
 
     await waitFor(() => expect(startWatchAnalysis).toHaveBeenCalledTimes(1));
@@ -174,13 +185,15 @@ describe("AnalysisTab", () => {
           purpose: "",
           category: "general" as const,
           is_chanlun: false,
+          team: "",
         },
       ],
     });
     render(<AnalysisTab category="general" symbol="000001.SZ" />);
     await waitFor(() => expect(listWatchAgents).toHaveBeenCalledWith("general"));
-    await screen.findByText("Generalist");
-    await user.click(screen.getByRole("radio", { name: "Generalist" }));
+    // Custom roles are labelled with the custom-team fallback.
+    await screen.findByText(/Generalist \(Custom roles\)/);
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), "g:r");
     await user.type(screen.getByTestId("analysis-question"), "关注风险提示");
     await user.click(screen.getByTestId("analysis-run-btn"));
     await waitFor(() =>
@@ -196,9 +209,9 @@ describe("AnalysisTab", () => {
     const user = userEvent.setup();
     startWatchAnalysis.mockRejectedValue(new ApiError("busy", 409));
     render(<AnalysisTab category="technical" symbol="600519.SH" />);
-    await screen.findByText("Classic Technical Analyst");
+    await screen.findByText(/Classic Technical Analyst/);
 
-    await user.click(screen.getByRole("radio", { name: /Classic Technical/ }));
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CLASSIC_REF);
     await user.click(screen.getByTestId("analysis-run-btn"));
 
     await waitFor(() =>
@@ -295,10 +308,10 @@ describe("AnalysisTab", () => {
       />,
     );
     await waitFor(() =>
-      expect(screen.getByText("Classic Technical Analyst")).toBeInTheDocument(),
+      expect(screen.getByText(/Classic Technical Analyst/)).toBeInTheDocument(),
     );
 
-    await user.click(screen.getByRole("radio", { name: /Chanlun/ }));
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CHANLUN_REF);
     await user.click(screen.getByTestId("analysis-run-btn"));
 
     const gate = await screen.findByTestId("chanlun-kline-gate");
@@ -332,17 +345,17 @@ describe("AnalysisTab", () => {
     });
     render(<AnalysisTab category="technical" symbol="600519.SH" />);
     await waitFor(() =>
-      expect(screen.getByText("Classic Technical Analyst")).toBeInTheDocument(),
+      expect(screen.getByText(/Classic Technical Analyst/)).toBeInTheDocument(),
     );
     expect(screen.queryByTestId("chanlun-30m-warn")).toBeNull();
 
-    await user.click(screen.getByRole("radio", { name: /Chanlun/ }));
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CHANLUN_REF);
     await waitFor(() =>
       expect(screen.getByTestId("chanlun-30m-warn")).toBeInTheDocument(),
     );
 
     // A non-Chanlun selection clears the advisory warning.
-    await user.click(screen.getByRole("radio", { name: /Classic/ }));
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CLASSIC_REF);
     await waitFor(() =>
       expect(screen.queryByTestId("chanlun-30m-warn")).toBeNull(),
     );

@@ -15,8 +15,11 @@
 
 | 模块 | 本期范围 |
 | --- | --- |
-| Web 左侧菜单栏"宏观经济分析"栏目 | 新增栏目；栏目内展示提示词 a / b / c，每个提示词旁有"编辑"入口；点击提示词展示对应分析历史 |
-| 提示词 a：宏观经济周期判定 | 本期完整实现：选择经济体 → 生成标准化周期判定 → 结果存档与展示 |
+| Web 左侧菜单栏"宏观经济分析"栏目 | 新增栏目；栏目内采用 tab 结构，包含"周期判定 / 智能体团队 / 宏观角色"三个 tab，默认进入"周期判定"tab |
+| "周期判定"tab | 即原有提示词区域：展示提示词 a / b / c，每个提示词旁有"编辑"入口；点击提示词展示对应分析历史；本需求仅将其收纳为 tab 之一，业务规则保持不变 |
+| "智能体团队"tab | 本期完整实现：按分析主题分类展示 Macro Strategy Forum、Macro / Rates / FX Desk、Geopolitical Risk War Room、Sector Rotation Team 共 4 个团队；卡片展示团队简介与角色构成，并可发起多智能体协同分析 |
+| "宏观角色"tab | 本期完整实现：按 7 类分析主题展示上述 4 个团队中的 16 个角色，以及 Macro Allocator、Macro Analyst，共 18 个角色；卡片展示角色职责与所属团队，并可发起单角色分析 |
+| 提示词 a：宏观经济周期判定 | 本期完整实现：选择经济体 → 生成标准化周期判定 → 结果存档与展示（位于"周期判定"tab） |
 | 提示词 b / c | 预留栏目位，可见但暂不可点击，后续补充定义 |
 | 提示词编辑 | 本期仅支持编辑提示词正文，仅管理员可操作 |
 | AI 工具编排调用流程定义 | 预留扩展入口，本期仅展示、不可配置，后续支持自定义工具及调用顺序 |
@@ -256,6 +259,129 @@ Feature: 预留提示词展示
     And 页面提示该分析能力将在后续版本提供
 ```
 
+### 用户故事 11：宏观经济分析栏目的 tab 切换
+
+**作为** 使用者，**我希望** 进入宏观经济分析栏目后能在"周期判定 / 智能体团队 / 宏观角色"三个 tab 间切换，**以便** 分别使用周期判定、按团队或按角色发起宏观分析。
+
+```gherkin
+Feature: 宏观经济分析栏目 tab 导航
+  Scenario: 默认进入周期判定 tab
+    Given 使用者从左侧菜单点击"宏观经济分析"栏目
+    Then 栏目顶部依次展示"周期判定""智能体团队""宏观角色"三个 tab
+    And 默认选中"周期判定"tab
+    And 该 tab 内展示原有的提示词 a / b / c、编辑入口与分析历史区域
+
+  Scenario: 切换至团队与角色 tab
+    Given 使用者位于宏观经济分析栏目
+    When 使用者点击"智能体团队"或"宏观角色"tab
+    Then 主工作区切换为对应的分类展示内容
+    And 切换过程不影响"周期判定"tab 内已生成或正在生成的分析
+```
+
+### 用户故事 12：智能体团队 tab 按主题浏览团队
+
+**作为** 使用者，**我希望** 在"智能体团队"tab 按分析主题看到 4 个预置宏观团队及其角色构成，**以便** 选择合适的多智能体团队完成分析。
+
+```gherkin
+Feature: 智能体团队主题分类展示
+  Scenario: 按四个分析主题分区展示团队
+    Given 使用者进入"智能体团队"tab
+    Then 页面按"宏观策略 / 宏观利率外汇 / 地缘分析 / 资产轮转"四个主题分区
+    And "宏观策略"分区展示 Macro Strategy Forum
+    And "宏观利率外汇"分区展示 Macro / Rates / FX Desk
+    And "地缘分析"分区展示 Geopolitical Risk War Room
+    And "资产轮转"分区展示 Sector Rotation Team
+
+  Scenario: 展开团队查看构成与参数
+    Given 使用者浏览团队卡片
+    When 使用者展开 Macro Strategy Forum 卡片
+    Then 卡片展示团队简介（分析目标与输出形式）
+    And 展示团队所含角色清单，每个角色附一句话职责
+    And 展示发起该团队分析所需填写的参数（market 市场、horizon 周期）
+
+  Scenario: 各团队参数口径不同
+    Given 使用者分别展开四个团队卡片
+    Then Macro Strategy Forum 参数为 market、horizon
+    And Macro / Rates / FX Desk 参数为 goal、timeframe
+    And Geopolitical Risk War Room 参数为 crisis、market
+    And Sector Rotation Team 参数为 market、goal
+```
+
+### 用户故事 13：从团队卡片发起多智能体协同分析
+
+**作为** 使用者，**我希望** 在团队卡片上填好参数后直接发起该团队的多智能体协同分析，**以便** 一次性获得多角色协作完成的宏观研究结论。
+
+```gherkin
+Feature: 发起多智能体协同分析
+  Scenario: 成功发起团队协同分析
+    Given 使用者已展开 Macro Strategy Forum 卡片
+    When 使用者填写 market 为"A 股"、horizon 为"季度"并点击"发起团队分析"
+    Then 系统按该团队预置的角色分工与任务依赖关系发起多智能体协同分析
+    And 页面展示"分析生成中，请稍候"状态及各角色处理进度
+    And 全部角色完成后展示团队的综合分析结论
+
+  Scenario: 同一团队分析生成中防重复
+    Given Geopolitical Risk War Room 在同一组 crisis、market 参数下已有分析正在生成
+    When 使用者再次对该团队点击"发起团队分析"
+    Then 系统阻止重复发起并提示"分析生成中，请稍候"
+
+  Scenario: 团队分析失败或超时
+    Given 某团队协同分析超过可接受时长未返回，或执行过程中失败
+    When 系统判定本次生成超时或失败
+    Then 页面提示"分析超时/失败，请稍后重试"
+    And 不影响"周期判定"tab 内已留存的判定结果
+```
+
+### 用户故事 14：宏观角色 tab 按分析主题浏览角色
+
+**作为** 使用者，**我希望** 在"宏观角色"tab 按 7 类分析主题浏览全部 18 个宏观角色及其职责与来源团队，**以便** 不依赖完整团队、直接挑选需要的单一角色。
+
+```gherkin
+Feature: 宏观角色主题分类展示
+  Scenario: 角色按 7 类分析主题分组
+    Given 使用者进入"宏观角色"tab
+    Then 页面按以下 7 个主题分区展示共 18 个角色：
+      | 主题分区 | 角色 |
+      | 宏观经济与周期 | Global Economist、China Economist、Economic Cycle Analyst、Macro Analyst |
+      | 利率与外汇 | Global Rates & Yield Curve Analyst、FX Strategist |
+      | 大宗商品与通胀 | Commodity & Inflation Analyst、Energy Shock Analyst |
+      | 地缘政治与供应链 | Geopolitical Analyst、Supply Chain Analyst |
+      | 政策研究 | Policy Analyst |
+      | 行业轮动 | Sector Prosperity Analyst、Capital Flow Analyst、Sector Rotation Strategist |
+      | 综合策略与资产配置 | Chief Strategist（宏观论坛）、Chief Strategist（地缘作战室）、Macro Portfolio Manager、Macro Allocator |
+
+  Scenario: 查看角色卡片详情
+    Given 使用者浏览"宏观角色"tab 的角色条目
+    When 使用者选中 Macro Allocator
+    Then 卡片展示该角色的分析主题（综合策略与资产配置）、所属团队（ETF Allocation Desk）与职责摘要
+    And 卡片提供"发起单角色分析"入口
+
+  Scenario: 同名角色按来源团队区分
+    Given 宏观论坛与地缘作战室均含 Chief Strategist
+    When 使用者查看"综合策略与资产配置"分区
+    Then 两个角色分别标注来源团队，各自对应原团队中的角色设定
+```
+
+### 用户故事 15：从角色卡片发起单角色分析
+
+**作为** 使用者，**我希望** 在角色卡片上直接发起单一角色的分析，**以便** 在不需要整个团队协作时，快速获得该角色视角的宏观分析。
+
+```gherkin
+Feature: 发起单角色分析
+  Scenario: 成功发起单角色分析
+    Given 使用者已选中 FX Strategist 角色卡片
+    When 使用者按卡片提示填写必要参数并点击"发起单角色分析"
+    Then 系统仅以该角色的角色设定与职责框架发起单一角色分析
+    And 不触发其原属团队的多角色任务编排
+    And 生成期间展示"分析生成中，请稍候"且禁止对同一角色同一参数重复发起
+
+  Scenario: 单角色分析失败或超时
+    Given 某单角色分析超时或执行失败
+    When 系统确认本次生成未成功
+    Then 页面提示"分析超时/失败，请稍后重试"
+    And 不产生任何留存结果
+```
+
 ---
 
 ## 三、业务与计算规则
@@ -308,6 +434,44 @@ Feature: 预留提示词展示
 - 本期"编辑"仅允许调整提示词正文；编辑后仅影响后续新发起的分析，历史结果保持不变。
 - AI 工具编排调用流程（使用哪些工具、调用先后顺序）为后续扩展能力，本期不开放配置，但在信息架构上预留位置。
 
+### 7. 栏目 tab 规则
+
+- 宏观经济分析栏目固定包含"周期判定 / 智能体团队 / 宏观角色"三个 tab，默认进入"周期判定"。
+- "周期判定"tab 完整沿用本节第 1–6 条规则（周期表述、十项结论、唯一性、重试等）。
+- "智能体团队""宏观角色"tab 本期提供分类展示与分析发起能力；其发起的分析不属于"经济体 + 数据截止月份"唯一口径，不生成周期判定档案，亦不改变既有判定结果。
+
+### 8. 智能体团队分类与发起规则
+
+- 4 个团队按分析主题归类如下，发起时必须填写该团队对应的预置参数：
+
+| 分析主题 | 团队 | 必填参数 |
+| --- | --- | --- |
+| 宏观策略 | Macro Strategy Forum | market（市场）、horizon（周期） |
+| 宏观利率外汇 | Macro / Rates / FX Desk | goal（目标）、timeframe（时间框架） |
+| 地缘分析 | Geopolitical Risk War Room | crisis（危机情景）、market（市场） |
+| 资产轮转 | Sector Rotation Team | market（市场）、goal（主题） |
+
+- 发起团队分析即按该团队预置的角色分工、任务依赖与输入关系执行多智能体协同分析，输出团队综合结论。
+- 同一团队在同一组参数下已有分析正在生成时，阻止重复发起；超时或失败按第 5 条失败处理精神提示使用者，不留存结果。
+
+### 9. 宏观角色分类与发起规则
+
+- "宏观角色"tab 将 18 个角色按 7 类分析主题归类，每个角色标注其来源团队：
+
+| 分析主题 | 角色（来源团队） |
+| --- | --- |
+| 宏观经济与周期 | Global Economist（Macro Strategy Forum）、China Economist（Macro Strategy Forum）、Economic Cycle Analyst（Sector Rotation Team）、Macro Analyst（Equity Research Team） |
+| 利率与外汇 | Global Rates & Yield Curve Analyst（Macro / Rates / FX Desk）、FX Strategist（Macro / Rates / FX Desk） |
+| 大宗商品与通胀 | Commodity & Inflation Analyst（Macro / Rates / FX Desk）、Energy Shock Analyst（Geopolitical Risk War Room） |
+| 地缘政治与供应链 | Geopolitical Analyst（Geopolitical Risk War Room）、Supply Chain Analyst（Geopolitical Risk War Room） |
+| 政策研究 | Policy Analyst（Macro Strategy Forum） |
+| 行业轮动 | Sector Prosperity Analyst（Sector Rotation Team）、Capital Flow Analyst（Sector Rotation Team）、Sector Rotation Strategist（Sector Rotation Team） |
+| 综合策略与资产配置 | Chief Strategist（Macro Strategy Forum）、Chief Strategist（Geopolitical Risk War Room）、Macro Portfolio Manager（Macro / Rates / FX Desk）、Macro Allocator（ETF Allocation Desk） |
+
+- Macro Allocator 与 Macro Analyst 虽分别来源于 ETF Allocation Desk、Equity Research Team，本期统一纳入"宏观角色"tab 管理。
+- 发起单角色分析仅执行该角色自身的角色设定与职责框架，不触发其原属团队的多角色编排。
+- 同一角色在同一组参数下生成中阻止重复发起；失败、超时不留存结果。
+
 ---
 
 ## 四、界面交互原型（ASCII）
@@ -328,7 +492,7 @@ Feature: 预留提示词展示
 +----------------+---------------------------------------------------------+
 ```
 
-### 2. 宏观经济分析栏目：提示词 + 历史浏览
+### 2. 「周期判定」tab：提示词 + 历史浏览
 
 ```
 +--------------------------------------------------------------------------+
@@ -398,6 +562,95 @@ Feature: 预留提示词展示
 +--------------------------------------------------------------------------+
 ```
 
+### 5. 「智能体团队」tab
+
+```
++--------------------------------------------------------------------------+
+|  宏观经济分析                                                             |
+|  [ 周期判定 ]  [ 智能体团队 ]  [ 宏观角色 ]                               |
++--------------------------------------------------------------------------+
+|  按分析主题选择智能体团队                                                 |
+|                                                                          |
+|  ▸ 宏观策略                                                               |
+|  ┌────────────────────────────────────────────────────────────────────┐  |
+|  │ Macro Strategy Forum                              [发起团队分析]   │  |
+|  │ 全球 + 国内 + 政策并行，首席策略师综合跨资产配置观点               │  |
+|  │ 角色: Global Economist / China Economist / Policy Analyst /        │  |
+|  │       Chief Strategist                                             │  |
+|  │ 参数: 市场 market    周期 horizon                                 │  |
+|  └────────────────────────────────────────────────────────────────────┘  |
+|                                                                          |
+|  ▸ 宏观利率外汇                                                           |
+|  ┌────────────────────────────────────────────────────────────────────┐  |
+|  │ Macro / Rates / FX Desk                           [发起团队分析]   │  |
+|  │ 利率 + 外汇 + 商品通胀并行，宏观 PM 综合跨资产配置                 │  |
+|  │ 角色: Rates Analyst / FX Strategist / Commodity & Inflation        │  |
+|  │       Analyst / Macro PM                                           │  |
+|  │ 参数: 目标 goal      时间框架 timeframe                            │  |
+|  └────────────────────────────────────────────────────────────────────┘  |
+|                                                                          |
+|  ▸ 地缘分析                                                               |
+|  ┌────────────────────────────────────────────────────────────────────┐  |
+|  │ Geopolitical Risk War Room                        [发起团队分析]   │  |
+|  │ 地缘 + 能源冲击 + 供应链并行，输出危机配置与对冲方案               │  |
+|  │ 角色: Geopolitical / Energy Shock / Supply Chain / Chief Strategist│  |
+|  │ 参数: 危机情景 crisis  市场 market                                 │  |
+|  └────────────────────────────────────────────────────────────────────┘  |
+|                                                                          |
+|  ▸ 资产轮转                                                               |
+|  ┌────────────────────────────────────────────────────────────────────┐  |
+|  │ Sector Rotation Team                              [发起团队分析]   │  |
+|  │ 周期 + 景气 + 资金并行，构建并回测行业轮动策略                     │  |
+|  │ 角色: Cycle / Prosperity / Capital Flow / Rotation Strategist      │  |
+|  │ 参数: 市场 market    主题 goal                                     │  |
+|  └────────────────────────────────────────────────────────────────────┘  |
++--------------------------------------------------------------------------+
+```
+
+### 6. 「宏观角色」tab
+
+```
++--------------------------------------------------------------------------+
+|  宏观经济分析                                                             |
+|  [ 周期判定 ]  [ 智能体团队 ]  [ 宏观角色 ]                               |
++--------------------------------------------------------------------------+
+|  按分析主题选择宏观角色（共 18 个角色）                                   |
+|                                                                          |
+|  ▸ 宏观经济与周期                                                         |
+|    Global Economist [宏观论坛]      China Economist [宏观论坛]           |
+|    Economic Cycle Analyst [轮动团队]  Macro Analyst [股票研究团队]       |
+|                                                                          |
+|  ▸ 利率与外汇                                                             |
+|    Global Rates & Yield Curve Analyst [利率外汇台]  FX Strategist [同]   |
+|                                                                          |
+|  ▸ 大宗商品与通胀                                                         |
+|    Commodity & Inflation Analyst [利率外汇台]                            |
+|    Energy Shock Analyst [地缘作战室]                                     |
+|                                                                          |
+|  ▸ 地缘政治与供应链                                                       |
+|    Geopolitical Analyst [地缘作战室]  Supply Chain Analyst [同]          |
+|                                                                          |
+|  ▸ 政策研究                                                               |
+|    Policy Analyst [宏观论坛]                                             |
+|                                                                          |
+|  ▸ 行业轮动                                                               |
+|    Sector Prosperity Analyst [轮动团队]  Capital Flow Analyst [同]       |
+|    Sector Rotation Strategist [轮动团队]                                 |
+|                                                                          |
+|  ▸ 综合策略与资产配置                                                     |
+|    Chief Strategist [宏观论坛]      Chief Strategist [地缘作战室]        |
+|    Macro Portfolio Manager [利率外汇台]  Macro Allocator [ETF 配置台]    |
+|                                                                          |
+|  角色详情（选中后展示）：                                                 |
+|  ┌────────────────────────────────────────────────────────────────────┐  |
+|  │ Macro Allocator — 主题: 综合策略与资产配置 — 所属: ETF Allocation  │  |
+|  │ Desk                                                               │  |
+|  │ 职责: 基于经济周期定位与宏观判断，输出大类资产配置权重             │  |
+|  │                                  [发起单角色分析]                   │  |
+|  └────────────────────────────────────────────────────────────────────┘  |
++--------------------------------------------------------------------------+
+```
+
 ---
 
 ## 五、数据管理规则
@@ -422,6 +675,8 @@ Feature: 预留提示词展示
 | 专业研究人员 | 允许（含完整判定依据） | 允许 | 禁止 | 本期不开放 |
 | 管理员 | 允许 | 允许 | 允许（仅提示词 a 正文） | 本期不开放 |
 
+- 所有角色均可查看"智能体团队""宏观角色"tab 的分类内容，并可发起多智能体协同分析与单角色分析；提示词编辑与工具配置权限规则不变。
+
 ---
 
 ## 六、业务术语表
@@ -444,3 +699,10 @@ Feature: 预留提示词展示
 | 预设经济体清单 | 系统固定提供的可选分析对象集合，首期至少含中国、美国、日本、欧元区 |
 | 提示词 a / b / c | 栏目内三个宏观分析提示词槽位；本期仅 a（宏观经济周期判定）可用，b / c 预留 |
 | 工具编排调用流程 | 对一次分析中 AI 调用哪些工具、以何种先后顺序调用的流程定义能力，本期预留、后续开放 |
+| 周期判定 tab | 宏观经济分析栏目下收纳原提示词 a / b / c 与分析历史的 tab，沿用全部既有业务规则，为栏目默认 tab |
+| 智能体团队 tab | 按"宏观策略 / 宏观利率外汇 / 地缘分析 / 资产轮转"四主题展示 4 个预置团队，并可发起多智能体协同分析的 tab |
+| 宏观角色 tab | 按 7 类分析主题展示 18 个宏观角色（含 Macro Allocator、Macro Analyst），并可发起单角色分析的 tab |
+| 多智能体协同分析 | 按所选团队预置的角色分工、任务依赖与输入关系，由团队内多个角色协作完成的分析形式 |
+| 单角色分析 | 仅以所选角色自身的角色设定与职责框架执行的分析，不触发其原属团队的多角色编排 |
+| Macro Allocator | 宏观资产配置师，来源于 ETF Allocation Desk，负责将宏观周期判断转化为大类资产配置权重，本期纳入"宏观角色"tab |
+| Macro Analyst | 宏观分析师，来源于 Equity Research Team，负责宏观环境、央行政策与全球联动分析，本期纳入"宏观角色"tab |

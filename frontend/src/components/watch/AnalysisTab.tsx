@@ -175,57 +175,48 @@ export function AnalysisTab({
             {t("watch.an.noAgents")}
           </p>
         ) : (
-          <ul
-            role="radiogroup"
-            aria-label={t("watch.an.roleTitle")}
-            className="space-y-2"
-          >
-            {agents.map((agent) => {
-              const checked = roleRef === agent.ref;
-              return (
-                <li key={agent.ref}>
-                  <label
-                    className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 ${
-                      checked
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/40"
-                    }`}
+          <div>
+            <select
+              value={roleRef}
+              onChange={(e) => {
+                setRoleRef(e.target.value);
+                setError409(false);
+                setGateItems(null);
+              }}
+              aria-label={t("watch.an.roleTitle")}
+              data-testid="analysis-role-select"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            >
+              <option value="" disabled>
+                {t("watch.an.rolePlaceholder")}
+              </option>
+              {agents.map((agent) => (
+                <option key={agent.ref} value={agent.ref}>
+                  {t("watch.an.roleWithTeam", {
+                    role: agent.name,
+                    team: agent.team || t("watch.an.customTeam"),
+                  })}
+                </option>
+              ))}
+            </select>
+            {selectedAgent && (
+              <div className="mt-2 flex items-start gap-2 text-sm">
+                {selectedAgent.is_chanlun && (
+                  <span
+                    className="mt-0.5 shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary"
+                    data-testid="chanlun-badge"
                   >
-                    <input
-                      type="radio"
-                      name={`watch-agent-${category}`}
-                      className="mt-1"
-                      value={agent.ref}
-                      checked={checked}
-                      onChange={() => {
-                        setRoleRef(agent.ref);
-                        setError409(false);
-                        setGateItems(null);
-                      }}
-                    />
-                    <span>
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        {agent.name}
-                        {agent.is_chanlun && (
-                          <span
-                            className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary"
-                            data-testid="chanlun-badge"
-                          >
-                            {t("watch.an.chanlunBadge")}
-                          </span>
-                        )}
-                      </span>
-                      {agent.purpose && (
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {agent.purpose}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+                    {t("watch.an.chanlunBadge")}
+                  </span>
+                )}
+                {selectedAgent.purpose && (
+                  <span className="text-xs text-muted-foreground">
+                    {selectedAgent.purpose}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

@@ -2561,6 +2561,8 @@ export interface WatchAgent {
   purpose: string;
   category: WatchCategory;
   is_chanlun: boolean;
+  /** Source agent team (preset title); empty for user-created custom roles. */
+  team: string;
 }
 
 export interface WatchAnalysisQuery {
