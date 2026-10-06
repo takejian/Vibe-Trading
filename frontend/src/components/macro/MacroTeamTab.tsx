@@ -14,8 +14,6 @@ import {
   RUN_LEVEL_AGENT,
   useMacroEvalData,
 } from "./macroEvalRecords";
-import { MacroEvalHistory } from "./MacroEvalHistory";
-import { useMacroEvalData } from "./macroEvalRecords";
 
 export function MacroTeamTab() {
   const { t } = useTranslation();

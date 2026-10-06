@@ -158,7 +158,7 @@ async function loadMacroEvalData(): Promise<MacroEvalData> {
       kind: "team",
       roleRef: roleRefOf(detail.preset_name, RUN_LEVEL_AGENT),
       presetName: detail.preset_name,
-      agentId: "",
+      agentId: RUN_LEVEL_AGENT,
       roleName: detail.preset_name,
       target: detail.research_target || "",
       question: detail.research_question || "",

@@ -159,8 +159,61 @@ const HISTORY_DETAIL = {
       worker_iterations: 2,
     },
   ],
-  final_report: "synthesis",
+  final_report:
+    "The macro team concludes China is in an early recovery phase as credit impulse and PMI readings improved in October 2026.",
 };
+
+const OTHER_SUMMARY = {
+  id: "team-run-10",
+  preset_name: "macro_strategy_forum",
+  status: "completed",
+  created_at: "2026-10-12T00:00:00Z",
+  completed_at: "2026-10-12T01:00:00Z",
+  task_count: 1,
+  completed_count: 1,
+  research_target: "China policy outlook",
+  research_question: "stimulus",
+  kind: "team",
+  final_report_excerpt: "",
+} as const;
+
+const OTHER_DETAIL = {
+  id: "team-run-10",
+  preset_name: "macro_strategy_forum",
+  status: "completed",
+  created_at: "2026-10-12T00:00:00Z",
+  completed_at: "2026-10-12T01:00:00Z",
+  research_target: "China policy outlook",
+  research_question: "stimulus",
+  user_vars: {},
+  agents: [],
+  tasks: [
+    {
+      id: "task-c",
+      agent_id: "domestic_economist",
+      status: "completed",
+      depends_on: [],
+      input_from: [],
+      summary:
+        "Fiscal stimulus is expected to broaden as local government issuance accelerates through year-end.",
+      error: null,
+      started_at: "2026-10-12T00:05:00Z",
+      completed_at: "2026-10-12T00:40:00Z",
+      worker_iterations: 2,
+    },
+  ],
+  final_report:
+    "The domestic view points to broadening fiscal support keeping the recovery on track into early 2027.",
+};
+
+const detailFor = (id: string) =>
+  Promise.resolve(
+    id === "team-run-9"
+      ? HISTORY_DETAIL
+      : id === "team-run-10"
+        ? OTHER_DETAIL
+        : null,
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -170,7 +223,7 @@ beforeEach(() => {
   listSwarmRuns.mockResolvedValue([]);
   listRoleRuns.mockResolvedValue([]);
   listRoleGroups.mockResolvedValue({ groups: [] });
-  getSwarmRun.mockResolvedValue(HISTORY_DETAIL);
+  getSwarmRun.mockImplementation(detailFor);
   createSession.mockResolvedValue({ session_id: "sess-history" });
   sendMessage.mockResolvedValue({ message_id: "msg-history", attempt_id: "att-1" });
 });
@@ -234,38 +287,40 @@ describe("MacroTeamTab", () => {
     expect(await screen.findByTestId("macro-team-error-macro_strategy_forum")).toBeInTheDocument();
   });
 
-  it("lists team evaluation records and searches them by keyword", async () => {
+  it("lists one row per team run and searches by target", async () => {
     const user = userEvent.setup();
-    listSwarmRuns.mockResolvedValue([HISTORY_SUMMARY]);
+    listSwarmRuns.mockResolvedValue([HISTORY_SUMMARY, OTHER_SUMMARY]);
     render(<MacroTeamTab />);
 
     const history = await screen.findByTestId("macro-team-history");
     expect(
       await within(history).findByTestId(
-        "macro-team-history-row-team-run-9#task-a",
+        "macro-team-history-row-team-run-9#run",
       ),
     ).toBeInTheDocument();
     expect(
-      within(history).getByTestId(
-        "macro-team-history-row-team-run-9#task-b",
-      ),
+      within(history).getByTestId("macro-team-history-row-team-run-10#run"),
     ).toBeInTheDocument();
+    // No per-task rows: role/source columns are gone.
+    expect(
+      within(history).queryByTestId(
+        "macro-team-history-row-team-run-9#task-a",
+      ),
+    ).not.toBeInTheDocument();
 
     await user.type(
       within(history).getByTestId("macro-team-history-search-keyword"),
-      "credit impulse",
+      "China 2026Q4",
     );
     await user.click(
       within(history).getByTestId("macro-team-history-search-submit"),
     );
     expect(
-      within(history).getByTestId(
-        "macro-team-history-row-team-run-9#task-a",
-      ),
+      within(history).getByTestId("macro-team-history-row-team-run-9#run"),
     ).toBeInTheDocument();
     expect(
       within(history).queryByTestId(
-        "macro-team-history-row-team-run-9#task-b",
+        "macro-team-history-row-team-run-10#run",
       ),
     ).not.toBeInTheDocument();
   });
@@ -289,49 +344,90 @@ describe("MacroTeamTab", () => {
 
     const history = await screen.findByTestId("macro-team-history");
     await within(history).findByTestId(
-      "macro-team-history-row-team-run-9#task-a",
+      "macro-team-history-row-team-run-9#run",
     );
     expect(
       within(history).queryByTestId(
-        "macro-team-history-row-crypto-run-1#task-a",
+        "macro-team-history-row-crypto-run-1#run",
       ),
     ).not.toBeInTheDocument();
   });
 
-  it("compares two checked records in a new AI session", async () => {
+  it("filters the run rows to the clicked agent and restores on chip clear", async () => {
     const user = userEvent.setup();
-    listSwarmRuns.mockResolvedValue([HISTORY_SUMMARY]);
+    listSwarmRuns.mockResolvedValue([HISTORY_SUMMARY, OTHER_SUMMARY]);
     render(<MacroTeamTab />);
 
-    const history = await screen.findByTestId("macro-team-history");
-    await within(history).findByTestId(
-      "macro-team-history-row-team-run-9#task-a",
+    // Expand the forum and click one agent.
+    await user.click(
+      await screen.findByTestId("macro-team-expand-macro_strategy_forum"),
     );
     await user.click(
-      within(history).getByTestId(
-        "macro-team-history-checkbox-team-run-9#task-a",
+      screen.getByTestId(
+        "macro-team-agent-macro_strategy_forum-global_economist",
+      ),
+    );
+
+    const history = screen.getByTestId("macro-team-history");
+    const chip = await within(history).findByTestId(
+      "macro-team-history-role-filter",
+    );
+    expect(chip).toHaveTextContent("Global Economist");
+    // Only the run with a global_economist task remains.
+    expect(
+      within(history).getByTestId("macro-team-history-row-team-run-9#run"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).queryByTestId(
+        "macro-team-history-row-team-run-10#run",
+      ),
+    ).not.toBeInTheDocument();
+
+    // Clearing the chip restores every macro team run.
+    await user.click(
+      within(history).getByTestId("macro-team-history-role-filter-clear"),
+    );
+    expect(
+      await within(history).findByTestId(
+        "macro-team-history-row-team-run-10#run",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("compares two checked team runs in a new AI session", async () => {
+    const user = userEvent.setup();
+    listSwarmRuns.mockResolvedValue([HISTORY_SUMMARY, OTHER_SUMMARY]);
+    render(<MacroTeamTab />);
+
+    const hist = await screen.findByTestId("macro-team-history");
+    await within(hist).findByTestId(
+      "macro-team-history-row-team-run-9#run",
+    );
+    await user.click(
+      within(hist).getByTestId(
+        "macro-team-history-checkbox-team-run-9#run",
       ),
     );
     await user.click(
-      within(history).getByTestId(
-        "macro-team-history-checkbox-team-run-9#task-b",
+      within(hist).getByTestId(
+        "macro-team-history-checkbox-team-run-10#run",
       ),
     );
     expect(
-      within(history).getByTestId("macro-team-history-selected-count"),
+      within(hist).getByTestId("macro-team-history-selected-count"),
     ).toHaveTextContent("2 selected");
 
-    await user.click(within(history).getByTestId("macro-team-history-compare"));
+    await user.click(within(hist).getByTestId("macro-team-history-compare"));
 
     await vi.waitFor(() =>
       expect(createSession).toHaveBeenCalledWith("Macro Evaluation Comparison"),
     );
     expect(sendMessage).toHaveBeenCalledTimes(1);
     const prompt = sendMessage.mock.calls[0][1] as string;
-    expect(prompt).toContain("credit impulse");
+    expect(prompt).toContain("China 2026Q4");
+    expect(prompt).toContain("China policy outlook");
     expect(navigate).toHaveBeenCalledWith(
       expect.stringContaining("session=sess-history"),
     );
   });
 });
-
