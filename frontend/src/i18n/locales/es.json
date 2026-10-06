@@ -2357,7 +2357,12 @@
       "errorDialogHint": "No se pudieron obtener los siguientes niveles. Los datos existentes se conservan. Cambie de fuente de datos y reintente.",
       "errorDialogRequest": "Solicitud",
       "close": "Cerrar",
-      "retryFailed": "Reintentar niveles fallidos"
+      "retryFailed": "Reintentar niveles fallidos",
+      "chartTitle": "Gráfico de velas multinivel (Chanlun)",
+      "chartSubtitle": "Vista de solo lectura de los datos ya obtenidos: los niveles sin datos se ocultan. Cambie de nivel con las pestañas; no se descargan datos bajo demanda.",
+      "chartRefresh": "Actualizar",
+      "chartEmpty": "Aún no hay velas obtenidas. Actualice primero los niveles en la tarjeta superior.",
+      "chartLoadFailed": "Error al cargar el gráfico de velas; inténtelo de nuevo"
     },
     "status": {
       "pending": "Pendiente",

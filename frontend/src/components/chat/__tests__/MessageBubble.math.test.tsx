@@ -55,13 +55,13 @@ describe("MessageBubble LaTeX rendering", () => {
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
   });
 
-  it("wraps markdown tables in a horizontal scroll container", () => {
+  it("renders markdown tables fitted to the page width", () => {
     const { container } = render(
       <MarkdownContent content={"| Symbol | Return |\n| --- | ---: |\n| AAPL | 12% |"} />,
     );
     const table = container.querySelector("table");
     expect(table).not.toBeNull();
-    expect(table?.parentElement).toHaveClass("overflow-x-auto");
+    expect(table).toHaveClass("table-fixed", "w-full");
   });
 
   it("opens markdown links in a separate, isolated tab", () => {

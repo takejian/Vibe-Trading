@@ -2357,7 +2357,12 @@
       "errorDialogHint": "Folgende Zeitebenen konnten nicht abgerufen werden. Vorhandene Daten bleiben erhalten. Datenquelle wechseln und erneut versuchen.",
       "errorDialogRequest": "Anfrage",
       "close": "Schließen",
-      "retryFailed": "Fehlgeschlagene erneut versuchen"
+      "retryFailed": "Fehlgeschlagene erneut versuchen",
+      "chartTitle": "Mehrstufiges K-Linien-Diagramm (Chanlun)",
+      "chartSubtitle": "Nur-Lese-Ansicht bereits abgerufener Kerzen — Stufen ohne Daten werden ausgeblendet. Stufen über die Reiter wechseln; es werden keine Daten bei Bedarf abgerufen.",
+      "chartRefresh": "Aktualisieren",
+      "chartEmpty": "Noch keine abgerufenen K-Linien. Bitte die Stufen zuerst in der Karte oben aktualisieren.",
+      "chartLoadFailed": "Laden des K-Linien-Diagramms fehlgeschlagen, bitte erneut versuchen"
     },
     "status": {
       "pending": "Wartend",

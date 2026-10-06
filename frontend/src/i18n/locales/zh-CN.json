@@ -2357,7 +2357,12 @@
       "errorDialogHint": "以下级别获取失败，已有数据已保留。可切换数据源后重试。",
       "errorDialogRequest": "请求",
       "close": "关闭",
-      "retryFailed": "重试失败级别"
+      "retryFailed": "重试失败级别",
+      "chartTitle": "缠论各级别 K 线图",
+      "chartSubtitle": "仅展示已抓取的各级别 K 线，未获取数据的级别自动隐藏；切换级别标签查看对应 K 线图，不会触发联网抓取。",
+      "chartRefresh": "刷新",
+      "chartEmpty": "暂无可展示的 K 线，请先通过上方卡片更新各级别行情。",
+      "chartLoadFailed": "K 线图加载失败，请重试"
     },
     "status": {
       "pending": "等待中",

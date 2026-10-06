@@ -122,7 +122,7 @@ describe("RunView layout and conclusion panel", () => {
     expect(content.querySelector(".prose")).not.toBeNull();
     expect(content.querySelectorAll("thead th")).toHaveLength(3);
     expect(content.querySelector("table")?.parentElement).toHaveClass(
-      "overflow-x-auto",
+      "min-w-0",
     );
   });
 

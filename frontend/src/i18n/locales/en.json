@@ -2357,7 +2357,12 @@
       "errorDialogHint": "The following levels could not be fetched. Existing data is kept. Switch the data source and retry.",
       "errorDialogRequest": "Request",
       "close": "Close",
-      "retryFailed": "Retry failed levels"
+      "retryFailed": "Retry failed levels",
+      "chartTitle": "Multi-level K-line chart (Chanlun)",
+      "chartSubtitle": "Read-only view of already fetched bars — levels without data are hidden. Switch levels with the tabs; no data is fetched on demand.",
+      "chartRefresh": "Refresh",
+      "chartEmpty": "No fetched K-line bars yet. Update the levels in the card above first.",
+      "chartLoadFailed": "Failed to load the K-line chart, please retry"
     },
     "status": {
       "pending": "Pending",

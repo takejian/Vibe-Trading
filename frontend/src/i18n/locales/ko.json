@@ -2357,7 +2357,12 @@
       "errorDialogHint": "다음 레벨을 가져오지 못했습니다. 기존 데이터는 유지됩니다. 데이터 소스를 전환하여 다시 시도할 수 있습니다.",
       "errorDialogRequest": "요청",
       "close": "닫기",
-      "retryFailed": "실패한 레벨 다시 시도"
+      "retryFailed": "실패한 레벨 다시 시도",
+      "chartTitle": "찬룽 다단계 캔들 차트",
+      "chartSubtitle": "이미 가져온 캔들만 읽기 전용으로 표시하며 데이터가 없는 레벨은 숨겨집니다. 탭으로 레벨을 전환하세요. 온디맨드 데이터 조회는 이루어지지 않습니다.",
+      "chartRefresh": "새로고침",
+      "chartEmpty": "아직 가져온 캔들 데이터가 없습니다. 위 카드에서 레벨 데이터를 먼저 업데이트하세요.",
+      "chartLoadFailed": "캔들 차트를 불러오지 못했습니다. 다시 시도하세요"
     },
     "status": {
       "pending": "대기 중",

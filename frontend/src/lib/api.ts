@@ -996,6 +996,17 @@ export const api = {
     request<WatchKlineStatusResponse>(
       `/watch/${encodeURIComponent(symbol)}/kline/status`,
     ),
+  getWatchKlineBars: (
+    symbol: string,
+    interval: WatchKlineInterval,
+    limit?: number,
+  ) => {
+    const params = new URLSearchParams({ interval });
+    if (limit) params.set("limit", String(limit));
+    return request<WatchKlineBarsResponse>(
+      `/watch/${encodeURIComponent(symbol)}/kline/bars?${params.toString()}`,
+    );
+  },
   getWatchKlineSources: (symbol: string) =>
     request<WatchKlineSourcesResponse>(
       `/watch/${encodeURIComponent(symbol)}/kline/sources`,
@@ -2664,4 +2675,11 @@ export interface WatchKlineStatusResponse {
     threshold_date: string | null;
     source: string;
   };
+}
+
+export interface WatchKlineBarsResponse {
+  symbol: string;
+  interval: WatchKlineInterval;
+  /** Stored OHLCV bars in ascending time order (empty when never fetched). */
+  items: PriceBar[];
 }

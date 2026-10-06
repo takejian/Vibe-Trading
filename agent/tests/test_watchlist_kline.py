@@ -341,6 +341,65 @@ def test_status_endpoint_reports_not_fetched_initially(client):
     assert body["market_ref"]["source"]
 
 
+def test_bars_endpoint_returns_stored_bars(client):
+    test_client, _ = client
+    upd = test_client.post(
+        "/watch/600519.SH/kline/update",
+        json={"intervals": ["1d", "30m"]},
+    )
+    assert upd.status_code == 200
+
+    resp = test_client.get(
+        "/watch/600519.SH/kline/bars", params={"interval": "1d"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "600519.SH"
+    assert body["interval"] == "1d"
+    assert len(body["items"]) == 130
+    assert set(body["items"][0]) == {
+        "time", "open", "high", "low", "close", "volume", "amount"
+    }
+    # Ascending time order (oldest -> newest) like list_kline_bars.
+    times = [item["time"] for item in body["items"]]
+    assert times == sorted(times)
+
+    resp30 = test_client.get(
+        "/watch/600519.SH/kline/bars", params={"interval": "30m"}
+    )
+    assert resp30.status_code == 200
+    assert resp30.json()["items"][0]["time"].endswith("10:00:00")
+
+
+def test_bars_endpoint_level_without_rows_returns_empty(client):
+    test_client, _ = client
+    resp = test_client.get(
+        "/watch/600519.SH/kline/bars", params={"interval": "1w"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+def test_bars_endpoint_rejects_unknown_interval(client):
+    test_client, _ = client
+    resp = test_client.get(
+        "/watch/600519.SH/kline/bars", params={"interval": "2m"}
+    )
+    assert resp.status_code == 400
+
+
+def test_bars_endpoint_honors_limit(client):
+    test_client, _ = client
+    test_client.post(
+        "/watch/600519.SH/kline/update", json={"intervals": ["1d"]}
+    )
+    resp = test_client.get(
+        "/watch/600519.SH/kline/bars",
+        params={"interval": "1d", "limit": 10},
+    )
+    assert len(resp.json()["items"]) == 10
+
+
 def test_update_partial_failure_returns_per_level_results(client):
     test_client, _ = client
     resp = test_client.post(

@@ -2357,7 +2357,12 @@
       "errorDialogHint": "Não foi possível obter os seguintes níveis. Os dados existentes foram mantidos. Troque de fonte de dados e tente novamente.",
       "errorDialogRequest": "Solicitação",
       "close": "Fechar",
-      "retryFailed": "Repetir níveis com falha"
+      "retryFailed": "Repetir níveis com falha",
+      "chartTitle": "Gráfico de candles multinível (Chanlun)",
+      "chartSubtitle": "Visualização somente leitura dos dados já obtidos — níveis sem dados ficam ocultos. Alterne os níveis pelas abas; não há busca sob demanda.",
+      "chartRefresh": "Atualizar",
+      "chartEmpty": "Ainda não há candles obtidos. Atualize primeiro os níveis no cartão acima.",
+      "chartLoadFailed": "Falha ao carregar o gráfico de candles; tente novamente"
     },
     "status": {
       "pending": "Pendente",

@@ -17,8 +17,11 @@ describe("MarkdownContent shared renderer", () => {
 
     const table = container.querySelector("table");
     expect(table).not.toBeNull();
-    // Horizontal scroll wrapper keeps wide tables inside the panel.
-    expect(table?.parentElement).toHaveClass("overflow-x-auto");
+    // Tables fit the page width with a fixed layout and wrap cell text
+    // instead of forcing a horizontal scrollbar.
+    expect(table).toHaveClass("w-full", "table-fixed");
+    expect(table?.parentElement).toHaveClass("min-w-0", "max-w-full");
+    expect(table?.parentElement).not.toHaveClass("overflow-x-auto");
 
     const headers = Array.from(container.querySelectorAll("thead th"));
     expect(headers.map((th) => th.textContent)).toEqual([
@@ -96,5 +99,36 @@ describe("MarkdownContent shared renderer", () => {
     const fallback = container.querySelector(".whitespace-pre-wrap");
     expect(fallback).not.toBeNull();
     expect(fallback?.textContent).toBe("第一行\n第二行");
+  });
+
+  it("wraps fenced code blocks to the page width without horizontal scroll", () => {
+    const longLine = "x".repeat(300);
+    const markdown = "```text\n" + longLine + "\n```";
+    const { container } = render(<MarkdownContent content={markdown} />);
+
+    expect(container.querySelector("pre")).not.toBeNull();
+    // The wrapping rules are emitted as arbitrary variants on the prose
+    // container targeting pre (Tailwind generates descendant selectors).
+    const prose = container.querySelector(".prose");
+    expect(prose?.className).toContain("[&_pre]:whitespace-pre-wrap");
+    expect(prose?.className).toContain("[&_pre]:overflow-x-hidden");
+  });
+
+  it("breaks long unbroken words and URLs in body text", () => {
+    const markdown =
+      "详情见 https://example.com/" + "a".repeat(200) + " 这是正常文本。";
+    const { container } = render(<MarkdownContent content={markdown} />);
+
+    const prose = container.querySelector(".prose");
+    expect(prose).toHaveClass("break-words", "min-w-0");
+  });
+
+  it("allows inline code tokens to wrap", () => {
+    const markdown = "令牌 `" + "a".repeat(200) + "` 已失效。";
+    const { container } = render(<MarkdownContent content={markdown} />);
+
+    expect(container.querySelector("p code")).not.toBeNull();
+    const prose = container.querySelector(".prose");
+    expect(prose?.className).toContain("[&_code]:[overflow-wrap:anywhere]");
   });
 });

@@ -489,6 +489,46 @@ def register_watchlist_routes(app: FastAPI) -> None:
         with _db_connection() as conn:
             return watch_kline.list_level_states(symbol, conn)
 
+    @app.get(
+        "/watch/{symbol}/kline/bars",
+        dependencies=[Depends(require_auth)],
+    )
+    def kline_bars(
+        symbol: str,
+        interval: str = Query(..., max_length=10),
+        limit: int = Query(2000, ge=1, le=10_000),
+    ) -> dict[str, Any]:
+        # Read-only view of ALREADY FETCHED bars for the Chanlun multi-level
+        # K-line chart — never triggers a network fetch. Levels without
+        # stored rows come back with an empty ``items`` list; the UI hides
+        # such levels instead of requesting data on demand.
+        symbol = _symbol_or_400(symbol)
+        try:
+            (normalized_interval,) = watch_kline.normalize_intervals([interval])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        with _db_connection() as conn:
+            rows = watch_db.list_kline_bars(
+                symbol, normalized_interval, conn=conn
+            )
+        items = [
+            {
+                "time": row["trade_date"],
+                "open": row.get("open"),
+                "high": row.get("high"),
+                "low": row.get("low"),
+                "close": row.get("close"),
+                "volume": row.get("volume"),
+                "amount": row.get("amount"),
+            }
+            for row in rows[-limit:]
+        ]
+        return {
+            "symbol": symbol,
+            "interval": normalized_interval,
+            "items": items,
+        }
+
     @app.post(
         "/watch/{symbol}/kline/update",
         dependencies=[Depends(require_auth)],

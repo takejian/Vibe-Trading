@@ -308,6 +308,46 @@ agents:
       - Cross-level pivot resonance (中枢共振) and aligned divergence are the
         strongest setups; opposing levels = stand aside
 
+      ### Graphical readout (required — the web history view renders GFM Markdown)
+      - Reports are shown to investors through a GitHub-flavoured Markdown
+        viewer (tables, fenced code blocks with highlighting, formulas).
+        Every report MUST therefore embed ASCII/Unicode structure diagrams
+        inside ```text fenced code blocks so the trend, pivots and
+        buy/sell points are visually obvious. Do NOT use external image
+        links and do NOT rely on mermaid (the viewer does not render it).
+      - Required diagrams (keep every column monospace-aligned):
+        * **走势笔图（以笔为核心，必须画出该走势图的全部笔）** for the
+          at-level ({timeframe}) and one-above level: the diagram is built
+          around the bi (strokes), not pivot boxes — draw EVERY completed
+          bi of the displayed trend segment end-to-end as a connected
+          zigzag (╱ up / ╲ down, or ↗ / ↘ in compact form), one ● node
+          per bi endpoint with its price; when there are more bi than fit
+          a single grid, give (i) a full-window compact one-line bi chain
+          that lists 100% of the bi with dates and prices
+          （如 `23.76 ↗ 27.68 ↘ 25.00 ↗ …`), AND (ii) a price-axis grid
+          for the current trend leg where every bi is again shown.
+          The polyline MUST be gap-free: rasterize the whole node chain as
+          one continuous line — flat runs use '─', steep runs fill '│',
+          diagonals use '╱'/'╲' (use '╌'/'╎' for the unfinished bi), so
+          every node visibly joins both its neighbours; strokes overwrite
+          the pivot shading (a bi crossing a pivot must never show a
+          broken line). Overlay the active pivots as ZG/ZZ/ZD horizontal
+          bands behind the bi line; place markers exactly on the bi
+          endpoints — ▲1买 / ▲2买 / ▲3买 at buy points,
+          ▼1卖 / ▼2卖 / ▼3卖 at sell points, ✖ at the invalidation/stop
+          price; mark the latest price with a dotted「现价」line and draw
+          the unfinished bi with a dashed line.
+          No bi of the segment may be skipped or summarized.
+        * **多级别买卖点全景图**: one compact ASCII ladder that aligns the
+          three levels (one above / at / one below), each row showing the
+          level name, pivot ZD–ZG band, current price position, and its
+          active buy/sell marker with trigger and invalidation prices.
+      - Diagram discipline: every price drawn in a diagram MUST also appear
+        in the surrounding tables or text, and every one of those prices
+        must be derived from the retrieved bars / computed MACD areas — a
+        diagram never introduces a new number. When a level is a data blind
+        spot, draw its row as「数据盲区」instead of inventing a band.
+
       ### Elliott Wave cross-check (secondary)
       - Mapping: Chanlun trend with two+ shifted pivots ↔ 1–2–3–4–5 impulse;
         single-pivot chop ↔ wave 4 / ABC corrective work
@@ -322,7 +362,9 @@ agents:
       ## Required outputs
       1. **Structure read** — per level (above / at / below {timeframe}):
          trend or consolidation, pivots count and direction, latest 6–8
-         completed bi/segment endpoints with prices and dates
+         completed bi/segment endpoints with prices and dates; include the
+         ASCII 走势结构示意图 (pivot bands + bi arrows + 现价 marker) defined
+         in the Graphical readout section
       2. **Active pivots** — ZG / ZD / ZZ / GG / DD per level, age in bi,
          state (oscillation / extension / expansion / breakout), price's
          current location relative to the edges
@@ -330,7 +372,9 @@ agents:
          area comparison with actual numbers, fractal confirmation yes/no,
          区间套 multi-level confirmation yes/no
       4. **Buy/sell points** — 1st/2nd/3rd class points per level with
-         trigger and invalidation prices; "none" where absent, no guessing
+         trigger and invalidation prices; "none" where absent, no guessing;
+         include the ASCII 多级别买卖点全景图 ladder with ▲/▼ markers and ✖
+         invalidation prices defined in the Graphical readout section
       5. **Multi-level plan** — higher-level regime, lower-level entry
          timing, trigger prices, stop and target (next pivot edge / measured
          bi), or explicit stand-aside when levels oppose

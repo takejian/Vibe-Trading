@@ -199,17 +199,24 @@ function FragmentRow({
           <td />
           <td colSpan={4} className="px-3 py-3">
             {row.structured ? (
-              <dl className="grid gap-3">
-                {CHANLUN_DIMENSIONS.map((dim) => (
-                  <div key={dim.key}>
-                    <dt className="text-xs font-semibold text-muted-foreground">
-                      {dim.zh} <span className="opacity-70">/ {dim.en}</span>
-                    </dt>
-                    <dd className="mt-0.5 whitespace-pre-wrap text-sm">
-                      {String(row[dim.key] ?? "") || t("watch.noData")}
-                    </dd>
-                  </div>
-                ))}
+              <dl className="grid gap-4">
+                {CHANLUN_DIMENSIONS.map((dim) => {
+                  const content = String(row[dim.key] ?? "");
+                  return (
+                    <div key={dim.key}>
+                      <dt className="mb-1 text-xs font-semibold text-muted-foreground">
+                        {dim.zh} <span className="opacity-70">/ {dim.en}</span>
+                      </dt>
+                      <dd className="mt-0.5 text-sm">
+                        {content ? (
+                          <MarkdownContent content={content} />
+                        ) : (
+                          <span className="text-muted-foreground">{t("watch.noData")}</span>
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
               </dl>
             ) : (
               <div>

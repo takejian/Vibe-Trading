@@ -31,9 +31,11 @@ const rehypePlugins: ReactMarkdownOptions["rehypePlugins"] = [
 const markdownComponents: ReactMarkdownOptions["components"] = {
   table: ({ node, ...props }) => {
     void node;
+    // Fit the page width and wrap cell text instead of forcing horizontal
+    // scrolling; GFM column alignment is preserved by the cell text-align.
     return (
-      <div className="overflow-x-auto">
-        <table {...props} />
+      <div className="min-w-0 max-w-full">
+        <table className="w-full table-fixed" {...props} />
       </div>
     );
   },
@@ -46,8 +48,14 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
 // Normalized business-document typography. Tables get explicit borders,
 // header background, cell padding and left-aligned headers; GFM column
 // alignment is preserved natively by the rendered align attribute.
+//
+// Every element wraps to the page width: long words/URLs break (break-words),
+// fenced code blocks wrap instead of scrolling (pre-wrap + overflow-wrap:
+// anywhere), and fixed-layout tables wrap cell text. min-w-0 lets the prose
+// shrink inside flex/grid parents.
 const proseClassName =
-  "prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed " +
+  "prose prose-sm dark:prose-invert max-w-none min-w-0 break-words " +
+  "text-[15px] leading-relaxed " +
   "prose-p:font-serif prose-p:text-[15.5px] prose-p:leading-[1.75] " +
   "prose-li:font-serif prose-li:text-[15.5px] prose-li:leading-[1.75] " +
   "prose-headings:font-sans prose-table:font-sans prose-code:font-mono " +
@@ -55,6 +63,9 @@ const proseClassName =
   "prose-table:border prose-table:border-border/50 " +
   "prose-th:bg-muted/30 prose-th:px-3 prose-th:py-1.5 prose-td:px-3 prose-td:py-1.5 " +
   "prose-th:text-left prose-th:text-xs prose-th:font-medium prose-td:text-xs " +
+  "[&_th]:align-top [&_td]:align-top " +
+  "[&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] " +
+  "[&_pre]:overflow-x-hidden [&_code]:[overflow-wrap:anywhere] " +
   "prose-hr:hidden";
 
 interface MarkdownErrorBoundaryProps {
@@ -84,7 +95,7 @@ export class MarkdownErrorBoundary extends Component<
 
   render() {
     if (this.state.failed) {
-      return <span className="whitespace-pre-wrap">{this.props.content}</span>;
+      return <span className="whitespace-pre-wrap break-words">{this.props.content}</span>;
     }
     return this.props.children;
   }

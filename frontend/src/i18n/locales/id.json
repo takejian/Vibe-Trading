@@ -2357,7 +2357,12 @@
       "errorDialogHint": "Level berikut gagal diambil. Data lama tetap dipertahankan. Ganti sumber data dan coba lagi.",
       "errorDialogRequest": "Permintaan",
       "close": "Tutup",
-      "retryFailed": "Coba ulang level yang gagal"
+      "retryFailed": "Coba ulang level yang gagal",
+      "chartTitle": "Grafik candlestick multi-level (Chanlun)",
+      "chartSubtitle": "Tampilan baca-saja dari data yang sudah diambil — level tanpa data disembunyikan. Beralih level melalui tab; tidak ada pengambilan data sesuai permintaan.",
+      "chartRefresh": "Muat ulang",
+      "chartEmpty": "Belum ada candlestick yang diambil. Perbarui terlebih dahulu level-level pada kartu di atas.",
+      "chartLoadFailed": "Gagal memuat grafik candlestick, silakan coba lagi"
     },
     "status": {
       "pending": "Menunggu",

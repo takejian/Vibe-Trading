@@ -15,6 +15,7 @@ import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { AnalysisTab } from "@/components/watch/AnalysisTab";
 import { ChanlunHistory } from "@/components/watch/ChanlunHistory";
 import { KlineReadinessCard } from "@/components/watch/KlineReadinessCard";
+import { KlineChartPanel } from "@/components/watch/KlineChartPanel";
 
 type TabKey = "overview" | "objective" | "fundamental" | "technical" | "ai";
 const TABS: TabKey[] = ["overview", "objective", "fundamental", "technical", "ai"];
@@ -332,6 +333,7 @@ export function WatchDetail() {
             symbolName={name}
             onGotoObjective={() => setTab("objective")}
           />
+          <KlineChartPanel symbol={symbol} />
           <ChanlunHistory symbol={symbol} />
         </div>
       )}
