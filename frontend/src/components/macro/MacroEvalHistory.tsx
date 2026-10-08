@@ -359,7 +359,7 @@ export function MacroEvalHistory({
           </div>
 
           <div className="mt-3 overflow-x-auto rounded-lg border border-border/60">
-            <table className="w-full min-w-[720px] text-left text-xs">
+            <table className="w-full min-w-[820px] text-left text-xs">
               <thead className="bg-accent/40 text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2" />
@@ -367,6 +367,9 @@ export function MacroEvalHistory({
                     <>
                       <th className="px-3 py-2 font-medium">
                         {t("macro.evalHistory.colCreatedAt")}
+                      </th>
+                      <th className="px-3 py-2 font-medium">
+                        {t("macro.evalHistory.colTeamPreset")}
                       </th>
                       <th className="px-3 py-2 font-medium">
                         {t("macro.evalHistory.colTarget")}
@@ -446,6 +449,9 @@ export function MacroEvalHistory({
                               ? new Date(record.createdAt).toLocaleString()
                               : "-"}
                           </td>
+                          <td className="px-3 py-2 font-mono text-foreground">
+                            {record.presetName || "-"}
+                          </td>
                           <td className="px-3 py-2">{record.target || "-"}</td>
                           <td
                             className="max-w-[14rem] truncate px-3 py-2"
@@ -500,7 +506,7 @@ export function MacroEvalHistory({
                 {visible.length === 0 && (
                   <tr>
                     <td
-                      colSpan={variant === "team" ? 7 : 8}
+                      colSpan={8}
                       className="px-3 py-6 text-center text-muted-foreground"
                     >
                       {records.length === 0

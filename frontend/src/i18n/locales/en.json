@@ -1987,6 +1987,7 @@
       "agentFilterChip": "Showing only runs involving agent \"{{name}}\"",
       "agentFilterClear": "Clear agent filter",
       "colCreatedAt": "Created at",
+      "colTeamPreset": "Team preset",
       "colQuestion": "Research question",
       "colDate": "Date",
       "colRole": "Role",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "My evaluations"
     },
     "form": {
       "name": "Role name (globally unique)",

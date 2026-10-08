@@ -18,8 +18,10 @@ import {
 } from "@/lib/api";
 import { RunView } from "@/components/swarm/RunView";
 import { HistoryList, type HistoryFilters } from "@/components/swarm/HistoryList";
+import { MacroEvalHistory } from "@/components/macro/MacroEvalHistory";
+import { useMacroEvalData } from "@/components/macro/macroEvalRecords";
 
-type View = "list" | "detail" | "run";
+type View = "list" | "detail" | "run" | "myEvals";
 type DetailTab = "profile" | "run" | "history";
 
 const NAME_MAX = 80;
@@ -442,6 +444,13 @@ export function RoleSquare() {
   const [historyError, setHistoryError] = useState("");
 
   const [activeRunId, setActiveRunId] = useState("");
+  const [runReturnTo, setRunReturnTo] = useState<View>("detail");
+  const evalData = useMacroEvalData();
+  // "我的评估": standalone role runs across ALL roles (not macro-only).
+  const myEvalRecords = useMemo(
+    () => evalData.records.filter((record) => record.kind === "role_run"),
+    [evalData.records],
+  );
 
   const loadList = useCallback(async () => {
     setListLoading(true);
@@ -656,6 +665,7 @@ export function RoleSquare() {
         question: runQuestion.trim(),
       });
       setActiveRunId(run.id);
+      setRunReturnTo("detail");
       setView("run");
     } catch (err) {
       setRunError(err instanceof Error ? err.message : t("roleSquare.run.launchFailed"));
@@ -674,9 +684,10 @@ export function RoleSquare() {
         <RunView
           runId={activeRunId}
           onBack={() => {
+            const origin = runReturnTo;
             setActiveRunId("");
-            setView("detail");
-            if (profile) void loadHistory(profile.ref);
+            setView(origin);
+            if (origin === "detail" && profile) void loadHistory(profile.ref);
           }}
         />
       </div>
@@ -965,6 +976,44 @@ export function RoleSquare() {
   }
 
   // -----------------------------------------------------------------
+  // My evaluations view
+  // -----------------------------------------------------------------
+
+  if (view === "myEvals") {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-8" data-testid="role-square-page">
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              data-testid="my-evals-back"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              ← {t("roleSquare.detail.backToList")}
+            </button>
+            <h1 className="mt-1 font-serif text-2xl text-foreground">
+              {t("roleSquare.tabs.myEvaluations")}
+            </h1>
+          </div>
+        </header>
+        <MacroEvalHistory
+          records={myEvalRecords}
+          loading={evalData.loading}
+          error={evalData.error}
+          testId="my-evaluations-history"
+          variant="role"
+          onView={(record) => {
+            setActiveRunId(record.runId);
+            setRunReturnTo("myEvals");
+            setView("run");
+          }}
+        />
+      </div>
+    );
+  }
+
+  // -----------------------------------------------------------------
   // List view
   // -----------------------------------------------------------------
 
@@ -979,15 +1028,25 @@ export function RoleSquare() {
             {t("roleSquare.subtitle")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={startCreate}
-          data-testid="create-role-btn"
-          className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-sm text-background"
-        >
-          <Plus className="h-4 w-4" />
-          {t("roleSquare.list.create")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setView("myEvals")}
+            data-testid="my-evaluations-btn"
+            className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-foreground hover:bg-accent"
+          >
+            {t("roleSquare.tabs.myEvaluations")}
+          </button>
+          <button
+            type="button"
+            onClick={startCreate}
+            data-testid="create-role-btn"
+            className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-sm text-background"
+          >
+            <Plus className="h-4 w-4" />
+            {t("roleSquare.list.create")}
+          </button>
+        </div>
       </header>
 
       {listLoading ? (

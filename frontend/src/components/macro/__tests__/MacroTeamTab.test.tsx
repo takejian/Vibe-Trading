@@ -307,6 +307,11 @@ describe("MacroTeamTab", () => {
         "macro-team-history-row-team-run-9#task-a",
       ),
     ).not.toBeInTheDocument();
+    // Preset column identifies which macro team each run used.
+    expect(within(history).getByText("Team preset")).toBeInTheDocument();
+    expect(
+      within(history).getAllByText("macro_strategy_forum").length,
+    ).toBeGreaterThan(0);
 
     await user.type(
       within(history).getByTestId("macro-team-history-search-keyword"),

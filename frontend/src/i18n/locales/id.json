@@ -1987,6 +1987,7 @@
       "agentFilterChip": "Hanya run yang melibatkan agen \"{{name}}\"",
       "agentFilterClear": "Hapus filter agen",
       "colCreatedAt": "Dibuat pada",
+      "colTeamPreset": "Preset tim",
       "colQuestion": "Pertanyaan riset",
       "colDate": "Tanggal",
       "colRole": "Peran",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "Evaluasi saya"
     },
     "form": {
       "name": "Role name (globally unique)",

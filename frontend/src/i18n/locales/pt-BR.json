@@ -1987,6 +1987,7 @@
       "agentFilterChip": "Apenas execuções com o agente \"{{name}}\"",
       "agentFilterClear": "Limpar filtro de agente",
       "colCreatedAt": "Criado em",
+      "colTeamPreset": "Predefinição da equipe",
       "colQuestion": "Pergunta de pesquisa",
       "colDate": "Data",
       "colRole": "Papel",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "Minhas avaliações"
     },
     "form": {
       "name": "Role name (globally unique)",

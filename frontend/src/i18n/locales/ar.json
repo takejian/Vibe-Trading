@@ -1987,6 +1987,7 @@
       "agentFilterChip": "عرض مرات التشغيل التي شارك فيها الوكيل «{{name}}» فقط",
       "agentFilterClear": "إزالة تصفية الوكيل",
       "colCreatedAt": "وقت الإنشاء",
+      "colTeamPreset": "الفريق المُعد مسبقًا",
       "colQuestion": "سؤال البحث",
       "colDate": "التاريخ",
       "colRole": "الدور",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "تقييماتي"
     },
     "form": {
       "name": "Role name (globally unique)",

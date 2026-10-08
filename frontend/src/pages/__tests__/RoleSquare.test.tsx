@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RoleSquare } from "../RoleSquare";
@@ -29,7 +29,11 @@ const approveRole = vi.fn();
 const unapproveRole = vi.fn();
 const createRoleRun = vi.fn();
 const listRoleRuns = vi.fn();
+const listSwarmRuns = vi.fn();
 const getSwarmRun = vi.fn();
+const createSession = vi.fn();
+const sendMessage = vi.fn();
+const navigate = vi.fn();
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -47,12 +51,24 @@ vi.mock("@/lib/api", async () => {
       unapproveRole: (...args: unknown[]) => unapproveRole(...args),
       createRoleRun: (...args: unknown[]) => createRoleRun(...args),
       listRoleRuns: (...args: unknown[]) => listRoleRuns(...args),
+      listSwarmRuns: (...args: unknown[]) => listSwarmRuns(...args),
       getSwarmRun: (...args: unknown[]) => getSwarmRun(...args),
+      createSession: (...args: unknown[]) => createSession(...args),
+      sendMessage: (...args: unknown[]) => sendMessage(...args),
       swarmSseUrl: vi.fn(async () => "http://test/events"),
       cancelSwarmRun: vi.fn(async () => ({ status: "cancelled" })),
     },
   };
 });
+
+vi.mock("react-router", async () => {
+  const actual = await vi.importActual<typeof import("react-router")>(
+    "react-router",
+  );
+  return { ...actual, useNavigate: () => navigate };
+});
+
+import { resetMacroEvalCache } from "@/components/macro/macroEvalRecords";
 
 const GROUPS = {
   groups: [
@@ -137,7 +153,11 @@ beforeEach(() => {
     trial_role: ROLE_REF,
   });
   listRoleRuns.mockResolvedValue([]);
+  listSwarmRuns.mockResolvedValue([]);
+  createSession.mockResolvedValue({ session_id: "sess-my" });
+  sendMessage.mockResolvedValue({ message_id: "msg-my" });
   getSwarmRun.mockResolvedValue(COMPLETED_RUN);
+  resetMacroEvalCache();
 });
 
 async function openCustomRole() {
@@ -170,7 +190,7 @@ describe("RoleSquare list", () => {
   });
 
   it("shows the underlying error and retries successfully", async () => {
-    listRoleGroups.mockRejectedValueOnce(new Error("Server unreachable"));
+    listRoleGroups.mockRejectedValue(new Error("Server unreachable"));
     render(<RoleSquare />);
     await waitFor(() =>
       expect(screen.getByText("Server unreachable")).toBeInTheDocument(),
@@ -302,8 +322,8 @@ describe("RoleSquare history", () => {
     await openCustomRole();
 
     await userEvent.click(screen.getByTestId("role-tab-history"));
-    await waitFor(() => expect(listRoleRuns).toHaveBeenCalledTimes(1));
-    expect(listRoleRuns.mock.calls[0][0]).toMatchObject({
+    await waitFor(() => expect(listRoleRuns).toHaveBeenCalledTimes(2));
+    expect(listRoleRuns.mock.calls[1][0]).toMatchObject({
       roleRef: ROLE_REF,
       limit: 100,
     });
@@ -351,5 +371,78 @@ describe("RoleSquare operator actions", () => {
     await openCustomRole();
     await userEvent.click(screen.getByTestId("role-delete-btn"));
     expect(deleteCustomRole).not.toHaveBeenCalled();
+  });
+});
+
+const MY_RUN_SUMMARY = {
+  id: "role-run-7",
+  preset_name: `role:${ROLE_REF}`,
+  status: "completed" as const,
+  created_at: "2026-09-28T08:00:00+00:00",
+  completed_at: "2026-09-28T08:03:00+00:00",
+  research_target: "113001.SH",
+  research_question: "下修概率多大？",
+  final_report_excerpt: "下修概率较高",
+  kind: "role_run" as const,
+  trial_role: ROLE_REF,
+};
+
+describe("RoleSquare my evaluations", () => {
+  it("lists all standalone role runs with the macro role-record layout", async () => {
+    listRoleRuns.mockResolvedValue([MY_RUN_SUMMARY]);
+    render(<RoleSquare />);
+    await waitFor(() =>
+      expect(screen.getByTestId("role-groups")).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByTestId("my-evaluations-btn"));
+    const panel = await screen.findByTestId("my-evaluations-history");
+    expect(
+      await within(panel).findByTestId(
+        "my-evaluations-history-row-role-run-7",
+      ),
+    ).toBeInTheDocument();
+    expect(panel).toHaveTextContent("可转债狙击手");
+    expect(panel).toHaveTextContent("113001.SH");
+    expect(panel).toHaveTextContent("下修概率较高");
+
+    await userEvent.click(screen.getByTestId("my-evals-back"));
+    await screen.findByTestId("role-groups");
+  });
+
+  it("compares two checked role runs in a new AI session", async () => {
+    const secondSummary = {
+      ...MY_RUN_SUMMARY,
+      id: "role-run-8",
+      research_target: "128039.SH",
+      final_report_excerpt: "博弈价值充足",
+    };
+    listRoleRuns.mockResolvedValue([MY_RUN_SUMMARY, secondSummary]);
+    render(<RoleSquare />);
+    await screen.findByTestId("role-groups");
+
+    await userEvent.click(screen.getByTestId("my-evaluations-btn"));
+    const panel = await screen.findByTestId("my-evaluations-history");
+    await within(panel).findByTestId(
+      "my-evaluations-history-row-role-run-7",
+    );
+
+    for (const id of ["role-run-7", "role-run-8"]) {
+      await userEvent.click(
+        within(panel).getByTestId(
+          `my-evaluations-history-checkbox-${id}`,
+        ),
+      );
+    }
+    await userEvent.click(
+      within(panel).getByTestId("my-evaluations-history-compare"),
+    );
+
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    const prompt = sendMessage.mock.calls[0][1] as string;
+    expect(prompt).toContain("可转债狙击手");
+    expect(prompt).toContain("下修概率较高");
+    expect(prompt).toContain("博弈价值充足");
   });
 });

@@ -1987,6 +1987,7 @@
       "agentFilterChip": "\"{{name}}\" 에이전트가 참여한 실행만 표시",
       "agentFilterClear": "에이전트 필터 해제",
       "colCreatedAt": "생성 시각",
+      "colTeamPreset": "팀 프리셋",
       "colQuestion": "연구 주제",
       "colDate": "날짜",
       "colRole": "역할",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "내 평가"
     },
     "form": {
       "name": "Role name (globally unique)",

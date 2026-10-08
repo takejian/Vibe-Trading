@@ -1987,6 +1987,7 @@
       "agentFilterChip": "仅显示智能体「{{name}}」参与的评估记录",
       "agentFilterClear": "清除智能体筛选",
       "colCreatedAt": "创建时间",
+      "colTeamPreset": "团队预设",
       "colQuestion": "研究问题",
       "colDate": "日期",
       "colRole": "角色",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "角色档案",
       "run": "单独运行",
-      "history": "评估历史"
+      "history": "评估历史",
+      "myEvaluations": "我的评估"
     },
     "form": {
       "name": "角色名称（全局唯一）",

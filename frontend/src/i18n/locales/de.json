@@ -1987,6 +1987,7 @@
       "agentFilterChip": "Nur Läufe mit Agent \"{{name}}\"",
       "agentFilterClear": "Agenten-Filter aufheben",
       "colCreatedAt": "Erstellt am",
+      "colTeamPreset": "Team-Voreinstellung",
       "colQuestion": "Forschungsfrage",
       "colDate": "Datum",
       "colRole": "Rolle",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "Meine Bewertungen"
     },
     "form": {
       "name": "Role name (globally unique)",

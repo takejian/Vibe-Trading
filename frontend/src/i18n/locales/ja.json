@@ -1987,6 +1987,7 @@
       "agentFilterChip": "「{{name}}」が参加した実行のみ表示中",
       "agentFilterClear": "エージェント絞り込みを解除",
       "colCreatedAt": "作成日時",
+      "colTeamPreset": "チームプリセット",
       "colQuestion": "研究テーマ",
       "colDate": "日付",
       "colRole": "ロール",
@@ -2182,7 +2183,8 @@
     "tabs": {
       "profile": "Role profile",
       "run": "Standalone run",
-      "history": "Run history"
+      "history": "Run history",
+      "myEvaluations": "マイ評価"
     },
     "form": {
       "name": "Role name (globally unique)",

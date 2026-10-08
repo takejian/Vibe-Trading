@@ -121,6 +121,27 @@ async function loadMacroEvalData(): Promise<MacroEvalData> {
     records.push(record);
   };
 
+  // One row per team run, built directly from the run summaries returned by
+  // listSwarmRuns — identical to the orchestration page's "我的评估" tab, so
+  // the macro team history stays a real-time filtered view of the same data.
+  for (const summary of teamSummaries) {
+    push({
+      key: `${summary.id}#run`,
+      runId: summary.id,
+      kind: "team",
+      roleRef: roleRefOf(summary.preset_name, RUN_LEVEL_AGENT),
+      presetName: summary.preset_name,
+      agentId: RUN_LEVEL_AGENT,
+      roleName: summary.preset_name,
+      target: summary.research_target || "",
+      question: summary.research_question || "",
+      status: summary.status,
+      date: (summary.completed_at || summary.created_at || "").slice(0, 10),
+      createdAt: summary.created_at || "",
+      excerpt: extractLeadConclusion(summary.final_report_excerpt),
+    });
+  }
+
   for (const detail of details) {
     if (!detail) continue;
 
@@ -150,23 +171,6 @@ async function loadMacroEvalData(): Promise<MacroEvalData> {
       });
     }
 
-    // One run-level row per team run (mirrors the orchestration history):
-    // createdAt / target / question / status / final-report excerpt.
-    push({
-      key: `${detail.id}#run`,
-      runId: detail.id,
-      kind: "team",
-      roleRef: roleRefOf(detail.preset_name, RUN_LEVEL_AGENT),
-      presetName: detail.preset_name,
-      agentId: RUN_LEVEL_AGENT,
-      roleName: detail.preset_name,
-      target: detail.research_target || "",
-      question: detail.research_question || "",
-      status: detail.status,
-      date: (detail.completed_at || detail.created_at || "").slice(0, 10),
-      createdAt: detail.created_at || "",
-      excerpt: extractLeadConclusion(detail.final_report),
-    });
   }
 
   for (const summary of roleSummaries) {
