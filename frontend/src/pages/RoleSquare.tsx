@@ -28,6 +28,29 @@ const NAME_MAX = 80;
 const PURPOSE_MAX = 200;
 const PROMPT_MAX = 12000;
 
+// Mirrors PRESET_CATEGORY_ORDER in src/swarm/presets.py — keeps the Role
+// Square teams laid out in the same financial-research taxonomy order as the
+// swarm studio preset gallery.
+const CATEGORY_ORDER = [
+  "technical",
+  "fundamental",
+  "macro",
+  "quant",
+  "sentiment",
+  "event_driven",
+  "allocation",
+  "fixed_income_derivatives",
+  "alternatives",
+  "risk",
+  "other",
+] as const;
+const ALL_CATEGORIES = "all";
+
+function categoryRank(id: string): number {
+  const index = CATEGORY_ORDER.indexOf(id as (typeof CATEGORY_ORDER)[number]);
+  return index === -1 ? CATEGORY_ORDER.length : index;
+}
+
 // ---------------------------------------------------------------------------
 // Role create/edit form
 // ---------------------------------------------------------------------------
@@ -417,6 +440,7 @@ export function RoleSquare() {
 
   const [view, setView] = useState<View>("list");
   const [groups, setGroups] = useState<RoleGroup[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORIES);
   const [toolCatalog, setToolCatalog] = useState<string[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState("");
@@ -478,6 +502,28 @@ export function RoleSquare() {
   useEffect(() => {
     void loadList();
   }, [loadList]);
+
+  // Teams grouped by research category, in canonical category order; team
+  // order within a category preserves the preset-name sort from the backend.
+  const groupsByCategory = useMemo(() => {
+    const byCategory = new Map<string, RoleGroup[]>();
+    for (const group of groups) {
+      const category = group.category || "other";
+      const list = byCategory.get(category);
+      if (list) {
+        list.push(group);
+      } else {
+        byCategory.set(category, [group]);
+      }
+    }
+    return [...byCategory.entries()].sort(
+      ([a], [b]) => categoryRank(a) - categoryRank(b),
+    );
+  }, [groups]);
+
+  const visibleCategories = groupsByCategory.filter(
+    ([category]) => activeCategory === ALL_CATEGORIES || category === activeCategory,
+  );
 
   // Flat picker list: every built-in role plus approved custom roles.
   const templates = useMemo<RoleGroupItem[]>(() => {
@@ -1069,12 +1115,62 @@ export function RoleSquare() {
               </button>
             </div>
           )}
-          {groups.map((group) => (
-            <RoleGroupSection
-              key={group.ref}
-              group={group}
-              onOpen={(ref) => void openDetail(ref)}
-            />
+          {groupsByCategory.length > 1 && (
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label={t("swarmStudio.gallery.categoryFilterLabel")}
+              data-testid="role-category-filter"
+            >
+              <button
+                key={ALL_CATEGORIES}
+                type="button"
+                onClick={() => setActiveCategory(ALL_CATEGORIES)}
+                aria-pressed={activeCategory === ALL_CATEGORIES}
+                data-testid="role-filter-all"
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  activeCategory === ALL_CATEGORIES
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-muted-foreground hover:border-foreground/50"
+                }`}
+              >
+                {t("swarmStudio.gallery.allCategories")}
+              </button>
+              {groupsByCategory.map(([category, categoryGroups]) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setActiveCategory(category)}
+                  aria-pressed={activeCategory === category}
+                  data-testid={`role-filter-${category}`}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                    activeCategory === category
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-card text-muted-foreground hover:border-foreground/50"
+                  }`}
+                >
+                  {t(`swarmStudio.category.${category}`, { defaultValue: category })}
+                  <span className="ml-1 opacity-70">{categoryGroups.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {visibleCategories.map(([category, categoryGroups]) => (
+            <section key={category} data-testid={`role-category-${category}`}>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t(`swarmStudio.category.${category}`, { defaultValue: category })}
+              </h2>
+              <div className="space-y-4">
+                {categoryGroups.map((group) => (
+                  <RoleGroupSection
+                    key={group.ref}
+                    group={group}
+                    onOpen={(ref) => void openDetail(ref)}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from src.swarm.presets import list_presets, load_preset
+from src.swarm.presets import list_presets, load_preset, preset_category
 from src.swarm.roles import RoleStore
 
 SEPARATOR = ":"
@@ -69,9 +69,10 @@ def list_role_groups(store: RoleStore | None = None) -> dict:
 
         {"groups": [
             {"kind": "builtin", "ref": "<preset>", "title", "description",
-             "roles": [{ref, name, purpose, approved}]},
+             "category", "roles": [{ref, name, purpose, approved}]},
             ...,
             {"kind": "custom", "ref": "custom", "title": "自建角色",
+             "category": "other",
              "roles": [{ref, name, purpose, approved}]},
         ]}
     """
@@ -95,6 +96,9 @@ def list_role_groups(store: RoleStore | None = None) -> dict:
                 "description": str(
                     data.get("description", "") or summary.get("description", "")
                 ),
+                # Same financial-research taxonomy as the swarm studio preset
+                # gallery; the Role Square groups teams by the same categories.
+                "category": preset_category(preset_name, data),
                 "roles": roles,
             }
         )
@@ -115,6 +119,9 @@ def list_role_groups(store: RoleStore | None = None) -> dict:
             "ref": "custom",
             "title": "自建角色",
             "description": "",
+            # User-authored roles are not a standard research desk; they live
+            # under "other" and remain distinguishable by their own title.
+            "category": "other",
             "roles": custom_roles,
         }
     )

@@ -374,6 +374,12 @@ class SwarmRuntime:
                 str(role_run.get("target", "")),
                 str(role_run.get("question", "")),
             )
+            # Optional intra-agent resume: retry the role from its failed
+            # run's scratchpad checkpoint instead of iteration 0. The worker
+            # degrades to a full rerun when no usable checkpoint exists.
+            source_run_id = str(role_run.get("resume_from_run_id", "")).strip()
+            if source_run_id:
+                run.checkpoint_source_run_id = source_run_id
         elif custom_spec is not None:
             from src.swarm.custom_spec import build_run_from_custom_spec
 
@@ -1072,6 +1078,7 @@ class SwarmRuntime:
                     include_shell_tools=include_shell_tools,
                     grounding_block=grounding_block,
                     cancel_event=cancel_event,
+                    resume_source_run_id=run.checkpoint_source_run_id,
                 )
                 futures[future] = tid
                 per_task_budget = (
@@ -1134,6 +1141,7 @@ class SwarmRuntime:
         include_shell_tools: bool = False,
         grounding_block: str = "",
         cancel_event: threading.Event | None = None,
+        resume_source_run_id: str | None = None,
     ) -> WorkerResult:
         """Run a worker with automatic retry on failure.
 
@@ -1209,6 +1217,14 @@ class SwarmRuntime:
                 # real result.
                 clear_agent_artifacts(agent_artifact_dir(run_dir, agent_spec.id))
 
+            # Cross-run intra-agent resume source. Own-run checkpoints (from
+            # an earlier attempt) are resolved inside the worker itself, so
+            # this only points at the original failed run.
+            resume_source_dir = (
+                self._store.run_dir(resume_source_run_id)
+                if resume_source_run_id
+                else None
+            )
             result = run_worker(
                 agent_spec=agent_spec,
                 task=task,
@@ -1220,6 +1236,9 @@ class SwarmRuntime:
                 grounding_block=grounding_block,
                 agent_config=self._agent_config,
                 cancel_event=cancel_event,
+                resume_source_run_dir=(
+                    resume_source_dir if resume_source_dir and resume_source_dir.is_dir() else None
+                ),
             )
 
             cumulative_input_tokens += result.input_tokens

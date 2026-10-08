@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import threading
 import time
@@ -477,6 +478,166 @@ def clear_agent_artifacts(artifact_dir: Path) -> None:
         shutil.rmtree(artifact_dir)
 
 
+# ---------------------------------------------------------------------------
+# Worker scratchpad checkpoints (intra-agent resume)
+# ---------------------------------------------------------------------------
+
+# Files inside an agent artifact dir that describe the attempt itself rather
+# than work products the model produced; never carried across a cross-run
+# resume — they would substitute a stale deliverable for the new attempt's one.
+_RESUME_EXCLUDED_ARTIFACTS = {"summary.md", "messages.json", "report.md"}
+
+
+def worker_checkpoint_path(run_dir: Path, agent_id: str) -> Path:
+    """Return the scratchpad-checkpoint path for one agent of a run.
+
+    Checkpoints live *outside* ``artifacts/`` so that artifact cleanup (in-run
+    retries wipe the artifact dir) never destroys the resume point.
+    """
+    return run_dir / "checkpoints" / f"{agent_id}.json"
+
+
+def write_worker_checkpoint(
+    run_dir: Path,
+    agent_id: str,
+    messages: list[dict],
+    next_iteration: int,
+    data_tool_calls: int,
+) -> None:
+    """Atomically persist the worker scratchpad at a safe boundary.
+
+    Only called *after* a tool result has been appended, so every checkpoint
+    is a prefix of a legal message sequence up to a possibly-partial final
+    tool batch (repaired on load). A torn write (host killed mid-flush) cannot
+    corrupt the previous checkpoint: the write goes to a temp file in the
+    same directory and ``os.replace`` is atomic on POSIX and Windows.
+    """
+    payload = {
+        "messages": messages,
+        "next_iteration": int(next_iteration),
+        "data_tool_calls": int(data_tool_calls),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    path = worker_checkpoint_path(run_dir, agent_id)
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(
+            json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8"
+        )
+        os.replace(tmp, path)
+    except Exception:
+        logger.warning("Failed to write worker checkpoint %s", path, exc_info=True)
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def load_worker_checkpoint(run_dir: Path | None, agent_id: str) -> dict | None:
+    """Load a worker checkpoint, or ``None`` when absent/unusable.
+
+    Any read or parse failure degrades to ``None`` — callers then start the
+    worker from scratch, which is always the safe fallback.
+    """
+    if run_dir is None:
+        return None
+    path = worker_checkpoint_path(run_dir, agent_id)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        logger.warning("Discarding unreadable worker checkpoint %s", path, exc_info=True)
+        return None
+    messages = data.get("messages")
+    next_iteration = data.get("next_iteration")
+    if (
+        not isinstance(messages, list)
+        or not messages
+        or not isinstance(next_iteration, int)
+        or next_iteration < 0
+    ):
+        return None
+    return {
+        "messages": messages,
+        "next_iteration": next_iteration,
+        "data_tool_calls": int(data.get("data_tool_calls") or 0),
+    }
+
+
+def repair_checkpoint_messages(payload: dict) -> dict:
+    """Repair a checkpoint into a legal OpenAI message sequence.
+
+    If the host died while a multi-call tool batch was in flight, the trailing
+    assistant ``tool_calls`` message lacks tool results for one or more calls.
+    Providers reject such sequences ("tool_calls must be followed by tool
+    messages"). We truncate at that assistant message and re-run that same
+    iteration: the in-flight decision is redone, but every earlier iteration's
+    work survives. Auto-replaying the missing calls is deliberately avoided —
+    it is unsafe for non-idempotent tools (``bash``, ``write_file``) — so the
+    replay decision is left to the model with its full prior context.
+    """
+    messages = payload["messages"]
+    next_iteration = payload["next_iteration"]
+
+    # Locate the final assistant message that declares tool calls.
+    index: int | None = None
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("tool_calls"):
+            index = i
+            break
+    if index is None:
+        return payload
+
+    call_ids = {
+        tc.get("id")
+        for tc in messages[index].get("tool_calls", [])
+        if isinstance(tc, dict)
+    }
+    result_ids = {
+        m.get("tool_call_id")
+        for m in messages[index + 1:]
+        if isinstance(m, dict) and m.get("role") == "tool"
+    }
+    if call_ids and call_ids <= result_ids:
+        return payload  # complete batch — nothing dangling
+
+    # Partial batch (or malformed): drop the assistant message and everything
+    # after it, then re-run that same iteration index.
+    return {
+        **payload,
+        "messages": messages[:index],
+        "next_iteration": max(0, next_iteration - 1),
+    }
+
+
+def carry_resume_artifacts(source_run_dir: Path, target_dir: Path, agent_id: str) -> None:
+    """Copy a failed attempt's work products into the resumed attempt's dir.
+
+    Script/data files the model created before the crash stay usable (its
+    scratchpad references them). The attempt's terminal files are excluded so
+    a stale ``report.md`` can never masquerade as the new deliverable.
+    """
+    source = source_run_dir / "artifacts" / agent_id
+    if not source.is_dir():
+        return
+    for item in source.rglob("*"):
+        if not item.is_file() or item.name in _RESUME_EXCLUDED_ARTIFACTS:
+            continue
+        try:
+            relative = item.resolve().relative_to(source.resolve())
+        except (OSError, ValueError):
+            continue
+        destination = target_dir / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(item, destination)
+        except OSError:
+            logger.warning("Failed to carry resume artifact %s", item, exc_info=True)
+
+
 def run_worker(
     agent_spec: SwarmAgentSpec,
     task: SwarmTask,
@@ -488,6 +649,7 @@ def run_worker(
     grounding_block: str = "",
     agent_config: AgentConfig | None = None,
     cancel_event: threading.Event | None = None,
+    resume_source_run_dir: Path | None = None,
 ) -> WorkerResult:
     """Run one worker task, releasing the per-task LLM client on exit.
 
@@ -538,6 +700,7 @@ def run_worker(
             grounding_block=grounding_block,
             agent_config=agent_config,
             cancel_event=cancel_event,
+            resume_source_run_dir=resume_source_run_dir,
         )
     finally:
         llm.close()
@@ -556,6 +719,7 @@ def _run_worker_impl(
     *,
     llm: ChatLLM,
     cancel_event: threading.Event | None = None,
+    resume_source_run_dir: Path | None = None,
 ) -> WorkerResult:
     """Execute a single worker task using a lightweight ReAct loop.
 
@@ -667,6 +831,56 @@ def _run_worker_impl(
     consecutive_content_filter_count = 0
     stream_failure_streak = 0
 
+    # 7. Intra-agent resume. A prior attempt may have left a scratchpad
+    #    checkpoint: an earlier attempt of THIS run (in-run retries keep their
+    #    own checkpoint) or the failed run whose retry launched us. Own-run
+    #    checkpoints take precedence. Adoption requires byte-identical system
+    #    and user prompts — otherwise this is effectively a different
+    #    evaluation and a full rerun is correct.
+    start_iteration = 0
+    own_checkpoint = load_worker_checkpoint(run_dir, agent_id)
+    checkpoint = own_checkpoint
+    checkpoint_origin = "self"
+    if checkpoint is None and resume_source_run_dir is not None:
+        checkpoint = load_worker_checkpoint(resume_source_run_dir, agent_id)
+        checkpoint_origin = "source"
+    if checkpoint is not None:
+        checkpoint = repair_checkpoint_messages(checkpoint)
+        restored = checkpoint["messages"]
+        prompts_match = (
+            len(restored) >= 2
+            and restored[0].get("role") == "system"
+            and restored[0].get("content") == system_prompt
+            and restored[1].get("role") == "user"
+            and restored[1].get("content") == user_prompt
+        )
+        if prompts_match:
+            messages = restored
+            start_iteration = checkpoint["next_iteration"]
+            data_tool_calls = checkpoint["data_tool_calls"]
+            last_assistant_content = _best_summary(messages, "")
+            if checkpoint_origin == "source":
+                carry_resume_artifacts(resume_source_run_dir, artifact_dir, agent_id)
+            _emit(
+                event_callback,
+                "worker_resumed",
+                agent_id,
+                task_id,
+                {
+                    "iteration": start_iteration,
+                    "source_run_id": (
+                        resume_source_run_dir.name
+                        if checkpoint_origin == "source"
+                        else run_dir.name
+                    ),
+                },
+            )
+        else:
+            logger.info(
+                "Worker checkpoint prompts differ from current role/task; "
+                "starting from scratch"
+            )
+
     def _return_timeout(elapsed: float) -> WorkerResult:
         """Finalize and return a timeout result (loop-top or mid-stream).
 
@@ -695,7 +909,13 @@ def _run_worker_impl(
             ),
         )
 
-    for iteration in range(max_iterations):
+    # Defensive: a repaired checkpoint can never point past the final
+    # iteration legally, but if one does, grant a single tool-less final turn
+    # so the role gets a chance to answer instead of an instant "limit" fail.
+    if start_iteration >= max_iterations:
+        start_iteration = max_iterations - 1
+
+    for iteration in range(start_iteration, max_iterations):
         # Microcompact: clear old tool results to prevent token bloat
         tool_msgs = [m for m in messages if m.get("role") == "tool"]
         if len(tool_msgs) > _KEEP_RECENT_TOOLS:
@@ -1105,6 +1325,16 @@ def _run_worker_impl(
                 ContextBuilder.format_tool_result(
                     tc.id, tc.name, truncate_tool_result(result)
                 )
+            )
+            # Safe boundary: persist the scratchpad after every completed
+            # tool result, so a host that dies here resumes at (or just
+            # before) this exact point instead of iteration 0.
+            write_worker_checkpoint(
+                run_dir,
+                agent_id,
+                messages,
+                iteration + 1,
+                data_tool_calls,
             )
 
     # Content filter ratio tracking

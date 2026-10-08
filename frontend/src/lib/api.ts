@@ -1278,6 +1278,8 @@ export interface RoleGroup {
   ref: string;
   title: string;
   description: string;
+  /** Research category id; see swarmStudio.category.* i18n keys. */
+  category: string;
   roles: RoleGroupItem[];
 }
 
@@ -1376,6 +1378,7 @@ export interface SwarmRunDetail {
   research_question?: string | null;
   kind?: string;
   trial_skill?: string | null;
+  trial_role?: string | null;
 }
 
 export interface LLMProviderOption {

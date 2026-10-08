@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import {
   ApiError,
   api,
@@ -34,6 +34,7 @@ export function AnalysisTab({
   const [roleRef, setRoleRef] = useState("");
   const [question, setQuestion] = useState("");
   const [starting, setStarting] = useState(false);
+  const [retryingId, setRetryingId] = useState("");
   const [error409, setError409] = useState(false);
   const [errorOther, setErrorOther] = useState("");
   const [activeRunId, setActiveRunId] = useState("");
@@ -143,6 +144,19 @@ export function AnalysisTab({
       }
     } finally {
       setStarting(false);
+    }
+  };
+
+  const retryItem = async (item: WatchAnalysisSummary) => {
+    setRetryingId(item.id);
+    try {
+      // Backend replays the same single-role evaluation and returns the
+      // new run; opening it subscribes to the live SSE stream.
+      const retried = await api.retrySwarmRun(item.id);
+      setActiveRunId(retried.id);
+      setActiveRunReadOnly(false);
+    } catch {
+      setRetryingId("");
     }
   };
 
@@ -378,6 +392,23 @@ export function AnalysisTab({
                               </span>
                             )}
                           </button>
+                          {item.status === "failed" && (
+                            <button
+                              type="button"
+                              className="shrink-0 rounded border border-primary/40 px-2 py-0.5 text-xs text-primary hover:underline disabled:opacity-40"
+                              data-testid={`retry-analysis-link-${item.id}`}
+                              aria-label={t("watch.an.retry")}
+                              disabled={retryingId === item.id}
+                              onClick={() => void retryItem(item)}
+                            >
+                              {retryingId === item.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                              ) : (
+                                <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                              )}
+                              {t("watch.an.retry")}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="ml-auto shrink-0 rounded border border-primary/40 px-2 py-0.5 text-xs text-primary hover:underline"

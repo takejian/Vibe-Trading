@@ -384,6 +384,7 @@ def register_swarm_routes(
         try:
             trial_kwargs: dict[str, Any] = {}
             is_trial = getattr(reconciled, "kind", "team") == "skill_trial"
+            is_role = getattr(reconciled, "kind", "team") == "role_run"
             if is_trial:
                 # Re-run the same standalone skill trial; resume is not
                 # meaningful for a single-node graph.
@@ -392,11 +393,30 @@ def register_swarm_routes(
                     "target": reconciled.research_target,
                     "question": reconciled.research_question,
                 }
+            elif is_role:
+                # Re-run the same standalone single-role evaluation (Role
+                # Square / watch agent roles). The single-node graph makes
+                # DAG-level resume meaningless, but intra-agent resume
+                # applies: point the new run at the failed run's worker
+                # scratchpad checkpoint, so only the in-flight iteration is
+                # redone (full rerun when no checkpoint exists). Fall back
+                # to user_vars for records written before role metadata was
+                # captured on the run.
+                fallback_vars = reconciled.user_vars or {}
+                trial_kwargs["role_run"] = {
+                    "role_ref": reconciled.trial_role,
+                    "target": reconciled.research_target or fallback_vars.get("target", ""),
+                    "question": reconciled.research_question
+                    or fallback_vars.get("question", ""),
+                    "resume_from_run_id": run_id,
+                }
             new_run = runtime.start_run(
                 reconciled.preset_name,
                 reconciled.user_vars or {},
                 include_shell_tools=_host_shell_tools_enabled_for_request(http_request),
-                resume_from=(reconciled if resume and not is_trial else None),
+                resume_from=(
+                    reconciled if resume and not is_trial and not is_role else None
+                ),
                 **trial_kwargs,
             )
             return {

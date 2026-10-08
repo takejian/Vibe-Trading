@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, RotateCcw, XCircle } from "lucide-react";
 import { api, type SwarmRunDetail } from "@/lib/api";
 import {
   computeLayers,
@@ -59,14 +59,22 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [cancelling, setCancelling] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
   const panelBodyId = useId();
 
+  // A retry creates a brand-new run; track the displayed id internally so
+  // the view can switch to it without the parent re-mounting the component.
+  const [currentRunId, setCurrentRunId] = useState(runId);
+  useEffect(() => {
+    setCurrentRunId(runId);
+  }, [runId]);
+
   const refresh = useCallback(async () => {
-    const run = await api.getSwarmRun(runId);
+    const run = await api.getSwarmRun(currentRunId);
     setDetail(run);
     return run;
-  }, [runId]);
+  }, [currentRunId]);
 
   useEffect(() => {
     let disposed = false;
@@ -74,7 +82,7 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
       .then((run) => {
         if (disposed || readOnly) return;
         if (!ACTIVE_STATUSES.has(run.status)) return;
-        api.swarmSseUrl(runId).then((url) => {
+        api.swarmSseUrl(currentRunId).then((url) => {
           if (disposed) return;
           const source = new EventSource(url);
           sourceRef.current = source;
@@ -126,6 +134,14 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
             const d = JSON.parse((ev as MessageEvent).data);
             addNote(d.agent_id, t("swarmStudio.run.timeoutHint"));
           });
+          source.addEventListener("worker_resumed", (ev) => {
+            const d = JSON.parse((ev as MessageEvent).data);
+            mark(d.agent_id, "running");
+            addNote(
+              d.agent_id,
+              t("swarmStudio.run.resumedHint", { iteration: d.iteration ?? 0 }),
+            );
+          });
           source.addEventListener("done", () => {
             source.close();
             sourceRef.current = null;
@@ -145,7 +161,7 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
       sourceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, readOnly]);
+  }, [currentRunId, readOnly]);
 
   const graph = useMemo(() => {
     if (!detail) return { nodes: [], edges: [] as FlowEdge[], finalAgentId: null as string | null };
@@ -226,6 +242,22 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
     }
   };
 
+  const handleRetry = async () => {
+    if (!detail) return;
+    setRetrying(true);
+    try {
+      // Backend re-runs the same preset/role/trial definition and returns
+      // the new run; switching the displayed id re-triggers SSE subscription.
+      const retried = await api.retrySwarmRun(detail.id);
+      setLiveStatus({});
+      setNotes([]);
+      setSelectedId(null);
+      setCurrentRunId(retried.id);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   if (loadError) {
     return (
       <div className="p-8 text-sm text-destructive" data-testid="run-view-error">
@@ -269,18 +301,38 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
             </p>
           </div>
         </div>
-        {!readOnly && active && (
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={cancelling}
-            data-testid="cancel-run-btn"
-            className="inline-flex items-center gap-1.5 rounded border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 dark:border-red-800 dark:hover:bg-red-950/40"
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            {t("swarmStudio.run.cancel")}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {detail.status === "failed" && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              data-testid="retry-run-btn"
+              className="inline-flex items-center gap-1.5 rounded border border-primary/50 px-3 py-1.5 text-xs text-primary hover:bg-primary/10 disabled:opacity-40"
+            >
+              {retrying ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              {retrying
+                ? t("swarmStudio.run.retrying")
+                : t("swarmStudio.run.retry")}
+            </button>
+          )}
+          {!readOnly && active && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={cancelling}
+              data-testid="cancel-run-btn"
+              className="inline-flex items-center gap-1.5 rounded border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 dark:border-red-800 dark:hover:bg-red-950/40"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              {t("swarmStudio.run.cancel")}
+            </button>
+          )}
+        </div>
       </div>
 
       {detail.research_question && (

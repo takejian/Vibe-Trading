@@ -330,6 +330,10 @@ class SwarmRun(BaseModel):
     kind: str = "team"
     trial_skill: str | None = None
     trial_role: str | None = None
+    # For intra-agent resume on a role-run retry: the prior failed run whose
+    # worker scratchpad checkpoint this run resumes from. ``None`` for fresh
+    # runs (and for team/skill runs).
+    checkpoint_source_run_id: str | None = None
 
 
 class WorkerResult(BaseModel):
