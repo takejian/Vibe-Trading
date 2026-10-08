@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "Analisis Teknikal",
+      "fundamental": "Riset Fundamental & Ekuitas",
+      "macro": "Ekonomi Makro & Strategi",
+      "quant": "Riset Kuantitatif & Arbitrase",
+      "sentiment": "Sentimen & Data Alternatif",
+      "event_driven": "Event-Driven",
+      "allocation": "Alokasi Aset & Manajemen Portofolio",
+      "fixed_income_derivatives": "Pendapatan Tetap & Derivatif",
+      "alternatives": "Aset Alternatif",
+      "risk": "Manajemen Risiko",
+      "other": "Lainnya"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "Semua kategori",
+      "categoryFilterLabel": "Saring berdasarkan jenis riset"
     },
     "canvas": {
       "layer": "Layer {{index}}",

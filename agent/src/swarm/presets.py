@@ -34,6 +34,142 @@ PRESETS_DIR = Path(__file__).resolve().parent / "presets"
 USER_PRESETS_DIR = Path.home() / ".vibe-trading" / "swarm" / "presets"
 _INTERNAL_TEMPLATE_VARS = {"upstream_context"}
 
+#: Preset category identifiers, modeled on the standard research taxonomy of
+#: buy-side funds and sell-side houses: analysis style first (technical /
+#: fundamental / quant / sentiment), then strategy style (macro & strategy /
+#: event-driven / asset allocation), then asset class desks (fixed income &
+#: derivatives / alternatives) and the independent risk function.
+PRESET_CATEGORY_ORDER: tuple[str, ...] = (
+    "technical",
+    "fundamental",
+    "macro",
+    "quant",
+    "sentiment",
+    "event_driven",
+    "allocation",
+    "fixed_income_derivatives",
+    "alternatives",
+    "risk",
+    "other",
+)
+
+#: Canonical (English) metadata per category. The web UI renders localized
+#: labels via i18n keys (``swarmStudio.category.<id>``); these strings serve
+#: CLI/MCP consumers and as fallback labels.
+PRESET_CATEGORY_META: dict[str, dict[str, str]] = {
+    "technical": {
+        "title": "Technical Analysis",
+        "description": "Price-action, indicators, patterns and wave-based market timing teams.",
+    },
+    "fundamental": {
+        "title": "Fundamental & Equity Research",
+        "description": "Financial statements, valuation, earnings and bottom-up stock research.",
+    },
+    "macro": {
+        "title": "Macro Economy & Strategy",
+        "description": "Central banks, economic cycle, geopolitics and top-down strategy teams.",
+    },
+    "quant": {
+        "title": "Quant Research & Arbitrage",
+        "description": "Factor research, machine learning, statistical arbitrage and pairs trading.",
+    },
+    "sentiment": {
+        "title": "Sentiment & Alternative Data",
+        "description": "News, social media, flows and alternative-data signal teams.",
+    },
+    "event_driven": {
+        "title": "Event-Driven",
+        "description": "Corporate and market event deep-dive teams (event-driven hedge fund style).",
+    },
+    "allocation": {
+        "title": "Asset Allocation & Portfolio Management",
+        "description": "Multi-asset allocation, ETF/FOF portfolio construction and investment committees.",
+    },
+    "fixed_income_derivatives": {
+        "title": "Fixed Income & Derivatives",
+        "description": "Rates, credit, convertible bonds and options/derivatives strategy desks.",
+    },
+    "alternatives": {
+        "title": "Alternative Assets",
+        "description": "Digital assets (crypto) and commodity research/trading teams.",
+    },
+    "risk": {
+        "title": "Risk Management",
+        "description": "Independent drawdown, tail-risk and mandate risk oversight committees.",
+    },
+    "other": {
+        "title": "Other",
+        "description": "Presets without a standard category mapping.",
+    },
+}
+
+#: Bundled preset name -> category id. Every bundled YAML is classified once
+#: here; a YAML may still declare its own ``category`` key to override this
+#: mapping (only known category ids are honored).
+PRESET_CATEGORIES: dict[str, str] = {
+    # Technical analysis
+    "technical_analysis_panel": "technical",
+    # Fundamental / equity research
+    "fundamental_research_team": "fundamental",
+    "equity_research_team": "fundamental",
+    "value_investing_committee": "fundamental",
+    "earnings_research_desk": "fundamental",
+    "global_equities_desk": "fundamental",
+    # Macro economy & strategy
+    "macro_strategy_forum": "macro",
+    "macro_rates_fx_desk": "macro",
+    "geopolitical_war_room": "macro",
+    "sector_rotation_team": "macro",
+    # Quant research & arbitrage
+    "quant_strategy_desk": "quant",
+    "factor_research_committee": "quant",
+    "ml_quant_lab": "quant",
+    "statistical_arbitrage_desk": "quant",
+    "pairs_research_lab": "quant",
+    # Sentiment & alternative data
+    "sentiment_intelligence_team": "sentiment",
+    "social_alpha_team": "sentiment",
+    # Event-driven
+    "event_driven_task_force": "event_driven",
+    # Asset allocation & portfolio management
+    "global_allocation_committee": "allocation",
+    "etf_allocation_desk": "allocation",
+    "fund_selection_panel": "allocation",
+    "portfolio_review_board": "allocation",
+    "investment_committee": "allocation",
+    # Fixed income & derivatives
+    "credit_research_team": "fixed_income_derivatives",
+    "convertible_bond_team": "fixed_income_derivatives",
+    "derivatives_strategy_desk": "fixed_income_derivatives",
+    # Alternative assets (digital assets & commodities)
+    "crypto_trading_desk": "alternatives",
+    "crypto_research_lab": "alternatives",
+    "commodity_research_team": "alternatives",
+    # Risk management
+    "risk_committee": "risk",
+}
+
+
+def preset_category(name: str, data: dict | None = None) -> str:
+    """Return the category id for a preset.
+
+    Resolution order:
+        1. A ``category`` key declared in the preset YAML — but only when it
+           names a known category id, so free-text YAML values cannot create
+           phantom groups the UI cannot label.
+        2. The bundled :data:`PRESET_CATEGORIES` mapping.
+        3. ``"other"`` (covers user presets that declare nothing).
+
+    Args:
+        name: Preset name (file stem / YAML ``name``).
+        data: Parsed preset YAML, if already loaded.
+    """
+    if data:
+        declared = data.get("category")
+        if isinstance(declared, str) and declared.strip() in PRESET_CATEGORY_META:
+            return declared.strip()
+    return PRESET_CATEGORIES.get(name, "other")
+
 
 def _redact_home(path: Path) -> str:
     """Render ``path`` with the home prefix collapsed to ``~`` so user-facing
@@ -116,8 +252,8 @@ def list_presets() -> list[dict]:
     preset wins — the same override rule as user skills.
 
     Returns:
-        List of dicts with keys: name, title, description, agent_count,
-        variables, source (``"user"`` or ``"bundled"``).
+        List of dicts with keys: name, title, description, category,
+        agent_count, variables, source (``"user"`` or ``"bundled"``).
     """
     by_stem: dict[str, dict] = {}
     for directory, source in ((PRESETS_DIR, "bundled"), (USER_PRESETS_DIR, "user")):
@@ -130,11 +266,13 @@ def list_presets() -> list[dict]:
                 continue
             if not isinstance(data, dict):
                 continue
+            preset_name = data.get("name", path.stem)
             # Later iteration (user) intentionally replaces bundled stems.
             by_stem[path.stem] = {
-                "name": data.get("name", path.stem),
+                "name": preset_name,
                 "title": data.get("title", ""),
                 "description": data.get("description", ""),
+                "category": preset_category(preset_name, data),
                 "agent_count": len(data.get("agents", [])),
                 "variables": data.get("variables", []),
                 "source": source,
@@ -258,6 +396,7 @@ def inspect_preset(name: str) -> dict:
         "name": data.get("name", name),
         "title": data.get("title", ""),
         "description": data.get("description", ""),
+        "category": preset_category(data.get("name", name), data),
         "valid": not errors,
         "errors": errors,
         "warnings": warnings,
@@ -305,6 +444,7 @@ def get_preset_detail(name: str) -> dict:
         "name": data.get("name", name),
         "title": data.get("title", ""),
         "description": data.get("description", ""),
+        "category": preset_category(data.get("name", name), data),
         "variables": data.get("variables", []),
         "agents": [
             {

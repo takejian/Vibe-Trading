@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "기술적 분석",
+      "fundamental": "펀더멘털·주식 리서치",
+      "macro": "거시경제·전략",
+      "quant": "퀀트 리서치·차익거래",
+      "sentiment": "심리·대안 데이터",
+      "event_driven": "이벤트 드리븐",
+      "allocation": "자산배분·포트폴리오 관리",
+      "fixed_income_derivatives": "채권·파생상품",
+      "alternatives": "대체자산",
+      "risk": "리스크 관리",
+      "other": "기타"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "전체 카테고리",
+      "categoryFilterLabel": "리서치 유형별 필터"
     },
     "canvas": {
       "layer": "Layer {{index}}",

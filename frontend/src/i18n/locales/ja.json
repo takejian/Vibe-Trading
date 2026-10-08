@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "テクニカル分析",
+      "fundamental": "ファンダメンタル・株式リサーチ",
+      "macro": "マクロ経済・ストラテジー",
+      "quant": "クオンツ研究・アービトラージ",
+      "sentiment": "センチメント・オルタナティブデータ",
+      "event_driven": "イベントドリブン",
+      "allocation": "資産配分・ポートフォリオ管理",
+      "fixed_income_derivatives": "債券・デリバティブ",
+      "alternatives": "オルタナティブ資産",
+      "risk": "リスク管理",
+      "other": "その他"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "すべてのカテゴリ",
+      "categoryFilterLabel": "リサーチカテゴリで絞り込み"
     },
     "canvas": {
       "layer": "Layer {{index}}",

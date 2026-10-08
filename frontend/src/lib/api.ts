@@ -1127,6 +1127,8 @@ export interface SwarmPreset {
   name: string;
   title: string;
   description: string;
+  /** Research category id; see swarmStudio.category.* i18n keys. */
+  category: string;
   agent_count: number;
   variables: { name: string; description: string; required: boolean }[];
 }

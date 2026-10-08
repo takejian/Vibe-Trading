@@ -2010,6 +2010,19 @@
       "studio": "团队编排",
       "history": "我的评估"
     },
+    "category": {
+      "technical": "技术面分析",
+      "fundamental": "基本面研究",
+      "macro": "宏观经济与策略",
+      "quant": "量化研究与套利",
+      "sentiment": "情绪与另类数据",
+      "event_driven": "事件驱动",
+      "allocation": "资产配置与组合管理",
+      "fixed_income_derivatives": "固定收益与衍生品",
+      "alternatives": "另类资产",
+      "risk": "风险管理",
+      "other": "其他"
+    },
     "gallery": {
       "sectionTitle": "第 1 步：选择内置团队预设",
       "loading": "正在加载团队预设……",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "我的自定义团队",
       "builtinSection": "内置团队预设",
       "myTeamsNoDescription": "未填写适用场景简介。",
-      "myTeamsEmpty": "还没有保存的自定义团队。在画布上调整预设后，点击“另存为我的团队”即可。"
+      "myTeamsEmpty": "还没有保存的自定义团队。在画布上调整预设后，点击“另存为我的团队”即可。",
+      "allCategories": "全部分类",
+      "categoryFilterLabel": "按研究类型筛选"
     },
     "canvas": {
       "layer": "第 {{index}} 层",

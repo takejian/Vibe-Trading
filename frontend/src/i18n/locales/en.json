@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "Technical Analysis",
+      "fundamental": "Fundamental & Equity Research",
+      "macro": "Macro Economy & Strategy",
+      "quant": "Quant Research & Arbitrage",
+      "sentiment": "Sentiment & Alternative Data",
+      "event_driven": "Event-Driven",
+      "allocation": "Asset Allocation & Portfolio Management",
+      "fixed_income_derivatives": "Fixed Income & Derivatives",
+      "alternatives": "Alternative Assets",
+      "risk": "Risk Management",
+      "other": "Other"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "All categories",
+      "categoryFilterLabel": "Filter by research category"
     },
     "canvas": {
       "layer": "Layer {{index}}",

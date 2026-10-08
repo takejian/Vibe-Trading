@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "التحليل الفني",
+      "fundamental": "البحوث الأساسية والأسهم",
+      "macro": "الاقتصاد الكلي والاستراتيجية",
+      "quant": "البحوث الكمية والمراجحة",
+      "sentiment": "المعنويات والبيانات البديلة",
+      "event_driven": "المدفوع بالأحداث",
+      "allocation": "توزيع الأصول وإدارة المحافظ",
+      "fixed_income_derivatives": "الدخل الثابت والمشتقات",
+      "alternatives": "الأصول البديلة",
+      "risk": "إدارة المخاطر",
+      "other": "أخرى"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "كل الفئات",
+      "categoryFilterLabel": "تصفية حسب نوع البحث"
     },
     "canvas": {
       "layer": "Layer {{index}}",

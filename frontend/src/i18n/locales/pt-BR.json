@@ -2010,6 +2010,19 @@
       "studio": "Orchestrate",
       "history": "My evaluations"
     },
+    "category": {
+      "technical": "Análise Técnica",
+      "fundamental": "Pesquisa Fundamentalista e de Ações",
+      "macro": "Macroeconomia e Estratégia",
+      "quant": "Pesquisa Quantitativa e Arbitragem",
+      "sentiment": "Sentimento e Dados Alternativos",
+      "event_driven": "Event-Driven",
+      "allocation": "Alocação de Ativos e Gestão de Portfólio",
+      "fixed_income_derivatives": "Renda Fixa e Derivativos",
+      "alternatives": "Ativos Alternativos",
+      "risk": "Gestão de Riscos",
+      "other": "Outros"
+    },
     "gallery": {
       "sectionTitle": "Step 1 — choose a built-in team preset",
       "loading": "Loading team presets…",
@@ -2020,7 +2033,9 @@
       "myTeamsSection": "My custom teams",
       "builtinSection": "Built-in team presets",
       "myTeamsNoDescription": "No scenario description provided.",
-      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\"."
+      "myTeamsEmpty": "No saved custom teams yet. Adjust a preset on the canvas and use \"Save as my team\".",
+      "allCategories": "Todas as categorias",
+      "categoryFilterLabel": "Filtrar por tipo de pesquisa"
     },
     "canvas": {
       "layer": "Layer {{index}}",
