@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
@@ -26,6 +26,7 @@ from src.api.security import require_auth
 from src.watchlist import analysis as watch_analysis
 from src.watchlist import db as watch_db
 from src.watchlist import kline as watch_kline
+from src.watchlist import outcome as watch_outcome
 from src.watchlist import market as watch_market
 from src.watchlist.market import normalize_a_share_symbol
 from src.watchlist.models import QuoteSnapshot
@@ -88,6 +89,28 @@ def _db_connection():
         yield conn
     finally:
         conn.close()
+
+
+def _decorate_chanlun_rows(
+    symbol: str, rows: list[dict[str, Any]], conn: Any
+) -> list[dict[str, Any]]:
+    """Merge machine outcome + user rating onto card rows and add live state."""
+    outcomes = {
+        str(o["run_id"]): o
+        for o in watch_db.list_chanlun_outcomes(symbol, conn)
+    }
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        run_id = str(row["run_id"])
+        item = dict(row)
+        item.update(outcomes.get(run_id) or {})
+        item["live_status"] = (
+            watch_outcome.current_status(row, conn)
+            if row.get("card_parse") == "ok"
+            else None
+        )
+        items.append(item)
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +190,12 @@ class KlineUpdateBody(BaseModel):
     intervals: list[str] | None = None
     # Vendor id from GET /watch/{symbol}/kline/sources; defaults to eastmoney.
     source: str | None = None
+
+
+class ChanlunRatingBody(BaseModel):
+    # Post-hoc investor verdict on how the archived call actually played out.
+    verdict: Literal["accurate", "partial", "wrong"]
+    note: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -482,6 +511,7 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 entries=_get_catalog_entries(),
                 connection=conn,
             )
+            watch_outcome.refresh_due(symbol, conn)
             rows = watch_db.list_chanlun_records(
                 symbol,
                 conn,
@@ -489,7 +519,136 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 date_to=end.isoformat() if end else None,
                 limit=limit,
             )
-        return {"items": rows}
+            items = _decorate_chanlun_rows(symbol, rows, conn)
+        return {"items": items}
+
+    # -- Chanlun action cards: closed-loop tracking ----------------------
+    def _archive_and_collect_cards(symbol: str, limit: int) -> list[dict[str, Any]]:
+        runtime = _get_runtime()
+        with _db_connection() as conn:
+            watch_analysis.persist_run_artifacts(
+                _matching_role_runs(runtime, symbol),
+                entries=_get_catalog_entries(),
+                connection=conn,
+            )
+            # Lazy mechanical verification of cards whose horizon elapsed.
+            watch_outcome.refresh_due(symbol, conn)
+            rows = watch_db.list_chanlun_records(symbol, conn, limit=limit)
+            return _decorate_chanlun_rows(symbol, rows, conn)
+
+    @app.get(
+        "/watch/{symbol}/chanlun/cards",
+        dependencies=[Depends(require_auth)],
+    )
+    def list_chanlun_cards(
+        symbol: str, limit: int = Query(50, ge=1, le=100)
+    ) -> dict[str, Any]:
+        # Only successfully parsed cards are trackable; contract violations
+        # remain visible via GET .../chanlun (card_parse field).
+        symbol = _symbol_or_400(symbol)
+        items = [
+            row
+            for row in _archive_and_collect_cards(symbol, limit)
+            if row.get("card_parse") == "ok"
+        ]
+        return {"items": items}
+
+    @app.get(
+        "/watch/{symbol}/chanlun/cards/latest",
+        dependencies=[Depends(require_auth)],
+    )
+    def latest_chanlun_card(symbol: str) -> dict[str, Any]:
+        symbol = _symbol_or_400(symbol)
+        items = [
+            row
+            for row in _archive_and_collect_cards(symbol, 50)
+            if row.get("card_parse") == "ok"
+        ]
+        if not items:
+            raise HTTPException(status_code=404, detail="该标的暂无可追踪的操作结论卡")
+        return items[0]
+
+    @app.get(
+        "/watch/{symbol}/chanlun/compare",
+        dependencies=[Depends(require_auth)],
+    )
+    def compare_chanlun_cards(
+        symbol: str, runs: str = Query(..., max_length=400)
+    ) -> dict[str, Any]:
+        # Side-by-side diff of 2-4 historical runs of the SAME symbol.
+        symbol = _symbol_or_400(symbol)
+        run_ids: list[str] = []
+        for part in runs.split(","):
+            part = part.strip()
+            if part and part not in run_ids:
+                run_ids.append(part)
+        if not run_ids:
+            raise HTTPException(status_code=400, detail="runs 参数至少包含一个 run_id")
+        if len(run_ids) > 4:
+            raise HTTPException(status_code=400, detail="一次最多对比 4 次分析")
+        runtime = _get_runtime()
+        with _db_connection() as conn:
+            watch_analysis.persist_run_artifacts(
+                _matching_role_runs(runtime, symbol),
+                entries=_get_catalog_entries(),
+                connection=conn,
+            )
+            rows: list[dict[str, Any]] = []
+            for run_id in run_ids:
+                row = watch_db.get_chanlun_record_by_run(run_id, conn)
+                if row is None:
+                    raise HTTPException(
+                        status_code=404, detail=f"找不到分析记录: {run_id}"
+                    )
+                if normalize_a_share_symbol(str(row["symbol"])) != symbol:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"记录 {run_id} 不属于标的 {symbol}",
+                    )
+                rows.append(row)
+            watch_outcome.refresh_due(symbol, conn)
+            items = _decorate_chanlun_rows(symbol, rows, conn)
+        return {"items": items}
+
+    @app.post(
+        "/watch/{symbol}/chanlun/{run_id}/rating",
+        dependencies=[Depends(require_auth)],
+    )
+    def rate_chanlun_card(
+        symbol: str, run_id: str, body: ChanlunRatingBody
+    ) -> dict[str, Any]:
+        # Investor's post-hoc accuracy review; never mutates machine columns.
+        symbol = _symbol_or_400(symbol)
+        run_id = run_id.strip()
+        with _db_connection() as conn:
+            row = watch_db.get_chanlun_record_by_run(run_id, conn)
+            if row is None:
+                raise HTTPException(
+                    status_code=404, detail=f"找不到分析记录: {run_id}"
+                )
+            if normalize_a_share_symbol(str(row["symbol"])) != symbol:
+                raise HTTPException(
+                    status_code=400, detail="该记录不属于此标的"
+                )
+            watch_db.set_user_rating(
+                run_id=run_id,
+                symbol=symbol,
+                verdict=body.verdict,
+                note=body.note.strip() or None,
+                conn=conn,
+            )
+            updated = watch_db.get_chanlun_outcome(run_id, conn)
+        return updated or {"run_id": run_id, "user_verdict": body.verdict}
+
+    @app.get(
+        "/watch/{symbol}/chanlun/stats",
+        dependencies=[Depends(require_auth)],
+    )
+    def chanlun_card_stats(symbol: str) -> dict[str, Any]:
+        # Track-record aggregation: machine labels + investor ratings.
+        symbol = _symbol_or_400(symbol)
+        items = _archive_and_collect_cards(symbol, 100)
+        return watch_outcome.summarize(items)
 
     @app.get(
         "/watch/{symbol}/kline/sources",

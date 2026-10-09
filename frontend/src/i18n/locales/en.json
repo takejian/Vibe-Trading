@@ -2472,7 +2472,102 @@
       "to": "To",
       "filter": "Filter",
       "unstructured": "Non-structured response — raw text below",
-      "recordEmpty": "No chanlun analysis yet"
+      "recordEmpty": "No chanlun analysis yet",
+      "actionCol": "Card",
+      "statusCol": "Tracking",
+      "outcomeCol": "Result",
+      "compare": {
+        "title": "Compare past calls",
+        "hint": "Tick 2-4 analyses to diff their conclusions",
+        "go": "Compare selected",
+        "clear": "Clear",
+        "col": "Item",
+        "field": "Field",
+        "empty": "Tick at least 2 records to compare"
+      },
+      "cardAbsent": "No action card",
+      "violation": "Card violates contract",
+      "dir": {
+        "bullish": "Bullish",
+        "bearish": "Bearish",
+        "neutral": "Neutral"
+      },
+      "act": {
+        "buy": "Buy",
+        "add": "Add",
+        "hold": "Hold",
+        "reduce": "Reduce",
+        "sell": "Sell",
+        "wait": "Wait"
+      },
+      "live": {
+        "waiting": "Pending trigger",
+        "active": "Position open",
+        "target_hit": "T1 reached",
+        "stopped": "Stopped out",
+        "expired": "Expired unfilled",
+        "neutral": "Stand aside",
+        "insufficient_data": "Not enough bars"
+      },
+      "out": {
+        "win": "Win realized",
+        "loss": "Stopped out",
+        "partial": "Partial profit",
+        "timeout_correct": "Right direction (expiry)",
+        "timeout_wrong": "Wrong direction (expiry)",
+        "neutral": "Neutral, unrated",
+        "pending": "Pending verification",
+        "insufficient_data": "Not enough bars"
+      },
+      "rate": {
+        "accurate": "Accurate",
+        "partial": "Partially accurate",
+        "wrong": "Wrong call"
+      },
+      "card": {
+        "title": "Action Card",
+        "confidence": "Conviction",
+        "base": "Base",
+        "trigger": "Trigger",
+        "stop": "Stop",
+        "target": "Targets",
+        "rr": "T1 reward/risk",
+        "horizon": "Horizon",
+        "days": "{{n}} sessions",
+        "invalidation": "Invalidation",
+        "risks": "Key risks",
+        "rating": "My post-hoc review",
+        "notePlaceholder": "Execution notes or why the call failed (optional)",
+        "saveRating": "Submit review",
+        "ratedAt": "Reviewed {{when}}",
+        "mfe": "Best MFE",
+        "mae": "Worst MAE",
+        "exitReturn": "Exit return",
+        "windowEnd": "Window end"
+      },
+      "compare": {
+        "title": "Compare past calls",
+        "hint": "Tick 2-4 analyses to diff their conclusions",
+        "go": "Compare selected",
+        "clear": "Clear",
+        "col": "Item",
+        "field": "Field",
+        "empty": "Tick at least 2 records to compare"
+      },
+      "stats": {
+        "title": "Chanlun track record",
+        "sample": "Verified",
+        "cards": "cards",
+        "winRate": "Win rate",
+        "dirAcc": "Direction accuracy",
+        "targetRate": "T1 hit rate",
+        "stopRate": "Stop rate",
+        "avgMfe": "Avg MFE",
+        "avgMae": "Avg MAE",
+        "rated": "My reviews",
+        "pending": "Pending",
+        "bySetup": "By setup type"
+      }
     },
     "kline": {
       "title": "K-line levels required by the Chanlun analyst",

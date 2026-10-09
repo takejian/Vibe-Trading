@@ -43,6 +43,14 @@ _HEADING_RE = re.compile(
     r"^[\s>#]{0,6}\**\s*([1-7]|[一二三四五六七])\s*[.、)）：:．]\s*(.*?)\s*$"
 )
 
+# Section 8 (the machine-readable Action Card) terminates the section-7
+# body so the card's JSON numbers can never be mistaken for the score or
+# confidence by the regexes below.
+_SECTION8_STOP_RE = re.compile(
+    r"^[\s>#]{0,6}\**\s*(8|八)\s*[.、)）：:．]\s*(.*?)\s*$"
+)
+_SECTION8_KEYWORDS = ("操作结论卡", "结论卡", "action", "卡片")
+
 _SCORE_RE = re.compile(
     r"(?:缠论打分|缠论评分|打分|评分|chanlun\s*score|score)\s*[:：=]\s*"
     r"([+-−]?\d)(?:\s*/\s*5)?(?![\d.])",
@@ -93,6 +101,16 @@ def _split_sections(text: str) -> list[str] | None:
     bodies: list[str] = []
     for pos, (number, line_idx, _title) in enumerate(starts):
         end = starts[pos + 1][1] if pos + 1 < len(starts) else len(lines)
+        if pos + 1 == len(starts):
+            # Stop section 7 at an optional section-8 Action Card heading.
+            for tail_idx in range(line_idx + 1, end):
+                stop_match = _SECTION8_STOP_RE.match(lines[tail_idx])
+                if stop_match is not None and any(
+                    keyword in _clean_title(stop_match.group(2))
+                    for keyword in _SECTION8_KEYWORDS
+                ):
+                    end = tail_idx
+                    break
         body = "\n".join(lines[line_idx + 1 : end]).strip()
         bodies.append(body)
     # Sections 1-6 must carry content; section 7 may be short but non-empty.

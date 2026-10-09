@@ -2472,7 +2472,102 @@
       "to": "Sampai",
       "filter": "Filter",
       "unstructured": "Respons tidak terstruktur — teks mentah di bawah",
-      "recordEmpty": "Belum ada analisis Chanlun"
+      "recordEmpty": "Belum ada analisis Chanlun",
+      "actionCol": "Kartu",
+      "statusCol": "Pemantauan",
+      "outcomeCol": "Hasil",
+      "compare": {
+        "title": "Bandingkan keputusan lampau",
+        "hint": "Centang 2–4 analisis untuk membandingkan kesimpulan",
+        "go": "Bandingkan terpilih",
+        "clear": "Bersihkan",
+        "col": "Butir",
+        "field": "Kolom",
+        "empty": "Centang minimal 2 catatan"
+      },
+      "cardAbsent": "Tanpa kartu aksi",
+      "violation": "Kartu melanggar kontrak",
+      "dir": {
+        "bullish": "Naik",
+        "bearish": "Turun",
+        "neutral": "Netral"
+      },
+      "act": {
+        "buy": "Beli",
+        "add": "Tambah",
+        "hold": "Tahan",
+        "reduce": "Kurangi",
+        "sell": "Jual",
+        "wait": "Tunggu"
+      },
+      "live": {
+        "waiting": "Menunggu pemicu",
+        "active": "Posisi terbuka",
+        "target_hit": "T1 tercapai",
+        "stopped": "Kena stop",
+        "expired": "Kedaluwarsa tanpa eksekusi",
+        "neutral": "Menunggu",
+        "insufficient_data": "Data kurang"
+      },
+      "out": {
+        "win": "Profit terealisasi",
+        "loss": "Kena stop",
+        "partial": "Profit sebagian",
+        "timeout_correct": "Arah benar (kedaluwarsa)",
+        "timeout_wrong": "Arah salah (kedaluwarsa)",
+        "neutral": "Netral, tidak dinilai",
+        "pending": "Menunggu verifikasi",
+        "insufficient_data": "Data kurang"
+      },
+      "rate": {
+        "accurate": "Akurat",
+        "partial": "Sebagian akurat",
+        "wrong": "Keliru"
+      },
+      "card": {
+        "title": "Kartu aksi",
+        "confidence": "Keyakinan",
+        "base": "Acuan",
+        "trigger": "Pemicu",
+        "stop": "Stop",
+        "target": "Target",
+        "rr": "Imbal/risiko T1",
+        "horizon": "Horizon",
+        "days": "{{n}} sesi",
+        "invalidation": "Pembatalan",
+        "risks": "Risiko utama",
+        "rating": "Tinjauan saya",
+        "notePlaceholder": "Catatan eksekusi atau alasan keliru (opsional)",
+        "saveRating": "Kirim tinjauan",
+        "ratedAt": "Ditinjau {{when}}",
+        "mfe": "MFE maks",
+        "mae": "MAE maks",
+        "exitReturn": "Imbal hasil akhir",
+        "windowEnd": "Akhir horizon"
+      },
+      "compare": {
+        "title": "Bandingkan keputusan lampau",
+        "hint": "Centang 2–4 analisis untuk membandingkan kesimpulan",
+        "go": "Bandingkan terpilih",
+        "clear": "Bersihkan",
+        "col": "Butir",
+        "field": "Kolom",
+        "empty": "Centang minimal 2 catatan"
+      },
+      "stats": {
+        "title": "Rekam jejak Chanlun",
+        "sample": "Terverifikasi",
+        "cards": "kartu",
+        "winRate": "Tingkat menang",
+        "dirAcc": "Akurasi arah",
+        "targetRate": "Tingkat T1",
+        "stopRate": "Tingkat stop",
+        "avgMfe": "Rata-rata MFE",
+        "avgMae": "Rata-rata MAE",
+        "rated": "Tinjauan saya",
+        "pending": "Menunggu",
+        "bySetup": "Berdasarkan tipe titik"
+      }
     },
     "kline": {
       "title": "Level candlestick yang dibutuhkan analis Chanlun",

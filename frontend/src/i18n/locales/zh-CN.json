@@ -2472,7 +2472,102 @@
       "to": "结束日期",
       "filter": "筛选",
       "unstructured": "非结构化返回，以下为原文",
-      "recordEmpty": "暂无缠论分析记录"
+      "recordEmpty": "暂无缠论分析记录",
+      "actionCol": "操作卡",
+      "statusCol": "跟踪",
+      "outcomeCol": "结果",
+      "compare": {
+        "title": "历次结论对比",
+        "hint": "勾选 2–4 次分析，对比其结论差异",
+        "go": "对比所选",
+        "clear": "清空",
+        "col": "对比项",
+        "field": "字段",
+        "empty": "勾选至少 2 条记录后再进行对比"
+      },
+      "cardAbsent": "无操作结论卡",
+      "violation": "结论卡不符合契约",
+      "dir": {
+        "bullish": "看多",
+        "bearish": "看空",
+        "neutral": "中性"
+      },
+      "act": {
+        "buy": "买入",
+        "add": "加仓",
+        "hold": "持有",
+        "reduce": "减仓",
+        "sell": "卖出",
+        "wait": "观望"
+      },
+      "live": {
+        "waiting": "待触发",
+        "active": "持仓中",
+        "target_hit": "到达T1",
+        "stopped": "已止损",
+        "expired": "过期未触发",
+        "neutral": "观望",
+        "insufficient_data": "行情不足"
+      },
+      "out": {
+        "win": "盈利兑现",
+        "loss": "触发止损",
+        "partial": "部分止盈",
+        "timeout_correct": "方向正确(到期)",
+        "timeout_wrong": "方向错误(到期)",
+        "neutral": "中性不评级",
+        "pending": "验证中",
+        "insufficient_data": "行情不足"
+      },
+      "rate": {
+        "accurate": "判断准确",
+        "partial": "部分准确",
+        "wrong": "判断错误"
+      },
+      "card": {
+        "title": "操作结论卡",
+        "confidence": "把握",
+        "base": "基准",
+        "trigger": "触发价",
+        "stop": "止损价",
+        "target": "目标价",
+        "rr": "T1风收比",
+        "horizon": "观察周期",
+        "days": "{{n}}个交易日",
+        "invalidation": "失效条件",
+        "risks": "主要风险",
+        "rating": "事后评价（我的复盘）",
+        "notePlaceholder": "记录当时的执行情况或误判原因（可选）",
+        "saveRating": "提交评价",
+        "ratedAt": "已评价 {{when}}",
+        "mfe": "最大有利MFE",
+        "mae": "最大不利MAE",
+        "exitReturn": "期末收益",
+        "windowEnd": "窗口截止"
+      },
+      "compare": {
+        "title": "历次结论对比",
+        "hint": "勾选 2–4 次分析，对比其结论差异",
+        "go": "对比所选",
+        "clear": "清空",
+        "col": "对比项",
+        "field": "字段",
+        "empty": "勾选至少 2 条记录后再进行对比"
+      },
+      "stats": {
+        "title": "缠论策略战绩",
+        "sample": "已验证",
+        "cards": "张结论卡",
+        "winRate": "胜率",
+        "dirAcc": "方向准确率",
+        "targetRate": "T1达成率",
+        "stopRate": "止损率",
+        "avgMfe": "平均MFE",
+        "avgMae": "平均MAE",
+        "rated": "我的评价",
+        "pending": "验证中",
+        "bySetup": "按买卖点类型"
+      }
     },
     "kline": {
       "title": "缠论分析所需各级别 K 线",

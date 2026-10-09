@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import {
   ApiError,
   api,
+  type ChanlunCardRecord,
   type WatchAgent,
   type WatchAnalysisSummary,
   type WatchCategory,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/api";
 import { RunView } from "@/components/swarm/RunView";
 import { MarkdownContent } from "@/components/common/MarkdownContent";
+import { ChanlunActionCard } from "@/components/watch/ChanlunActionCard";
 
 const ACTIVE_STATUSES = new Set(["pending", "running"]);
 
@@ -42,6 +44,7 @@ export function AnalysisTab({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [gateItems, setGateItems] = useState<WatchKlineLevel[] | null>(null);
   const [warn30m, setWarn30m] = useState(false);
+  const [cards, setCards] = useState<ChanlunCardRecord[]>([]);
 
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -61,6 +64,16 @@ export function AnalysisTab({
         limit: 20,
       });
       setHistory(resp.items);
+      if (category === "technical") {
+        try {
+          const cardResp = await api.listChanlunCards(symbol, 20);
+          setCards(cardResp.items);
+        } catch {
+          /* cards are advisory — ignore load failures */
+        }
+      } else {
+        setCards([]);
+      }
     } finally {
       setHistoryLoading(false);
     }
@@ -75,6 +88,20 @@ export function AnalysisTab({
     () => agents.find((agent) => agent.ref === roleRef) ?? null,
     [agents, roleRef],
   );
+
+  // Technical tab defaults to the Chanlun analyst (the role the closed
+  // loop is built around); the investor can still switch to any other role.
+  useEffect(() => {
+    if (category !== "technical" || roleRef) return;
+    const preferred = agents.find((agent) => agent.is_chanlun) ?? agents[0];
+    if (preferred) setRoleRef(preferred.ref);
+  }, [agents, category, roleRef]);
+
+  const cardByRun = useMemo(() => {
+    const map = new Map<string, ChanlunCardRecord>();
+    for (const card of cards) map.set(card.run_id, card);
+    return map;
+  }, [cards]);
 
   // Chanlun is the only role with a data prerequisite. The optional 30m
   // level never blocks — it only surfaces a non-blocking warning (BDD US-11).
@@ -423,7 +450,14 @@ export function AnalysisTab({
                           </button>
                         </div>
                         {open && (
-                          <div className="border-t border-border/60 px-3 py-2" data-testid="analysis-full-report">
+                          <div className="space-y-2 border-t border-border/60 px-3 py-2" data-testid="analysis-full-report">
+                            {cardByRun.get(item.id) && (
+                              <ChanlunActionCard
+                                record={cardByRun.get(item.id)!}
+                                symbol={symbol}
+                                compact
+                              />
+                            )}
                             {(item.final_report || item.final_report_excerpt) ? (
                               <MarkdownContent
                                 content={item.final_report || item.final_report_excerpt || ""}

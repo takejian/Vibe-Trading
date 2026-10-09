@@ -988,10 +988,46 @@ export const api = {
     if (options?.to) params.set("to", options.to);
     if (options?.limit) params.set("limit", String(options.limit));
     const query = params.toString();
-    return request<{ items: ChanlunRecord[] }>(
+    return request<{ items: ChanlunCardRecord[] }>(
       `/watch/${encodeURIComponent(symbol)}/chanlun${query ? `?${query}` : ""}`,
     );
   },
+
+  listChanlunCards: (symbol: string, limit?: number) =>
+    request<{ items: ChanlunCardRecord[] }>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun/cards${
+        limit ? `?limit=${limit}` : ""
+      }`,
+    ),
+  getLatestChanlunCard: (symbol: string) =>
+    request<ChanlunCardRecord>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun/cards/latest`,
+    ),
+  compareChanlunCards: (symbol: string, runIds: string[]) => {
+    const runs = runIds.map(encodeURIComponent).join(",");
+    return request<{ items: ChanlunCardRecord[] }>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun/compare?runs=${runs}`,
+    );
+  },
+  rateChanlunCard: (
+    symbol: string,
+    runId: string,
+    verdict: ChanlunUserVerdict,
+    note?: string,
+  ) =>
+    request<ChanlunOutcomeFields>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun/${encodeURIComponent(
+        runId,
+      )}/rating`,
+      {
+        method: "POST",
+        body: JSON.stringify({ verdict, note: note ?? "" }),
+      },
+    ),
+  getChanlunStats: (symbol: string) =>
+    request<ChanlunStats>(
+      `/watch/${encodeURIComponent(symbol)}/chanlun/stats`,
+    ),
   getWatchKlineStatus: (symbol: string) =>
     request<WatchKlineStatusResponse>(
       `/watch/${encodeURIComponent(symbol)}/kline/status`,
@@ -2618,6 +2654,104 @@ export interface ChanlunRecord {
   structured: boolean;
   raw_report: string | null;
   created_at: string;
+}
+
+// --- Chanlun section-8 action card + closed-loop outcome tracking ---
+
+export type ChanlunCardDirection = "bullish" | "bearish" | "neutral";
+export type ChanlunCardAction =
+  | "buy"
+  | "add"
+  | "hold"
+  | "reduce"
+  | "sell"
+  | "wait";
+export type ChanlunCardParse =
+  | "ok"
+  | "no_card"
+  | "contract_violation"
+  | null;
+export type ChanlunLiveStatus =
+  | "waiting"
+  | "active"
+  | "target_hit"
+  | "stopped"
+  | "expired"
+  | "neutral"
+  | "insufficient_data";
+export type ChanlunOutcomeLabel =
+  | "win"
+  | "loss"
+  | "partial"
+  | "timeout_correct"
+  | "timeout_wrong"
+  | "neutral";
+export type ChanlunEvalStatus = "pending" | "insufficient_data" | "verified";
+export type ChanlunUserVerdict = "accurate" | "partial" | "wrong";
+
+/** Machine verification + investor review columns (null until evaluated). */
+export interface ChanlunOutcomeFields {
+  eval_status: ChanlunEvalStatus | null;
+  window_end_date: string | null;
+  target_hit: boolean | null;
+  stop_hit: boolean | null;
+  first_event: string | null;
+  mfe_pct: number | null;
+  mae_pct: number | null;
+  exit_return_pct: number | null;
+  direction_correct: boolean | null;
+  outcome_label: ChanlunOutcomeLabel | null;
+  error_note: string | null;
+  evaluated_at: string | null;
+  user_verdict: ChanlunUserVerdict | null;
+  user_note: string | null;
+  user_rated_at: string | null;
+}
+
+/** A chanlun archive row augmented with section-8 card + outcome columns. */
+export interface ChanlunCardRecord
+  extends ChanlunRecord, ChanlunOutcomeFields {
+  base_price: number | null;
+  base_date: string | null;
+  direction: ChanlunCardDirection | null;
+  action: ChanlunCardAction | null;
+  setup_class: string | null;
+  /** Model confidence taken from the card (distinct from section-7 score). */
+  card_confidence: number | null;
+  horizon_days: number | null;
+  trigger_price: number | null;
+  stop_price: number | null;
+  target_prices: number[] | null;
+  rr_at_t1: number | null;
+  invalidation: string | null;
+  key_risks: string | null;
+  one_liner: string | null;
+  card_json: string | null;
+  card_parse: ChanlunCardParse;
+  live_status: ChanlunLiveStatus | null;
+}
+
+export interface ChanlunStats {
+  cards_total: number;
+  pending: number;
+  insufficient_data: number;
+  neutral: number;
+  verified_decided: number;
+  wins: number;
+  losses: number;
+  partials: number;
+  win_rate: number | null;
+  direction_accuracy: number | null;
+  target_hit_rate: number | null;
+  stop_rate: number | null;
+  avg_mfe_pct: number | null;
+  avg_mae_pct: number | null;
+  ratings: { accurate: number; partial: number; wrong: number };
+  rated_total: number;
+  by_setup: Record<
+    string,
+    { total: number; win: number; loss: number; partial: number }
+  >;
 }
 
 // --- M16 multi-level K-line readiness (Chanlun pre-run gate) ---

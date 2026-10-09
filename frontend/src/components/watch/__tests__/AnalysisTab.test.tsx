@@ -9,6 +9,7 @@ const listWatchAnalyses = vi.fn();
 const startWatchAnalysis = vi.fn();
 const getWatchKlineStatus = vi.fn();
 const getWatchKlineSources = vi.fn();
+const listChanlunCards = vi.fn();
 const runViewSpy = vi.fn();
 
 vi.mock("@/lib/api", async () => {
@@ -21,6 +22,7 @@ vi.mock("@/lib/api", async () => {
       startWatchAnalysis: (...args: unknown[]) => startWatchAnalysis(...args),
       getWatchKlineStatus: (...args: unknown[]) => getWatchKlineStatus(...args),
       getWatchKlineSources: (...args: unknown[]) => getWatchKlineSources(...args),
+      listChanlunCards: (...args: unknown[]) => listChanlunCards(...args),
     },
   };
 });
@@ -96,6 +98,7 @@ describe("AnalysisTab", () => {
     });
     listWatchAgents.mockResolvedValue(AGENTS);
     listWatchAnalyses.mockResolvedValue({ items: [] });
+    listChanlunCards.mockResolvedValue({ items: [] });
     startWatchAnalysis.mockResolvedValue({
       id: "run-new",
       status: "pending",
@@ -137,7 +140,7 @@ describe("AnalysisTab", () => {
     });
   });
 
-  it("requests the given category catalog and disables run until a role is chosen", async () => {
+  it("defaults the technical tab to the Chanlun analyst and lists team labels", async () => {
     const user = userEvent.setup();
     render(
       <AnalysisTab category="technical" symbol="600519.SH" symbolName="贵州茅台" />,
@@ -146,15 +149,22 @@ describe("AnalysisTab", () => {
       expect(screen.getByText(/Classic Technical Analyst/)).toBeInTheDocument(),
     );
     expect(listWatchAgents).toHaveBeenCalledWith("technical");
-    expect(screen.getByTestId("analysis-run-btn")).toBeDisabled();
-    expect(screen.getByText("Select exactly one analyst to start")).toBeInTheDocument();
+    // Chanlun is pre-selected: run enabled and the badge marker is visible.
+    await waitFor(() =>
+      expect((screen.getByTestId("analysis-role-select") as HTMLSelectElement).value)
+        .toBe(CHANLUN_REF),
+    );
+    expect(screen.getByTestId("analysis-run-btn")).toBeEnabled();
+    expect(screen.queryByText("Select exactly one analyst to start")).toBeNull();
+    expect(screen.getByTestId("chanlun-badge")).toHaveTextContent("Chanlun");
     // Every option labels the source agent team in parentheses.
     expect(
       screen.getByText(/Classic Technical Analyst \(Technical Analysis Panel\)/),
     ).toBeInTheDocument();
-    // Chanlun role carries a visual marker once selected.
-    await user.selectOptions(screen.getByTestId("analysis-role-select"), CHANLUN_REF);
-    expect(screen.getByTestId("chanlun-badge")).toHaveTextContent("Chanlun");
+    // The investor can still switch to another role.
+    await user.selectOptions(screen.getByTestId("analysis-role-select"), CLASSIC_REF);
+    expect((screen.getByTestId("analysis-role-select") as HTMLSelectElement).value)
+      .toBe(CLASSIC_REF);
   });
 
   it("starts an analysis with the selected role; question omitted when empty", async () => {
@@ -347,9 +357,7 @@ describe("AnalysisTab", () => {
     await waitFor(() =>
       expect(screen.getByText(/Classic Technical Analyst/)).toBeInTheDocument(),
     );
-    expect(screen.queryByTestId("chanlun-30m-warn")).toBeNull();
-
-    await user.selectOptions(screen.getByTestId("analysis-role-select"), CHANLUN_REF);
+    // Chanlun is the technical default, so the advisory warning shows at once.
     await waitFor(() =>
       expect(screen.getByTestId("chanlun-30m-warn")).toBeInTheDocument(),
     );

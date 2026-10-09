@@ -26,6 +26,7 @@ from typing import Any
 import duckdb
 
 from src.watchlist import db as watch_db
+from src.watchlist.action_card import parse_action_card
 from src.watchlist.chanlun_parser import parse_chanlun_report
 from src.watchlist.market import normalize_a_share_symbol
 from src.watchlist.role_catalog_filter import (
@@ -373,7 +374,13 @@ def persist_run_artifacts(
         connection = watch_db.watchlist_connection()
     assert connection is not None
     watch_db.initialize_schema(connection)
-    counts = {"chanlun": 0, "objective": 0, "unstructured": 0}
+    counts = {
+        "chanlun": 0,
+        "objective": 0,
+        "unstructured": 0,
+        "card_ok": 0,
+        "card_violation": 0,
+    }
     try:
         for run in runs:
             if (getattr(run, "kind", "team") or "team") != _ROLE_RUN_KIND:
@@ -397,6 +404,12 @@ def persist_run_artifacts(
                 if watch_db.chanlun_record_exists(run_id, connection):
                     continue
                 parsed = parse_chanlun_report(report)
+                card_result = parse_action_card(report)
+                card = card_result["card"] if card_result["parse"] == "ok" else None
+                if card_result["parse"] == "ok":
+                    counts["card_ok"] += 1
+                elif card_result["parse"] == "contract_violation":
+                    counts["card_violation"] += 1
                 if parsed is not None:
                     watch_db.insert_chanlun_record(
                         run_id=run_id,
@@ -408,6 +421,8 @@ def persist_run_artifacts(
                         structured=True,
                         raw_report=report,
                         analyzed_at=analyzed_at,
+                        card=card,
+                        card_parse=card_result["parse"],
                     )
                     counts["chanlun"] += 1
                 else:
@@ -421,6 +436,8 @@ def persist_run_artifacts(
                         structured=False,
                         raw_report=report,
                         analyzed_at=analyzed_at,
+                        card=card,
+                        card_parse=card_result["parse"],
                     )
                     counts["unstructured"] += 1
             elif role_ref == OBJECTIVE_FETCH_ROLE:

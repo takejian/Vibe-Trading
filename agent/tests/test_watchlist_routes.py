@@ -445,3 +445,160 @@ def test_history_survives_unfollow(client) -> None:
         "/watch", json={"symbol": "600519.SH", "name": "贵州茅台"}
     ).status_code == 200
     assert len(c.get("/watch/600519.SH/chanlun").json()["items"]) == 1
+
+
+# ----------------------------------------------------------------------
+# Chanlun action-card closed loop: cards / compare / rating / stats
+# ----------------------------------------------------------------------
+def _weekdays(start, count):
+    from datetime import timedelta
+
+    days = []
+    cur = start
+    while len(days) < count:
+        if cur.weekday() < 5:
+            days.append(cur)
+        cur += timedelta(days=1)
+    return days
+
+
+def _seed_card_world(client):
+    """One win card (+ bars proving it) and one neutral card."""
+    from datetime import date, datetime, timedelta
+
+    db = watchlist_routes.watch_db
+    conn = db.watchlist_connection()
+    db.initialize_schema(conn)
+
+    base = date.today() - timedelta(days=45)
+    win_dates = _weekdays(base, 12)  # base + 11 post-base sessions
+    bars = [
+        {"trade_date": win_dates[0].isoformat(), "open": 10.0, "high": 10.05,
+         "low": 9.95, "close": 10.0, "volume": 1.0, "amount": 1.0}
+    ]
+    # Session 1 triggers 10.2; session 5 reaches T1 10.8.
+    for idx, day in enumerate(win_dates[1:]):
+        if idx == 0:
+            bars.append({"trade_date": day.isoformat(), "open": 10.05,
+                         "high": 10.3, "low": 10.0, "close": 10.15,
+                         "volume": 1.0, "amount": 1.0})
+        elif idx == 4:
+            bars.append({"trade_date": day.isoformat(), "open": 10.2,
+                         "high": 10.95, "low": 10.15, "close": 10.9,
+                         "volume": 1.0, "amount": 1.0})
+        else:
+            bars.append({"trade_date": day.isoformat(), "open": 10.9,
+                         "high": 10.95, "low": 10.8, "close": 10.9,
+                         "volume": 1.0, "amount": 1.0})
+    db.upsert_kline_bars("600519.SH", "1d", bars, source="test", conn=conn)
+
+    dims = {
+        "structure_read": "s1", "active_pivots": "s2", "divergence": "s3",
+        "buy_sell_points": "s4", "multi_level_plan": "s5",
+        "elliott_corroboration": "s6", "chanlun_score": "Score: +3",
+    }
+    win_card = {
+        "schema_version": 1, "base_price": 10.0,
+        "base_date": win_dates[0].isoformat(),
+        "direction": "bullish", "action": "buy", "confidence_pct": 65.0,
+        "setup_class": "3买", "horizon_days": 10, "trigger_price": 10.2,
+        "stop_price": 9.8, "target_prices": [10.8], "rr_at_t1": 1.5,
+        "invalidation": "破9.8", "key_risks": "", "one_liner": "日线三买",
+    }
+    neutral_card = dict(
+        win_card, run_id=None, direction="neutral", action="wait",
+        setup_class="none", trigger_price=None, stop_price=None,
+        target_prices=None, rr_at_t1=None, base_date=win_dates[0].isoformat(),
+        one_liner="中枢震荡观望",
+    )
+    db.insert_chanlun_record(
+        run_id="card-win", symbol="600519.SH", conn=conn, dims=dims,
+        score=3, confidence=0.65, structured=True, raw_report="r1",
+        analyzed_at=datetime.combine(win_dates[0], datetime.min.time()),
+        card=win_card, card_parse="ok",
+    )
+    db.insert_chanlun_record(
+        run_id="card-neutral", symbol="600519.SH", conn=conn, dims=dims,
+        score=0, confidence=0.5, structured=True, raw_report="r2",
+        analyzed_at=datetime.combine(win_dates[0], datetime.min.time())
+        + timedelta(hours=1),
+        card=neutral_card, card_parse="ok",
+    )
+    conn.close()
+    return win_dates[0].isoformat()
+
+
+def test_chanlun_cards_latest_and_stats_closed_loop(client) -> None:
+    c, _store, _runtime = client
+    _seed_card_world(client)
+
+    resp = c.get("/watch/600519.SH/chanlun/cards")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 2
+    by_run = {row["run_id"]: row for row in items}
+    win = by_run["card-win"]
+    assert win["direction"] == "bullish"
+    assert win["outcome_label"] == "win"
+    assert win["target_hit"] is True
+    assert win["live_status"] == "target_hit"
+    assert by_run["card-neutral"]["outcome_label"] == "neutral"
+
+    latest = c.get("/watch/600519.SH/chanlun/cards/latest")
+    assert latest.status_code == 200
+    assert latest.json()["run_id"] == "card-neutral"
+
+    stats = c.get("/watch/600519.SH/chanlun/stats").json()
+    assert stats["cards_total"] == 2
+    assert stats["wins"] == 1
+    assert stats["win_rate"] == 100.0
+    assert stats["neutral"] == 1
+
+    # Legacy endpoint now carries card + outcome + live status columns.
+    legacy = c.get("/watch/600519.SH/chanlun").json()["items"]
+    assert {row["card_parse"] for row in legacy} == {"ok"}
+    assert "live_status" in legacy[0]
+
+
+def test_chanlun_compare_and_rating(client) -> None:
+    c, _store, _runtime = client
+    _seed_card_world(client)
+
+    resp = c.get("/watch/600519.SH/chanlun/compare?runs=card-win,card-neutral")
+    assert resp.status_code == 200
+    assert [r["run_id"] for r in resp.json()["items"]] == [
+        "card-win", "card-neutral"
+    ]
+
+    # Unknown run -> 404; cross-symbol run -> 400; >4 runs -> 400.
+    assert c.get("/watch/600519.SH/chanlun/compare?runs=nope").status_code == 404
+    assert c.get(
+        "/watch/600519.SH/chanlun/compare?runs="
+        "a,b,c,d,e"
+    ).status_code == 400
+
+    # Investor disagrees with the machine win.
+    rated = c.post(
+        "/watch/600519.SH/chanlun/card-win/rating",
+        json={"verdict": "wrong", "note": "次日低开无法成交"},
+    )
+    assert rated.status_code == 200
+    body = rated.json()
+    assert body["user_verdict"] == "wrong"
+    # Machine columns must not be overwritten by the user rating.
+    assert body["outcome_label"] == "win"
+
+    stats = c.get("/watch/600519.SH/chanlun/stats").json()
+    assert stats["ratings"]["wrong"] == 1
+    assert stats["wins"] == 1
+
+    bad = c.post(
+        "/watch/600519.SH/chanlun/card-win/rating",
+        json={"verdict": "maybe"},
+    )
+    assert bad.status_code == 422
+
+
+def test_chanlun_latest_card_404_without_cards(client) -> None:
+    c, _store, _runtime = client
+    assert c.get("/watch/000001.SZ/chanlun/cards/latest").status_code == 404

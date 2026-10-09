@@ -2472,7 +2472,102 @@
       "to": "Até",
       "filter": "Filtrar",
       "unstructured": "Resposta não estruturada — texto original abaixo",
-      "recordEmpty": "Nenhuma análise Chanlun ainda"
+      "recordEmpty": "Nenhuma análise Chanlun ainda",
+      "actionCol": "Cartão",
+      "statusCol": "Acompanhamento",
+      "outcomeCol": "Resultado",
+      "compare": {
+        "title": "Comparar decisões anteriores",
+        "hint": "Marque 2–4 análises para comparar as conclusões",
+        "go": "Comparar selecionados",
+        "clear": "Limpar",
+        "col": "Item",
+        "field": "Campo",
+        "empty": "Marque ao menos 2 registros"
+      },
+      "cardAbsent": "Sem cartão de ação",
+      "violation": "Cartão viola o contrato",
+      "dir": {
+        "bullish": "Alta",
+        "bearish": "Baixa",
+        "neutral": "Neutro"
+      },
+      "act": {
+        "buy": "Comprar",
+        "add": "Adicionar",
+        "hold": "Manter",
+        "reduce": "Reduzir",
+        "sell": "Vender",
+        "wait": "Aguardar"
+      },
+      "live": {
+        "waiting": "Aguardando gatilho",
+        "active": "Posição aberta",
+        "target_hit": "T1 atingido",
+        "stopped": "Stop acionado",
+        "expired": "Expirado sem execução",
+        "neutral": "Aguardar",
+        "insufficient_data": "Dados insuficientes"
+      },
+      "out": {
+        "win": "Lucro realizado",
+        "loss": "Stop acionado",
+        "partial": "Lucro parcial",
+        "timeout_correct": "Direção certa (vencido)",
+        "timeout_wrong": "Direção errada (vencido)",
+        "neutral": "Neutro, sem avaliar",
+        "pending": "Aguardando verificação",
+        "insufficient_data": "Dados insuficientes"
+      },
+      "rate": {
+        "accurate": "Preciso",
+        "partial": "Parcialmente preciso",
+        "wrong": "Errado"
+      },
+      "card": {
+        "title": "Cartão de ação",
+        "confidence": "Convicção",
+        "base": "Base",
+        "trigger": "Gatilho",
+        "stop": "Stop",
+        "target": "Alvos",
+        "rr": "Retorno/risco T1",
+        "horizon": "Horizonte",
+        "days": "{{n}} pregões",
+        "invalidation": "Invalidação",
+        "risks": "Riscos principais",
+        "rating": "Minha avaliação posterior",
+        "notePlaceholder": "Notas de execução ou motivo do erro (opcional)",
+        "saveRating": "Enviar avaliação",
+        "ratedAt": "Avaliado em {{when}}",
+        "mfe": "MFE máximo",
+        "mae": "MAE máximo",
+        "exitReturn": "Retorno final",
+        "windowEnd": "Fim do prazo"
+      },
+      "compare": {
+        "title": "Comparar decisões anteriores",
+        "hint": "Marque 2–4 análises para comparar as conclusões",
+        "go": "Comparar selecionados",
+        "clear": "Limpar",
+        "col": "Item",
+        "field": "Campo",
+        "empty": "Marque ao menos 2 registros"
+      },
+      "stats": {
+        "title": "Desempenho Chanlun",
+        "sample": "Verificados",
+        "cards": "cartões",
+        "winRate": "Taxa de acerto",
+        "dirAcc": "Precisão direcional",
+        "targetRate": "Taxa T1",
+        "stopRate": "Taxa de stop",
+        "avgMfe": "MFE médio",
+        "avgMae": "MAE médio",
+        "rated": "Minhas avaliações",
+        "pending": "Pendentes",
+        "bySetup": "Por tipo de ponto"
+      }
     },
     "kline": {
       "title": "Níveis de candles exigidos pelo analista Chanlun",

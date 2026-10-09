@@ -2472,7 +2472,102 @@
       "to": "Bis",
       "filter": "Filter",
       "unstructured": "Unstrukturierte Antwort — Originaltext unten",
-      "recordEmpty": "Noch keine Chanlun-Analyse"
+      "recordEmpty": "Noch keine Chanlun-Analyse",
+      "actionCol": "Karte",
+      "statusCol": "Verfolgung",
+      "outcomeCol": "Ergebnis",
+      "compare": {
+        "title": "Frühere Einschätzungen vergleichen",
+        "hint": "2–4 Analysen zum Vergleich auswählen",
+        "go": "Auswahl vergleichen",
+        "clear": "Leeren",
+        "col": "Eintrag",
+        "field": "Feld",
+        "empty": "Mindestens 2 Einträge auswählen"
+      },
+      "cardAbsent": "Keine Aktionskarte",
+      "violation": "Karte verletzt den Vertrag",
+      "dir": {
+        "bullish": "Aufwärts",
+        "bearish": "Abwärts",
+        "neutral": "Neutral"
+      },
+      "act": {
+        "buy": "Kaufen",
+        "add": "Aufstocken",
+        "hold": "Halten",
+        "reduce": "Reduzieren",
+        "sell": "Verkaufen",
+        "wait": "Abwarten"
+      },
+      "live": {
+        "waiting": "Auf Auslöser warten",
+        "active": "Position offen",
+        "target_hit": "T1 erreicht",
+        "stopped": "Gestoppt",
+        "expired": "Verfallen unausgeführt",
+        "neutral": "Abwarten",
+        "insufficient_data": "Daten unzureichend"
+      },
+      "out": {
+        "win": "Gewinn mitgenommen",
+        "loss": "Gestoppt",
+        "partial": "Teilgewinn",
+        "timeout_correct": "Richtung richtig (abgelaufen)",
+        "timeout_wrong": "Richtung falsch (abgelaufen)",
+        "neutral": "Neutral, unbewertet",
+        "pending": "Ausstehende Verifikation",
+        "insufficient_data": "Daten unzureichend"
+      },
+      "rate": {
+        "accurate": "Präzise",
+        "partial": "Teilweise präzise",
+        "wrong": "Falsch"
+      },
+      "card": {
+        "title": "Aktionskarte",
+        "confidence": "Überzeugung",
+        "base": "Basis",
+        "trigger": "Auslöser",
+        "stop": "Stop",
+        "target": "Ziele",
+        "rr": "T1 Chance/Risiko",
+        "horizon": "Horizont",
+        "days": "{{n}} Sitzungen",
+        "invalidation": "Ungültigkeitsbedingung",
+        "risks": "Hauptrisiken",
+        "rating": "Meine Nachbetrachtung",
+        "notePlaceholder": "Ausführungsnotizen oder Fehlerursache (optional)",
+        "saveRating": "Bewertung senden",
+        "ratedAt": "Bewertet {{when}}",
+        "mfe": "Bestes MFE",
+        "mae": "Schlechtester MAE",
+        "exitReturn": "Endrendite",
+        "windowEnd": "Horizontende"
+      },
+      "compare": {
+        "title": "Frühere Einschätzungen vergleichen",
+        "hint": "2–4 Analysen zum Vergleich auswählen",
+        "go": "Auswahl vergleichen",
+        "clear": "Leeren",
+        "col": "Eintrag",
+        "field": "Feld",
+        "empty": "Mindestens 2 Einträge auswählen"
+      },
+      "stats": {
+        "title": "Chanlun-Erfolgsbilanz",
+        "sample": "Verifiziert",
+        "cards": "Karten",
+        "winRate": "Trefferquote",
+        "dirAcc": "Richtungstreffer",
+        "targetRate": "T1-Trefferquote",
+        "stopRate": "Stop-Quote",
+        "avgMfe": "Ø MFE",
+        "avgMae": "Ø MAE",
+        "rated": "Meine Bewertungen",
+        "pending": "Ausstehend",
+        "bySetup": "Nach Setup-Typ"
+      }
     },
     "kline": {
       "title": "Für die Chanlun-Analyse erforderliche Kerzenebenen",

@@ -154,3 +154,28 @@ def test_template_heading_is_not_a_value() -> None:
 @pytest.mark.parametrize("text", ["", "   ", "no structure here at all"])
 def test_garbage_input_returns_none(text: str) -> None:
     assert parse_chanlun_report(text) is None
+
+
+def test_section8_action_card_does_not_corrupt_section7() -> None:
+    """The section-8 JSON card must be excluded from section-7 parsing.
+
+    The card carries confidence_pct and other numbers; only the explicit
+    section-7 score/confidence lines may populate the parsed fields.
+    """
+    report = _report("Score: -2", "Confidence: 55%")
+    card = (
+        "\n8. 操作结论卡 / Action Card\n\n"
+        "```json\n"
+        '{"schema_version":1,"base_price":10.3,"base_date":"2026-10-08",'
+        '"direction":"bearish","action":"sell","confidence_pct":80,'
+        '"setup_class":"1卖","horizon_days":15,"trigger_price":10.1,'
+        '"stop_price":10.6,"target_prices":[9.8],"rr_at_t1":0.6,'
+        '"invalidation":"x","key_risks":"y","one_liner":"z"}\n'
+        "```\n"
+    )
+    parsed = parse_chanlun_report(report + card)
+    assert parsed is not None
+    assert parsed["score"] == -2
+    assert parsed["confidence"] == pytest.approx(0.55)
+    assert "```json" not in parsed["dims"]["chanlun_score"]
+    assert "confidence_pct" not in parsed["dims"]["chanlun_score"]

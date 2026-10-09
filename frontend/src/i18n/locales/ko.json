@@ -2472,7 +2472,102 @@
       "to": "종료일",
       "filter": "필터",
       "unstructured": "비정형 응답 — 원문을 표시합니다",
-      "recordEmpty": "찬룬 분석이 없습니다"
+      "recordEmpty": "찬룬 분석이 없습니다",
+      "actionCol": "카드",
+      "statusCol": "추적",
+      "outcomeCol": "결과",
+      "compare": {
+        "title": "과거 결론 비교",
+        "hint": "2–4개 분석을 선택해 결론 차이를 비교합니다",
+        "go": "선택 항목 비교",
+        "clear": "지우기",
+        "col": "항목",
+        "field": "필드",
+        "empty": "2개 이상 선택하세요"
+      },
+      "cardAbsent": "행동 카드 없음",
+      "violation": "카드가 계약 위반",
+      "dir": {
+        "bullish": "강세",
+        "bearish": "약세",
+        "neutral": "중립"
+      },
+      "act": {
+        "buy": "매수",
+        "add": "추매",
+        "hold": "보유",
+        "reduce": "감축",
+        "sell": "매도",
+        "wait": "관망"
+      },
+      "live": {
+        "waiting": "트리거 대기",
+        "active": "포지션 보유",
+        "target_hit": "T1 도달",
+        "stopped": "손절",
+        "expired": "기한 만료 미체결",
+        "neutral": "관망",
+        "insufficient_data": "데이터 부족"
+      },
+      "out": {
+        "win": "익절",
+        "loss": "손절",
+        "partial": "부분 익절",
+        "timeout_correct": "방향 맞음(만기)",
+        "timeout_wrong": "방향 틀림(만기)",
+        "neutral": "중립(평가 제외)",
+        "pending": "검증 대기",
+        "insufficient_data": "데이터 부족"
+      },
+      "rate": {
+        "accurate": "정확",
+        "partial": "부분적 정확",
+        "wrong": "오판"
+      },
+      "card": {
+        "title": "행동 카드",
+        "confidence": "확신",
+        "base": "기준",
+        "trigger": "트리거",
+        "stop": "손절",
+        "target": "목표가",
+        "rr": "T1 손익비",
+        "horizon": "기간",
+        "days": "{{n}}거래일",
+        "invalidation": "무효 조건",
+        "risks": "주요 리스크",
+        "rating": "사후 평가(내 복기)",
+        "notePlaceholder": "체결 상황이나 오판 이유(선택)",
+        "saveRating": "평가 제출",
+        "ratedAt": "평가 완료 {{when}}",
+        "mfe": "최대 MFE",
+        "mae": "최대 MAE",
+        "exitReturn": "만기 수익률",
+        "windowEnd": "기간 종료"
+      },
+      "compare": {
+        "title": "과거 결론 비교",
+        "hint": "2–4개 분석을 선택해 결론 차이를 비교합니다",
+        "go": "선택 항목 비교",
+        "clear": "지우기",
+        "col": "항목",
+        "field": "필드",
+        "empty": "2개 이상 선택하세요"
+      },
+      "stats": {
+        "title": "찬론 성적",
+        "sample": "검증 완료",
+        "cards": "장의 카드",
+        "winRate": "승률",
+        "dirAcc": "방향 정확도",
+        "targetRate": "T1 도달률",
+        "stopRate": "손절률",
+        "avgMfe": "평균 MFE",
+        "avgMae": "평균 MAE",
+        "rated": "내 평가",
+        "pending": "검증 중",
+        "bySetup": "매매점 유형별"
+      }
     },
     "kline": {
       "title": "찬룽(Chanlun) 분석에 필요한 캔들 레벨",

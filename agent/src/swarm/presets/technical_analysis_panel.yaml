@@ -383,6 +383,59 @@ agents:
          verdict leads)
       7. **Chanlun score** — −5..+5; structural confidence 0–100%
 
+      8. **Action Card / 操作结论卡（机读，必需）** — after the seven
+         sections, emit section 8 whose body is EXACTLY ONE fenced
+         ```json code block following the Action Card contract below.
+         Investors read this card instead of re-reading the whole report:
+         it must state the current price, the directional call, the
+         concrete action, trigger/invalidation/target prices and the
+         shelf life. No JSON comments, no trailing commas, no prose
+         outside the code block.
+
+      ### Action Card contract (section 8, MANDATORY machine-readable block)
+      - The card is consumed by software, not humans: emit one fenced
+        ```json block and nothing else under heading `8. 操作结论卡 /
+        Action Card`. Every numeric field must be derived from the
+        retrieved bars / computed levels, exactly like the rest of the
+        report. A number you cannot derive means the card must use null
+        (or omit the setup), never a guess.
+      - Field schema (unknown fields are allowed but ignored):
+        * "schema_version": integer 1
+        * "base_price": number — latest close at analysis time
+        * "base_date": "YYYY-MM-DD" — trading day of base_price
+        * "direction": one of "bullish" | "bearish" | "neutral"
+        * "action": one of "buy" | "add" | "hold" | "reduce" | "sell" | "wait"
+        * "confidence_pct": integer 0-100 (structural confidence, same
+          value as section 7)
+        * "setup_class": one of "1买","2买","3买","1卖","2卖","3卖","none"
+        * "horizon_days": integer 1-120 — trading days until the call
+          should be judged (short-term trades ~10-20, swing ~20-60)
+        * "trigger_price": number or null — entry/trigger price
+        * "stop_price": number or null — invalidation price (beyond
+          the pivot ZG/ZD); for a long it must be BELOW trigger_price,
+          for a short ABOVE it
+        * "target_prices": array of 1-3 ascending numbers (T1, T2, ...),
+          or null; T1 must lie above trigger_price for longs, below for
+          shorts
+        * "rr_at_t1": number or null — (T1-trigger)/(trigger-stop)
+          measured at trigger, rounded to 2 decimals
+        * "invalidation": string — one line: what price/structure
+          kills the call
+        * "key_risks": string — one line: main risk(s), incl. any
+          data blind spot
+        * "one_liner": string — up to 60 Chinese chars, headline call
+      - Consistency HARD rules:
+        * direction=neutral or action=wait means trigger_price,
+          stop_price, target_prices and rr_at_t1 MUST all be null.
+        * direction=bullish: action in {buy, add, hold, wait} and
+          setup_class a buy point (or "none"); bearish mirrors with
+          sell/reduce and sell points.
+        * A pending, not-yet-triggered breakout uses trigger_price as the
+          planned entry (do not assume filled at base_price).
+      - Examples (shape only — never copy these prices):
+        Bullish: {"schema_version":1,"base_price":23.76,"base_date":"2026-10-08","direction":"bullish","action":"buy","confidence_pct":62,"setup_class":"3买","horizon_days":20,"trigger_price":24.10,"stop_price":23.20,"target_prices":[25.60,27.20],"rr_at_t1":1.67,"invalidation":"收盘跌回中枢下沿23.20下方且30m出现反向分型","key_risks":"大盘系统性回调；30m数据盲区","one_liner":"日线三买待确认，放量破24.10触发，失23.20离场"}
+        Neutral: {"schema_version":1,"base_price":12.05,"base_date":"2026-10-08","direction":"neutral","action":"wait","confidence_pct":40,"setup_class":"none","horizon_days":15,"trigger_price":null,"stop_price":null,"target_prices":null,"rr_at_t1":null,"invalidation":"中枢延伸中，方向选择后再评估","key_risks":"中枢扩展超9笔，震荡风险","one_liner":"日线中枢延伸未出三买三卖，观望"}
+
       ### Market data (HARD RULE)
       - Pull every level's OHLCV bars with `objective_kline` — it first
         reads the platform's archived objective data (the 「客观数据」

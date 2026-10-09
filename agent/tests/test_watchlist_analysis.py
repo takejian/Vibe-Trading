@@ -292,6 +292,14 @@ _STRUCTURED_REPORT = "\n".join(
         "**6. Elliott corroboration 艾略特验证**", "s6",
         "**7. Chanlun score 缠论打分**",
         "Score: +3", "Confidence: 78%",
+        "8. 操作结论卡 / Action Card",
+        "```json",
+        '{"schema_version":1,"base_price":10.3,"base_date":"2026-09-10",'
+        '"direction":"bullish","action":"buy","confidence_pct":78,'
+        '"setup_class":"3买","horizon_days":20,"trigger_price":10.5,'
+        '"stop_price":10.05,"target_prices":[11.2,11.8],"rr_at_t1":1.56,'
+        '"invalidation":"跌回10.05下方","key_risks":"无","one_liner":"三买"}',
+        "```",
     ]
 )
 
@@ -320,13 +328,18 @@ def test_persist_chanlun_and_objective_idempotent(db_conn) -> None:
     counts = svc.persist_run_artifacts(
         [chanlun_run, fetch_run], entries=ENTRIES, connection=db_conn
     )
-    assert counts == {"chanlun": 1, "objective": 1, "unstructured": 0}
+    assert counts == {"chanlun": 1, "objective": 1, "unstructured": 0,
+                        "card_ok": 1, "card_violation": 0}
 
     rows = watch_db.list_chanlun_records("600519.SH", db_conn)
     assert len(rows) == 1
     assert rows[0]["structured"] is True
     assert rows[0]["score"] == 3
     assert rows[0]["confidence"] == 0.78
+    assert rows[0]["card_parse"] == "ok"
+    assert rows[0]["direction"] == "bullish"
+    assert rows[0]["trigger_price"] == 10.5
+    assert rows[0]["target_prices"] == [11.2, 11.8]
     assert rows[0]["dim1_structure_read"] == "s1"
 
     objectives = watch_db.list_objective_records("600519.SH", db_conn)
@@ -338,7 +351,8 @@ def test_persist_chanlun_and_objective_idempotent(db_conn) -> None:
     counts_again = svc.persist_run_artifacts(
         [chanlun_run, fetch_run], entries=ENTRIES, connection=db_conn
     )
-    assert counts_again == {"chanlun": 0, "objective": 0, "unstructured": 0}
+    assert counts_again == {"chanlun": 0, "objective": 0, "unstructured": 0,
+                                  "card_ok": 0, "card_violation": 0}
     assert len(watch_db.list_chanlun_records("600519.SH", db_conn)) == 1
 
 
@@ -373,6 +387,7 @@ def test_persist_ignores_unfinished_and_other_roles(db_conn) -> None:
     counts = svc.persist_run_artifacts(
         [running, other], entries=ENTRIES, connection=db_conn
     )
-    assert counts == {"chanlun": 0, "objective": 0, "unstructured": 0}
+    assert counts == {"chanlun": 0, "objective": 0, "unstructured": 0,
+                        "card_ok": 0, "card_violation": 0}
     assert watch_db.list_chanlun_records("600519.SH", db_conn) == []
     assert watch_db.list_objective_records("600519.SH", db_conn) == []

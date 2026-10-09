@@ -102,6 +102,32 @@ CREATE TABLE IF NOT EXISTS chanlun_analysis (
 CREATE INDEX IF NOT EXISTS idx_chanlun_analysis_symbol
     ON chanlun_analysis(symbol, analyzed_at);
 
+-- Post-hoc verification + user rating for each archived Chanlun card
+-- (closed loop). One row per analysis run; auto outcome and manual rating
+-- live side by side so they may disagree.
+CREATE TABLE IF NOT EXISTS chanlun_outcome (
+    run_id            VARCHAR PRIMARY KEY,
+    symbol            VARCHAR NOT NULL,
+    eval_status       VARCHAR,
+    base_date         DATE,
+    window_end_date   DATE,
+    target_hit        BOOLEAN,
+    stop_hit          BOOLEAN,
+    first_event       VARCHAR,
+    mfe_pct           DOUBLE,
+    mae_pct           DOUBLE,
+    exit_return_pct   DOUBLE,
+    direction_correct BOOLEAN,
+    outcome_label     VARCHAR,
+    error_note        VARCHAR,
+    evaluated_at      TIMESTAMP,
+    user_verdict      VARCHAR,
+    user_note         VARCHAR,
+    user_rated_at     TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_chanlun_outcome_symbol
+    ON chanlun_outcome(symbol, eval_status);
+
 -- Multi-level K-line bars fetched for the Chanlun pre-run gate (M16).
 -- One row per symbol/interval/bar across intervals 30m,1d,1w,1mo,1q,1y.
 -- Bars are append/merge only — failed refreshes never delete old rows.
@@ -165,6 +191,7 @@ def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
         if ddl:
             conn.execute(ddl)
     _migrate_kline_status_source(conn)
+    _migrate_chanlun_card_columns(conn)
 
 
 def _migrate_kline_status_source(conn: duckdb.DuckDBPyConnection) -> None:
@@ -177,6 +204,45 @@ def _migrate_kline_status_source(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute(
             "ALTER TABLE watch_kline_fetch_status ADD COLUMN source VARCHAR"
         )
+
+
+#: Additive card columns (section-8 Action Card) for old ``chanlun_analysis``
+#: rows. Fresh databases get them via the same migration; every column is
+#: nullable so legacy rows and card-less reports keep archiving.
+_CHANLUN_CARD_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("base_price", "DOUBLE"),
+    ("base_date", "DATE"),
+    ("direction", "VARCHAR"),
+    ("action", "VARCHAR"),
+    ("setup_class", "VARCHAR"),
+    ("card_confidence", "DOUBLE"),
+    ("horizon_days", "INTEGER"),
+    ("trigger_price", "DOUBLE"),
+    ("stop_price", "DOUBLE"),
+    ("target_prices", "VARCHAR"),
+    ("rr_at_t1", "DOUBLE"),
+    ("invalidation", "VARCHAR"),
+    ("key_risks", "VARCHAR"),
+    ("one_liner", "VARCHAR"),
+    ("card_json", "VARCHAR"),
+    ("card_parse", "VARCHAR"),
+)
+
+
+def _migrate_chanlun_card_columns(conn: duckdb.DuckDBPyConnection) -> None:
+    """Add section-8 Action Card columns to an old ``chanlun_analysis``."""
+    existing = {
+        row[0]
+        for row in conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'chanlun_analysis'"
+        ).fetchall()
+    }
+    for name, col_type in _CHANLUN_CARD_COLUMNS:
+        if name not in existing:
+            conn.execute(
+                f"ALTER TABLE chanlun_analysis ADD COLUMN {name} {col_type}"
+            )
 
 
 # ----------------------------------------------------------------------
@@ -489,15 +555,20 @@ def insert_chanlun_record(
     structured: bool,
     raw_report: str,
     analyzed_at: datetime | None = None,
+    card: dict[str, Any] | None = None,
+    card_parse: str | None = None,
 ) -> str:
     """Insert one parsed Chanlun analysis row.
 
     CHECK constraints reject out-of-range score/confidence; callers parse
     defensively and pass ``structured=False`` with raw text when parsing
-    could not produce all seven dimensions.
+    could not produce all seven dimensions. ``card`` is the normalized
+    section-8 Action Card (None when the report carried no valid card);
+    ``card_parse`` carries the ok/no_card/contract_violation state.
     """
     normalized = normalize_a_share_symbol(symbol)
     record_id = str(uuid.uuid4())
+    targets = card.get("target_prices") if card else None
     conn.execute(
         """
         INSERT INTO chanlun_analysis
@@ -505,8 +576,13 @@ def insert_chanlun_record(
              dim1_structure_read, dim2_active_pivots, dim3_divergence,
              dim4_buy_sell_points, dim5_multi_level_plan,
              dim6_elliott_corroboration, dim7_chanlun_score,
-             score, confidence, structured, raw_report, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             score, confidence, structured, raw_report, created_at,
+             base_price, base_date, direction, action, setup_class,
+             card_confidence, horizon_days, trigger_price, stop_price,
+             target_prices, rr_at_t1, invalidation, key_risks, one_liner,
+             card_json, card_parse)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             record_id,
@@ -525,6 +601,22 @@ def insert_chanlun_record(
             structured,
             raw_report,
             datetime.now(),
+            card.get("base_price") if card else None,
+            card.get("base_date") if card else None,
+            card.get("direction") if card else None,
+            card.get("action") if card else None,
+            card.get("setup_class") if card else None,
+            card.get("confidence_pct") if card else None,
+            card.get("horizon_days") if card else None,
+            card.get("trigger_price") if card else None,
+            card.get("stop_price") if card else None,
+            json.dumps(targets, ensure_ascii=False) if targets is not None else None,
+            card.get("rr_at_t1") if card else None,
+            card.get("invalidation") if card else None,
+            card.get("key_risks") if card else None,
+            card.get("one_liner") if card else None,
+            json.dumps(card, ensure_ascii=False) if card is not None else None,
+            card_parse,
         ],
     )
     return record_id
@@ -567,20 +659,297 @@ def list_chanlun_records(
             max(0, int(offset)),
         ]
     )
-    return _query_dicts(
+    rows = _query_dicts(
         conn,
         f"""
         SELECT id, run_id, symbol, analyzed_at,
                dim1_structure_read, dim2_active_pivots, dim3_divergence,
                dim4_buy_sell_points, dim5_multi_level_plan,
                dim6_elliott_corroboration, dim7_chanlun_score,
-               score, confidence, structured, raw_report, created_at
+               score, confidence, structured, raw_report, created_at,
+               base_price, base_date, direction, action, setup_class,
+               card_confidence, horizon_days, trigger_price, stop_price,
+               target_prices, rr_at_t1, invalidation, key_risks,
+               one_liner, card_json, card_parse
         FROM chanlun_analysis
         WHERE {' AND '.join(clauses)}
         ORDER BY analyzed_at DESC, id DESC
         LIMIT ? OFFSET ?
         """,
         params,
+    )
+    for row in rows:
+        row["target_prices"] = _decode_targets(row.get("target_prices"))
+    return rows
+
+
+def _decode_targets(raw: Any) -> list[float] | None:
+    if not raw:
+        return None
+    try:
+        decoded = json.loads(str(raw))
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(decoded, list):
+        return None
+    return [float(v) for v in decoded if isinstance(v, (int, float))]
+
+
+# ----------------------------------------------------------------------
+# Chanlun outcome / rating (closed loop)
+# ----------------------------------------------------------------------
+def latest_close_on(
+    symbol: str,
+    on_or_before: date,
+    conn: duckdb.DuckDBPyConnection,
+) -> dict[str, Any] | None:
+    """Last daily close <= on_or_before from the warehouse or 1d kline bars.
+
+    Read-only and offline: prefers the market warehouse ``daily_bar`` and
+    falls back to the ``watch_kline_bar`` rows the readiness gate already
+    fetched. Returns ``{"trade_date", "close", "open", "high", "low"}`` or
+    ``None`` when no bar covers the date. Never raises for a missing
+    legacy table.
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    if _table_exists(conn, "daily_bar"):
+        try:
+            row = conn.execute(
+                """
+                SELECT trade_date, close, open, high, low FROM daily_bar
+                WHERE symbol = ? AND trade_date <= ?
+                ORDER BY trade_date DESC LIMIT 1
+                """,
+                [normalized, on_or_before],
+            ).fetchone()
+            if row:
+                return {
+                    "trade_date": row[0],
+                    "close": row[1],
+                    "open": row[2],
+                    "high": row[3],
+                    "low": row[4],
+                }
+        except duckdb.CatalogException:
+            pass
+    row = conn.execute(
+        """
+        SELECT bar_time, close, open, high, low FROM watch_kline_bar
+        WHERE symbol = ? AND interval = '1d'
+          AND CAST(substr(bar_time, 1, 10) AS DATE) <= ?
+        ORDER BY bar_time DESC LIMIT 1
+        """,
+        [normalized, on_or_before],
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "trade_date": row[0],
+        "close": row[1],
+        "open": row[2],
+        "high": row[3],
+        "low": row[4],
+    }
+
+
+def daily_bars_between(
+    symbol: str,
+    start: date,
+    end: date,
+    conn: duckdb.DuckDBPyConnection,
+) -> list[dict[str, Any]]:
+    """Daily OHLC bars in [start, end], ascending.
+
+    Uses watch_kline_bar (always present once the readiness gate ran);
+    falls back to the warehouse ``daily_bar``. Offline/read-only.
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    rows = conn.execute(
+        """
+        SELECT CAST(substr(bar_time, 1, 10) AS DATE) AS trade_date,
+               open, high, low, close
+        FROM watch_kline_bar
+        WHERE symbol = ? AND interval = '1d'
+          AND CAST(substr(bar_time, 1, 10) AS DATE) BETWEEN ? AND ?
+        ORDER BY bar_time
+        """,
+        [normalized, start, end],
+    ).fetchall()
+    if not rows and _table_exists(conn, "daily_bar"):
+        try:
+            rows = conn.execute(
+                """
+                SELECT trade_date, open, high, low, close FROM daily_bar
+                WHERE symbol = ? AND trade_date BETWEEN ? AND ?
+                ORDER BY trade_date
+                """,
+                [normalized, start, end],
+            ).fetchall()
+        except duckdb.CatalogException:
+            rows = []
+    return [
+        {"trade_date": r[0], "open": r[1], "high": r[2], "low": r[3], "close": r[4]}
+        for r in rows
+    ]
+
+
+def get_chanlun_record_by_run(
+    run_id: str, conn: duckdb.DuckDBPyConnection
+) -> dict[str, Any] | None:
+    """Fetch one archived chanlun row by run id (card columns included)."""
+    rows = _query_dicts(
+        conn,
+        """
+        SELECT id, run_id, symbol, analyzed_at,
+               dim1_structure_read, dim2_active_pivots, dim3_divergence,
+               dim4_buy_sell_points, dim5_multi_level_plan,
+               dim6_elliott_corroboration, dim7_chanlun_score,
+               score, confidence, structured, raw_report, created_at,
+               base_price, base_date, direction, action, setup_class,
+               card_confidence, horizon_days, trigger_price, stop_price,
+               target_prices, rr_at_t1, invalidation, key_risks,
+               one_liner, card_json, card_parse
+        FROM chanlun_analysis WHERE run_id = ?
+        """,
+        [run_id],
+    )
+    if not rows:
+        return None
+    rows[0]["target_prices"] = _decode_targets(rows[0].get("target_prices"))
+    return rows[0]
+
+
+def cards_pending_outcome(
+    symbol: str | None, conn: duckdb.DuckDBPyConnection
+) -> list[dict[str, Any]]:
+    """OK-card rows that still lack a terminal outcome (or were data-poor).
+
+    ``insufficient_data`` rows stay eligible so a later bar backfill can
+    flip them to verified. Pass ``symbol=None`` for a global sweep.
+    """
+    normalized = normalize_a_share_symbol(symbol) if symbol else ""
+    rows = _query_dicts(
+        conn,
+        """
+        SELECT c.* FROM chanlun_analysis c
+        LEFT JOIN chanlun_outcome o ON o.run_id = c.run_id
+        WHERE c.card_parse = 'ok'
+          AND (o.run_id IS NULL
+               OR o.eval_status IN ('pending', 'insufficient_data'))
+          AND (? = '' OR c.symbol = ?)
+        ORDER BY c.analyzed_at DESC
+        """,
+        [normalized, normalized],
+    )
+    for row in rows:
+        row["target_prices"] = _decode_targets(row.get("target_prices"))
+    return rows
+
+
+def upsert_chanlun_outcome(
+    *,
+    run_id: str,
+    symbol: str,
+    conn: duckdb.DuckDBPyConnection,
+    eval_status: str,
+    base_date: date | None = None,
+    window_end_date: date | None = None,
+    target_hit: bool | None = None,
+    stop_hit: bool | None = None,
+    first_event: str | None = None,
+    mfe_pct: float | None = None,
+    mae_pct: float | None = None,
+    exit_return_pct: float | None = None,
+    direction_correct: bool | None = None,
+    outcome_label: str | None = None,
+    error_note: str | None = None,
+    evaluated_at: datetime | None = None,
+) -> None:
+    """Insert/replace the machine-derived outcome for one run."""
+    normalized = normalize_a_share_symbol(symbol)
+    conn.execute(
+        """
+        INSERT INTO chanlun_outcome
+            (run_id, symbol, eval_status, base_date, window_end_date,
+             target_hit, stop_hit, first_event, mfe_pct, mae_pct,
+             exit_return_pct, direction_correct, outcome_label, error_note,
+             evaluated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (run_id) DO UPDATE SET
+            symbol = excluded.symbol,
+            eval_status = excluded.eval_status,
+            base_date = excluded.base_date,
+            window_end_date = excluded.window_end_date,
+            target_hit = excluded.target_hit,
+            stop_hit = excluded.stop_hit,
+            first_event = excluded.first_event,
+            mfe_pct = excluded.mfe_pct,
+            mae_pct = excluded.mae_pct,
+            exit_return_pct = excluded.exit_return_pct,
+            direction_correct = excluded.direction_correct,
+            outcome_label = excluded.outcome_label,
+            error_note = excluded.error_note,
+            evaluated_at = excluded.evaluated_at
+        """,
+        [
+            run_id, normalized, eval_status, base_date, window_end_date,
+            target_hit, stop_hit, first_event, mfe_pct, mae_pct,
+            exit_return_pct, direction_correct, outcome_label, error_note,
+            evaluated_at or datetime.now(),
+        ],
+    )
+
+
+def get_chanlun_outcome(
+    run_id: str, conn: duckdb.DuckDBPyConnection
+) -> dict[str, Any] | None:
+    return _query_dicts(
+        conn,
+        "SELECT * FROM chanlun_outcome WHERE run_id = ?",
+        [run_id],
+    )[0] if conn.execute(
+        "SELECT count(*) FROM chanlun_outcome WHERE run_id = ?", [run_id]
+    ).fetchone()[0] > 0 else None
+
+
+def list_chanlun_outcomes(
+    symbol: str, conn: duckdb.DuckDBPyConnection
+) -> list[dict[str, Any]]:
+    """All outcome rows for one symbol (manual ratings included)."""
+    normalized = normalize_a_share_symbol(symbol)
+    return _query_dicts(
+        conn,
+        "SELECT * FROM chanlun_outcome WHERE symbol = ? ORDER BY base_date DESC",
+        [normalized],
+    )
+
+
+def set_user_rating(
+    *,
+    run_id: str,
+    symbol: str,
+    verdict: str,
+    note: str | None,
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """Attach/update the investor's post-hoc rating for one analysis run.
+
+    Creates a stub row when no machine outcome exists yet, preserving the
+    pending eval_status so lazy verification can fill the other columns
+    later.
+    """
+    normalized = normalize_a_share_symbol(symbol)
+    conn.execute(
+        """
+        INSERT INTO chanlun_outcome (run_id, symbol, eval_status, user_verdict,
+                                     user_note, user_rated_at)
+        VALUES (?, ?, 'pending', ?, ?, ?)
+        ON CONFLICT (run_id) DO UPDATE SET
+            user_verdict = excluded.user_verdict,
+            user_note = excluded.user_note,
+            user_rated_at = excluded.user_rated_at
+        """,
+        [run_id, normalized, verdict, note, datetime.now()],
     )
 
 

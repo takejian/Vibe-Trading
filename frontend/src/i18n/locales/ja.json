@@ -2472,7 +2472,102 @@
       "to": "終了日",
       "filter": "絞り込み",
       "unstructured": "非構造化レスポンス — 原文を表示",
-      "recordEmpty": "纏論分析はまだありません"
+      "recordEmpty": "纏論分析はまだありません",
+      "actionCol": "カード",
+      "statusCol": "追跡",
+      "outcomeCol": "結果",
+      "compare": {
+        "title": "過去の判断を比較",
+        "hint": "2〜4件を選んで結論を比較します",
+        "go": "選択分を比較",
+        "clear": "クリア",
+        "col": "項目",
+        "field": "フィールド",
+        "empty": "2件以上選択してください"
+      },
+      "cardAbsent": "行動カードなし",
+      "violation": "カードが契約違反",
+      "dir": {
+        "bullish": "強気",
+        "bearish": "弱気",
+        "neutral": "中立"
+      },
+      "act": {
+        "buy": "買い",
+        "add": "買い増し",
+        "hold": "保有",
+        "reduce": "減らす",
+        "sell": "売り",
+        "wait": "見送り"
+      },
+      "live": {
+        "waiting": "トリガー待ち",
+        "active": "保有中",
+        "target_hit": "T1到達",
+        "stopped": "損切り",
+        "expired": "期限切れ未約定",
+        "neutral": "見送り",
+        "insufficient_data": "データ不足"
+      },
+      "out": {
+        "win": "利食い",
+        "loss": "損切り",
+        "partial": "一部利食い",
+        "timeout_correct": "方向正解(期限)",
+        "timeout_wrong": "方向不正解(期限)",
+        "neutral": "中立(評価対象外)",
+        "pending": "検証待ち",
+        "insufficient_data": "データ不足"
+      },
+      "rate": {
+        "accurate": "的確",
+        "partial": "おおむね的確",
+        "wrong": "不正確"
+      },
+      "card": {
+        "title": "行動カード",
+        "confidence": "自信",
+        "base": "基準",
+        "trigger": "トリガー",
+        "stop": "損切り",
+        "target": "目標値",
+        "rr": "T1損益比",
+        "horizon": "期間",
+        "days": "{{n}}営業日",
+        "invalidation": "無効条件",
+        "risks": "主なリスク",
+        "rating": "事後評価（マイレビュー）",
+        "notePlaceholder": "実行メモや失敗理由（任意）",
+        "saveRating": "評価を送信",
+        "ratedAt": "評価済み {{when}}",
+        "mfe": "最大MFE",
+        "mae": "最大MAE",
+        "exitReturn": "期末リターン",
+        "windowEnd": "期間終了"
+      },
+      "compare": {
+        "title": "過去の判断を比較",
+        "hint": "2〜4件を選んで結論を比較します",
+        "go": "選択分を比較",
+        "clear": "クリア",
+        "col": "項目",
+        "field": "フィールド",
+        "empty": "2件以上選択してください"
+      },
+      "stats": {
+        "title": "缠論の成績",
+        "sample": "検証済み",
+        "cards": "件のカード",
+        "winRate": "勝率",
+        "dirAcc": "方向的中率",
+        "targetRate": "T1到達率",
+        "stopRate": "損切り率",
+        "avgMfe": "平均MFE",
+        "avgMae": "平均MAE",
+        "rated": "マイ評価",
+        "pending": "検証中",
+        "bySetup": "売買点タイプ別"
+      }
     },
     "kline": {
       "title": "纏論（チャンロン）分析に必要なローソク足レベル",
