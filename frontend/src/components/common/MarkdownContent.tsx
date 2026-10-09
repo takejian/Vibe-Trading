@@ -28,6 +28,16 @@ const rehypePlugins: ReactMarkdownOptions["rehypePlugins"] = [
   rehypeKatex,
 ];
 
+// Plain-text fenced blocks (```text) carry ASCII structure diagrams whose
+// columns must stay monospace-aligned: they never wrap and scroll instead.
+function isPlainTextChild(children: unknown): boolean {
+  const child = Array.isArray(children) ? children[0] : children;
+  if (!child || typeof child !== "object") return false;
+  const className = (child as { props?: { className?: string } }).props
+    ?.className;
+  return typeof className === "string" && /\blanguage-text\b/.test(className);
+}
+
 const markdownComponents: ReactMarkdownOptions["components"] = {
   table: ({ node, ...props }) => {
     void node;
@@ -37,6 +47,16 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
       <div className="min-w-0 max-w-full">
         <table className="w-full table-fixed" {...props} />
       </div>
+    );
+  },
+  pre: ({ node, children, ...props }) => {
+    void node;
+    // data-diagram switches the prose rules from wrapping to a scrollable,
+    // gap-free monospace canvas (see proseClassName below).
+    return (
+      <pre {...props} data-diagram={isPlainTextChild(children) ? "" : undefined}>
+        {children}
+      </pre>
     );
   },
   a: ({ node, ...props }) => {
@@ -66,6 +86,13 @@ const proseClassName =
   "[&_th]:align-top [&_td]:align-top " +
   "[&_pre]:whitespace-pre-wrap [&_pre]:[overflow-wrap:anywhere] " +
   "[&_pre]:overflow-x-hidden [&_code]:[overflow-wrap:anywhere] " +
+  // ASCII diagrams in ```text blocks: preserve every column, no wrap, and
+  // let the block scroll horizontally instead of breaking the polyline.
+  "[&_pre[data-diagram]]:whitespace-pre " +
+  "[&_pre[data-diagram]]:overflow-x-auto " +
+  "[&_pre[data-diagram]]:[overflow-wrap:normal] " +
+  "[&_pre[data-diagram]_code]:whitespace-pre " +
+  "[&_pre[data-diagram]_code]:[overflow-wrap:normal] " +
   "prose-hr:hidden";
 
 interface MarkdownErrorBoundaryProps {

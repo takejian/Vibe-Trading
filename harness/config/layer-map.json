@@ -22,7 +22,7 @@
       "trading",
       "watchlist"
     ],
-    "L3": ["agent", "session", "swarm"],
+    "L3": ["agent", "macro_synthesis", "session", "swarm"],
     "L4": ["api", "openbb_bridge", "preflight", "ui_services"]
   },
   "module_nodes": ["market_data", "preflight", "ui_services"],

@@ -271,6 +271,10 @@ register_connection_routes(app)
 from src.api.macro_routes import register_macro_routes  # noqa: E402
 register_macro_routes(app)
 
+# --- Macro quantitative synthesis ---
+from src.api.macro_synthesis_routes import register_macro_synthesis_routes  # noqa: E402
+register_macro_synthesis_routes(app)
+
 from src.api.live_routes import (  # noqa: F401, E402
     CommitMandateRequest,
     LiveHaltRequest,

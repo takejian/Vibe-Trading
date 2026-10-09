@@ -56,6 +56,99 @@ export interface MacroJudgeRequestBody {
   supplement?: string;
 }
 
+// --- Macro quantitative synthesis types (contract with macro_synthesis_routes.py) ---
+
+export type SynthesisPeriodType = "month" | "quarter";
+
+export interface SynthesisCoverageTeam {
+  team: string;
+  title: string;
+  present: boolean;
+  run_id?: string | null;
+  date?: string | null;
+  conclusion?: string | null;
+}
+
+export interface SynthesisCoverage {
+  economy: string;
+  period_type: string;
+  period: string;
+  period_label: string;
+  all_covered: boolean;
+  teams: SynthesisCoverageTeam[];
+}
+
+export interface SynthesisDimension {
+  dimension: string;
+  signal: number;
+  confidence: number;
+  trend: string;
+  weight: number;
+  source_run_ids: string[];
+  rationale: string;
+}
+
+export interface SynthesisClaim {
+  id?: number | null;
+  report_id?: number | null;
+  dimension: string;
+  text: string;
+  metric: string;
+  direction: string;
+  predicted_value: string;
+  probability: number;
+  window_start: string;
+  window_end: string;
+  verify_source: string;
+  status: string;
+  actual_value?: string | null;
+  verified_at?: string | null;
+  ai_comment?: string | null;
+}
+
+export interface SynthesisReport {
+  id: number;
+  economy: string;
+  period_type: string;
+  period: string;
+  period_label: string;
+  mcs: number;
+  mcs_delta: number | null;
+  cycle_probs: Record<string, number>;
+  allocation: Record<string, number>;
+  summary: string;
+  action_advice: string;
+  risk_triggers: string[];
+  coverage: { all_covered: boolean; teams: SynthesisCoverageTeam[] };
+  dimensions: SynthesisDimension[];
+  claims: SynthesisClaim[];
+  status: string;
+  claim_count: number;
+  create_time?: string | null;
+  cached?: boolean;
+}
+
+export interface SynthesisReportSummary {
+  id: number;
+  economy: string;
+  period_type: string;
+  period: string;
+  period_label: string;
+  mcs: number;
+  mcs_delta: number | null;
+  all_covered: boolean;
+  status: string;
+  claim_count: number;
+  create_time?: string | null;
+}
+
+export interface SynthesisRequestBody {
+  economy: string;
+  period_type?: string;
+  period?: string;
+  allow_partial?: boolean;
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -864,6 +957,33 @@ export const api = {
   getMacroJudgment: (economy: string, statisticsDate: string) =>
     request<{ status: string; judgment: MacroJudgment }>(
       `/api/macro/cycle/judgments/${encodeURIComponent(economy)}/${encodeURIComponent(statisticsDate)}`,
+    ),
+
+  // Macro quantitative synthesis
+  getSynthesisCoverage: (params: {
+    economy: string;
+    period_type?: string;
+    period?: string;
+  }) => {
+    const q = new URLSearchParams({ economy: params.economy });
+    if (params.period_type) q.set("period_type", params.period_type);
+    if (params.period) q.set("period", params.period);
+    return request<SynthesisCoverage>(
+      `/api/macro/synthesis/coverage?${q.toString()}`,
+    );
+  },
+  createSynthesisReport: (body: SynthesisRequestBody) =>
+    request<{ status: string; cached: boolean; report: SynthesisReport }>(
+      "/api/macro/synthesis/reports",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  listSynthesisReports: (economy: string) =>
+    request<{ status: string; reports: SynthesisReportSummary[] }>(
+      `/api/macro/synthesis/reports?economy=${encodeURIComponent(economy)}`,
+    ),
+  getSynthesisReport: (id: number) =>
+    request<{ status: string; report: SynthesisReport }>(
+      `/api/macro/synthesis/reports/${id}`,
     ),
 
   // Connector runtime channel — privileged surface actions (NOT agent tools).

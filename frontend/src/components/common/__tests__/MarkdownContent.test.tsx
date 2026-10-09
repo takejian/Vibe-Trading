@@ -101,17 +101,36 @@ describe("MarkdownContent shared renderer", () => {
     expect(fallback?.textContent).toBe("第一行\n第二行");
   });
 
-  it("wraps fenced code blocks to the page width without horizontal scroll", () => {
+  it("wraps ordinary fenced code blocks to the page width without horizontal scroll", () => {
     const longLine = "x".repeat(300);
-    const markdown = "```text\n" + longLine + "\n```";
+    const markdown = "```json\n" + longLine + "\n```";
     const { container } = render(<MarkdownContent content={markdown} />);
 
-    expect(container.querySelector("pre")).not.toBeNull();
+    const pre = container.querySelector("pre");
+    expect(pre).not.toBeNull();
+    // Ordinary code blocks keep wrapping and carry no diagram marker.
+    expect(pre).not.toHaveAttribute("data-diagram");
     // The wrapping rules are emitted as arbitrary variants on the prose
     // container targeting pre (Tailwind generates descendant selectors).
     const prose = container.querySelector(".prose");
     expect(prose?.className).toContain("[&_pre]:whitespace-pre-wrap");
     expect(prose?.className).toContain("[&_pre]:overflow-x-hidden");
+  });
+
+  it("keeps plain-text ASCII diagram blocks gap-free with horizontal scroll", () => {
+    const longLine = "●" + "─".repeat(200) + "●";
+    const markdown = "```text\n" + longLine + "\n```";
+    const { container } = render(<MarkdownContent content={markdown} />);
+
+    const pre = container.querySelector("pre");
+    expect(pre).not.toBeNull();
+    // ```text blocks are marked so prose rules switch from wrapping to a
+    // scrollable monospace canvas (ASCII columns must stay aligned).
+    expect(pre).toHaveAttribute("data-diagram");
+    expect(pre?.querySelector("code")).toHaveClass("language-text");
+    const prose = container.querySelector(".prose");
+    expect(prose?.className).toContain("[&_pre[data-diagram]]:whitespace-pre");
+    expect(prose?.className).toContain("[&_pre[data-diagram]]:overflow-x-auto");
   });
 
   it("breaks long unbroken words and URLs in body text", () => {

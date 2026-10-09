@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChanlunHistory } from "../ChanlunHistory";
@@ -161,6 +161,33 @@ describe("ChanlunHistory", () => {
       expect(screen.getByTestId("chanlun-empty")).toBeInTheDocument(),
     );
   });
+  it("opens a zoomable fullscreen view of the raw markdown report", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChanlunHistory symbol="600519.SH" />);
+    await within(container).findByText("run-raw");
+
+    // The third row (run-raw) carries a raw markdown report.
+    await user.click(within(container).getAllByRole("button", { name: "Expand" })[2]);
+    await user.click(within(container).getByTestId("report-fullscreen-btn"));
+
+    const dialog = await within(container).findByTestId("report-fullscreen");
+    expect(dialog).toBeInTheDocument();
+    // The full report markdown renders inside the dialog.
+    expect(dialog.textContent).toContain("raw non-structured report body");
+    expect(within(container).getByTestId("fullscreen-zoom").textContent).toBe("100%");
+
+    // Zoom steps 100% -> 115% via the plus button, reset restores 100%.
+    await user.click(within(container).getByTestId("fullscreen-zoom-in"));
+    expect(within(container).getByTestId("fullscreen-zoom").textContent).toBe("115%");
+    await user.click(within(container).getByTestId("fullscreen-zoom-reset"));
+    expect(within(container).getByTestId("fullscreen-zoom").textContent).toBe("100%");
+
+    await user.click(within(container).getByTestId("fullscreen-close"));
+    await waitFor(() =>
+      expect(within(container).queryByTestId("report-fullscreen")).toBeNull(),
+    );
+  });
+
 });
 
 function cardRow(over: Record<string, unknown>) {

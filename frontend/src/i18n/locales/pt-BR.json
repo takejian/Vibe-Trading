@@ -1,4 +1,11 @@
 {
+  "common": {
+    "fullscreen": "Tela cheia",
+    "zoomIn": "Aproximar",
+    "zoomOut": "Afastar",
+    "resetZoom": "Redefinir zoom",
+    "close": "Fechar"
+  },
   "app": {
     "version": "v0.1.15"
   },
@@ -1956,7 +1963,87 @@
       "compareSessionTitle": "Comparação de indicadores macro",
       "promptIntro": "Faça uma análise comparativa entre indicadores dos {{n}} resultados de avaliação de papéis abaixo, referentes a indicadores macro-chave. Os materiais estão agrupados por indicador e incluem a conclusão inicial de cada avaliação.",
       "promptItem": "[Material {{index}}] Indicador: {{indicator}}\nPapel: {{role}} (equipe de origem: {{team}})\nAlvo da avaliação: {{target}}\nData: {{date}}\nConclusão inicial: {{conclusion}}",
-      "promptTasks": "Estruture a resposta da seguinte forma:\n1. Resumo de sinais: tabela com a direção de cada indicador (melhora / piora / neutro) e o julgamento central.\n2. Consensos e divergências: quais sinais se reforçam mutuamente e quais entram em conflito (p. ex., crescimento fraco com inflação alta, liquidez farta mas juros subindo).\n3. Posição do ciclo: com base nos sinais, determine a fase atual (recessão / recuperação / expansão / estagflação) e indique a confiança.\n4. Principais riscos: os sinais contraditórios e as incertezas mais relevantes.\n5. Implicações para alocação de ativos: orientação para ações, títulos, commodities e caixa."
+      "promptTasks": "Estruture a resposta da seguinte forma:\n1. Resumo de sinais: tabela com a direção de cada indicador (melhora / piora / neutro) e o julgamento central.\n2. Consensos e divergências: quais sinais se reforçam mutuamente e quais entram em conflito (p. ex., crescimento fraco com inflação alta, liquidez farta mas juros subindo).\n3. Posição do ciclo: com base nos sinais, determine a fase atual (recessão / recuperação / expansão / estagflação) e indique a confiança.\n4. Principais riscos: os sinais contraditórios e as incertezas mais relevantes.\n5. Implicações para alocação de ativos: orientação para ações, títulos, commodities e caixa.",
+      "syn": {
+        "title": "Macro Quantitative Synthesis",
+        "intro": "Aggregates the teams' current-period conclusions into one quantified AI verdict: MCS index, cycle probabilities, five-dimension signals, asset allocation and verifiable claims.",
+        "month": "Monthly",
+        "quarter": "Quarterly",
+        "coverageTitle": "Team conclusion coverage",
+        "covered": "Covered",
+        "missing": "No conclusion",
+        "missingHint": "{{title}} has no conclusion for {{period}}; the synthesis will miss this perspective.",
+        "allCovered": "All four teams have conclusions for this period.",
+        "partialCovered": "Only {{n}}/4 teams have conclusions; you can still synthesize — missing views get low confidence.",
+        "noneCovered": "No team has a conclusion; you can still run an AI synthesis with low-confidence estimates.",
+        "run": "Run synthesis",
+        "running": "Synthesizing…",
+        "inProgress": "A synthesis for this period is already running.",
+        "failed": "Synthesis failed, please try again.",
+        "timeout": "Synthesis timed out, please try again.",
+        "cached": "A report for this period already exists.",
+        "mcsTitle": "Macro Composite Score (MCS)",
+        "mcsHint": "0–100, 50 neutral; weighted five-dimension signals, scaled by confidence",
+        "deltaUp": "+{{n}} vs prior",
+        "deltaDown": "{{n}} vs prior",
+        "deltaFlat": "Flat vs prior",
+        "cycleTitle": "Cycle quadrant probabilities",
+        "cycle": {
+          "recovery": "Recovery",
+          "overheat": "Expansion",
+          "stagflation": "Stagflation",
+          "recession": "Recession"
+        },
+        "dimensionTitle": "Five-dimension signal scorecard",
+        "dimension": {
+          "growth": "Growth",
+          "inflation": "Inflation",
+          "money": "Money & liquidity",
+          "external": "External balance",
+          "synthesis": "Synthesis"
+        },
+        "confidence": "Confidence",
+        "trend": {
+          "up": "Improving",
+          "down": "Weakening",
+          "flat": "Flat"
+        },
+        "signal": {
+          "2": "Strong positive",
+          "1": "Positive",
+          "0": "Neutral",
+          "-1": "Negative",
+          "-2": "Strong negative"
+        },
+        "allocationTitle": "Asset allocation",
+        "asset": {
+          "equity": "Equity",
+          "bond": "Bonds",
+          "commodity": "Commodities",
+          "cash": "Cash"
+        },
+        "alloc": {
+          "2": "Strong overweight",
+          "1": "Overweight",
+          "0": "Neutral",
+          "-1": "Underweight",
+          "-2": "Strong underweight"
+        },
+        "summaryTitle": "Overall conclusion",
+        "adviceTitle": "Action advice",
+        "riskTitle": "Risk triggers",
+        "claimsTitle": "Verifiable claims ({{n}})",
+        "claimsHint": "After each window closes, AI will compare outcomes (coming in a later phase).",
+        "probability": "Probability",
+        "window": "Verification window",
+        "claimStatus": {
+          "pending": "Pending"
+        },
+        "historyTitle": "History",
+        "historyEmpty": "No synthesis reports yet.",
+        "view": "View",
+        "metric": "Metric"
+      }
     },
     "evalHistory": {
       "sectionTitle": "Registros de avaliação",
@@ -2121,7 +2208,9 @@
         "completed": "Completed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "fullscreenFinal": "Abrir decisão final em tela cheia",
+      "fullscreenNode": "Abrir conclusão do papel em tela cheia"
     },
     "history": {
       "loading": "Loading evaluation history…",
@@ -2547,15 +2636,6 @@
         "mae": "MAE máximo",
         "exitReturn": "Retorno final",
         "windowEnd": "Fim do prazo"
-      },
-      "compare": {
-        "title": "Comparar decisões anteriores",
-        "hint": "Marque 2–4 análises para comparar as conclusões",
-        "go": "Comparar selecionados",
-        "clear": "Limpar",
-        "col": "Item",
-        "field": "Campo",
-        "empty": "Marque ao menos 2 registros"
       },
       "stats": {
         "title": "Desempenho Chanlun",

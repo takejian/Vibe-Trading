@@ -1,4 +1,11 @@
 {
+  "common": {
+    "fullscreen": "Layar penuh",
+    "zoomIn": "Perbesar",
+    "zoomOut": "Perkecil",
+    "resetZoom": "Setel ulang zoom",
+    "close": "Tutup"
+  },
   "app": {
     "version": "v0.1.15"
   },
@@ -1956,7 +1963,87 @@
       "compareSessionTitle": "Perbandingan indikator makro",
       "promptIntro": "Lakukan analisis banding lintas indikator terhadap {{n}} hasil evaluasi peran untuk indikator makro kunci berikut. Materi dikelompokkan per indikator dan memuat kesimpulan awal setiap evaluasi.",
       "promptItem": "[Materi {{index}}] Indikator: {{indicator}}\nPeran: {{role}} (tim asal: {{team}})\nTarget evaluasi: {{target}}\nTanggal: {{date}}\nKesimpulan awal: {{conclusion}}",
-      "promptTasks": "Susun keluaran dengan struktur berikut:\n1. Ringkasan sinyal: tabel berisi arah tiap indikator (membaik / melemah / netral) dan penilaian inti.\n2. Konsensus dan divergensi: sinyal yang saling menguatkan dan yang bertentangan (mis. pertumbuhan lemah dengan inflasi tinggi, likuiditas longgar tetapi suku bunga naik).\n3. Posisi siklus: berdasarkan sinyal, tentukan fase siklus saat ini (resesi / pemulihan / ekspansi / stagflasi) dan sertakan tingkat keyakinan.\n4. Risiko utama: sinyal kontradiktif dan ketidakpastian yang paling perlu dicermati.\n5. Implikasi alokasi aset: panduan untuk saham, obligasi, komoditas, dan kas."
+      "promptTasks": "Susun keluaran dengan struktur berikut:\n1. Ringkasan sinyal: tabel berisi arah tiap indikator (membaik / melemah / netral) dan penilaian inti.\n2. Konsensus dan divergensi: sinyal yang saling menguatkan dan yang bertentangan (mis. pertumbuhan lemah dengan inflasi tinggi, likuiditas longgar tetapi suku bunga naik).\n3. Posisi siklus: berdasarkan sinyal, tentukan fase siklus saat ini (resesi / pemulihan / ekspansi / stagflasi) dan sertakan tingkat keyakinan.\n4. Risiko utama: sinyal kontradiktif dan ketidakpastian yang paling perlu dicermati.\n5. Implikasi alokasi aset: panduan untuk saham, obligasi, komoditas, dan kas.",
+      "syn": {
+        "title": "Macro Quantitative Synthesis",
+        "intro": "Aggregates the teams' current-period conclusions into one quantified AI verdict: MCS index, cycle probabilities, five-dimension signals, asset allocation and verifiable claims.",
+        "month": "Monthly",
+        "quarter": "Quarterly",
+        "coverageTitle": "Team conclusion coverage",
+        "covered": "Covered",
+        "missing": "No conclusion",
+        "missingHint": "{{title}} has no conclusion for {{period}}; the synthesis will miss this perspective.",
+        "allCovered": "All four teams have conclusions for this period.",
+        "partialCovered": "Only {{n}}/4 teams have conclusions; you can still synthesize — missing views get low confidence.",
+        "noneCovered": "No team has a conclusion; you can still run an AI synthesis with low-confidence estimates.",
+        "run": "Run synthesis",
+        "running": "Synthesizing…",
+        "inProgress": "A synthesis for this period is already running.",
+        "failed": "Synthesis failed, please try again.",
+        "timeout": "Synthesis timed out, please try again.",
+        "cached": "A report for this period already exists.",
+        "mcsTitle": "Macro Composite Score (MCS)",
+        "mcsHint": "0–100, 50 neutral; weighted five-dimension signals, scaled by confidence",
+        "deltaUp": "+{{n}} vs prior",
+        "deltaDown": "{{n}} vs prior",
+        "deltaFlat": "Flat vs prior",
+        "cycleTitle": "Cycle quadrant probabilities",
+        "cycle": {
+          "recovery": "Recovery",
+          "overheat": "Expansion",
+          "stagflation": "Stagflation",
+          "recession": "Recession"
+        },
+        "dimensionTitle": "Five-dimension signal scorecard",
+        "dimension": {
+          "growth": "Growth",
+          "inflation": "Inflation",
+          "money": "Money & liquidity",
+          "external": "External balance",
+          "synthesis": "Synthesis"
+        },
+        "confidence": "Confidence",
+        "trend": {
+          "up": "Improving",
+          "down": "Weakening",
+          "flat": "Flat"
+        },
+        "signal": {
+          "2": "Strong positive",
+          "1": "Positive",
+          "0": "Neutral",
+          "-1": "Negative",
+          "-2": "Strong negative"
+        },
+        "allocationTitle": "Asset allocation",
+        "asset": {
+          "equity": "Equity",
+          "bond": "Bonds",
+          "commodity": "Commodities",
+          "cash": "Cash"
+        },
+        "alloc": {
+          "2": "Strong overweight",
+          "1": "Overweight",
+          "0": "Neutral",
+          "-1": "Underweight",
+          "-2": "Strong underweight"
+        },
+        "summaryTitle": "Overall conclusion",
+        "adviceTitle": "Action advice",
+        "riskTitle": "Risk triggers",
+        "claimsTitle": "Verifiable claims ({{n}})",
+        "claimsHint": "After each window closes, AI will compare outcomes (coming in a later phase).",
+        "probability": "Probability",
+        "window": "Verification window",
+        "claimStatus": {
+          "pending": "Pending"
+        },
+        "historyTitle": "History",
+        "historyEmpty": "No synthesis reports yet.",
+        "view": "View",
+        "metric": "Metric"
+      }
     },
     "evalHistory": {
       "sectionTitle": "Catatan Evaluasi",
@@ -2121,7 +2208,9 @@
         "completed": "Completed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "fullscreenFinal": "Buka keputusan akhir layar penuh",
+      "fullscreenNode": "Buka kesimpulan peran ini layar penuh"
     },
     "history": {
       "loading": "Loading evaluation history…",
@@ -2547,15 +2636,6 @@
         "mae": "MAE maks",
         "exitReturn": "Imbal hasil akhir",
         "windowEnd": "Akhir horizon"
-      },
-      "compare": {
-        "title": "Bandingkan keputusan lampau",
-        "hint": "Centang 2–4 analisis untuk membandingkan kesimpulan",
-        "go": "Bandingkan terpilih",
-        "clear": "Bersihkan",
-        "col": "Butir",
-        "field": "Kolom",
-        "empty": "Centang minimal 2 catatan"
       },
       "stats": {
         "title": "Rekam jejak Chanlun",

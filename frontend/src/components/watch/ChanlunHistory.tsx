@@ -7,6 +7,7 @@ import {
   type ChanlunStats,
 } from "@/lib/api";
 import { MarkdownContent } from "@/components/common/MarkdownContent";
+import { MarkdownFullscreenButton } from "@/components/common/MarkdownFullscreen";
 import {
   ChanlunActionCard,
   fmtPct,
@@ -600,6 +601,16 @@ function FragmentRow({
         <tr className="border-t border-border/40 bg-muted/20">
           <td />
           <td colSpan={7} className="px-3 py-3">
+            {row.raw_report && (
+              <div className="mb-3 flex justify-end">
+                <MarkdownFullscreenButton
+                  title={`${row.symbol} · ${row.analyzed_at} · 完整缠论报告 / Full report`}
+                  markdown={row.raw_report}
+                  label="全屏查看完整报告 / Fullscreen"
+                  testId="report-fullscreen-btn"
+                />
+              </div>
+            )}
             {comparable && (
               <div className="mb-3">
                 <ChanlunActionCard record={row} symbol={row.symbol} onRated={onRated} />

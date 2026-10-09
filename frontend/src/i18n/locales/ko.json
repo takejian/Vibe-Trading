@@ -1,4 +1,11 @@
 {
+  "common": {
+    "fullscreen": "전체 화면",
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "resetZoom": "확대 비율 초기화",
+    "close": "닫기"
+  },
   "app": {
     "version": "v0.1.15"
   },
@@ -1956,7 +1963,87 @@
       "compareSessionTitle": "거시 지표 비교 분석",
       "promptIntro": "다음 {{n}}건의 거시 핵심 지표에 대한 역할 평가 결과를 지표 간 관점에서 비교 분석해 주세요. 자료는 지표별로 정리되어 있으며 각 평가의 도입 결론을 포함합니다.",
       "promptItem": "【자료{{index}}】지표: {{indicator}}\n역할: {{role}}(제공 팀: {{team}})\n평가 대상: {{target}}\n평가일: {{date}}\n도입 결론: {{conclusion}}",
-      "promptTasks": "다음 구조로 출력해 주세요.\n1. 신호 요약: 각 지표의 방향(개선/둔화/중립)과 핵심 판단을 표로 제시.\n2. 공통점과 괴리: 신호가 서로 강화되는 부분과 상충되는 부분(예: 성장 둔화·인플레이션 고착, 유동성 완화·금리 상승).\n3. 사이클 위치: 신호를 종합해 현재 사이클 단계(침체기/회복기/과열기/스태그플레이션기)를 판정하고 신뢰도를 명시.\n4. 주요 리스크: 가장 경계해야 할 모순 신호와 불확실성.\n5. 자산 배분 시사점: 주식, 채권, 원자재, 현금에 대한 가이드."
+      "promptTasks": "다음 구조로 출력해 주세요.\n1. 신호 요약: 각 지표의 방향(개선/둔화/중립)과 핵심 판단을 표로 제시.\n2. 공통점과 괴리: 신호가 서로 강화되는 부분과 상충되는 부분(예: 성장 둔화·인플레이션 고착, 유동성 완화·금리 상승).\n3. 사이클 위치: 신호를 종합해 현재 사이클 단계(침체기/회복기/과열기/스태그플레이션기)를 판정하고 신뢰도를 명시.\n4. 주요 리스크: 가장 경계해야 할 모순 신호와 불확실성.\n5. 자산 배분 시사점: 주식, 채권, 원자재, 현금에 대한 가이드.",
+      "syn": {
+        "title": "Macro Quantitative Synthesis",
+        "intro": "Aggregates the teams' current-period conclusions into one quantified AI verdict: MCS index, cycle probabilities, five-dimension signals, asset allocation and verifiable claims.",
+        "month": "Monthly",
+        "quarter": "Quarterly",
+        "coverageTitle": "Team conclusion coverage",
+        "covered": "Covered",
+        "missing": "No conclusion",
+        "missingHint": "{{title}} has no conclusion for {{period}}; the synthesis will miss this perspective.",
+        "allCovered": "All four teams have conclusions for this period.",
+        "partialCovered": "Only {{n}}/4 teams have conclusions; you can still synthesize — missing views get low confidence.",
+        "noneCovered": "No team has a conclusion; you can still run an AI synthesis with low-confidence estimates.",
+        "run": "Run synthesis",
+        "running": "Synthesizing…",
+        "inProgress": "A synthesis for this period is already running.",
+        "failed": "Synthesis failed, please try again.",
+        "timeout": "Synthesis timed out, please try again.",
+        "cached": "A report for this period already exists.",
+        "mcsTitle": "Macro Composite Score (MCS)",
+        "mcsHint": "0–100, 50 neutral; weighted five-dimension signals, scaled by confidence",
+        "deltaUp": "+{{n}} vs prior",
+        "deltaDown": "{{n}} vs prior",
+        "deltaFlat": "Flat vs prior",
+        "cycleTitle": "Cycle quadrant probabilities",
+        "cycle": {
+          "recovery": "Recovery",
+          "overheat": "Expansion",
+          "stagflation": "Stagflation",
+          "recession": "Recession"
+        },
+        "dimensionTitle": "Five-dimension signal scorecard",
+        "dimension": {
+          "growth": "Growth",
+          "inflation": "Inflation",
+          "money": "Money & liquidity",
+          "external": "External balance",
+          "synthesis": "Synthesis"
+        },
+        "confidence": "Confidence",
+        "trend": {
+          "up": "Improving",
+          "down": "Weakening",
+          "flat": "Flat"
+        },
+        "signal": {
+          "2": "Strong positive",
+          "1": "Positive",
+          "0": "Neutral",
+          "-1": "Negative",
+          "-2": "Strong negative"
+        },
+        "allocationTitle": "Asset allocation",
+        "asset": {
+          "equity": "Equity",
+          "bond": "Bonds",
+          "commodity": "Commodities",
+          "cash": "Cash"
+        },
+        "alloc": {
+          "2": "Strong overweight",
+          "1": "Overweight",
+          "0": "Neutral",
+          "-1": "Underweight",
+          "-2": "Strong underweight"
+        },
+        "summaryTitle": "Overall conclusion",
+        "adviceTitle": "Action advice",
+        "riskTitle": "Risk triggers",
+        "claimsTitle": "Verifiable claims ({{n}})",
+        "claimsHint": "After each window closes, AI will compare outcomes (coming in a later phase).",
+        "probability": "Probability",
+        "window": "Verification window",
+        "claimStatus": {
+          "pending": "Pending"
+        },
+        "historyTitle": "History",
+        "historyEmpty": "No synthesis reports yet.",
+        "view": "View",
+        "metric": "Metric"
+      }
     },
     "evalHistory": {
       "sectionTitle": "평가 기록",
@@ -2121,7 +2208,9 @@
         "completed": "Completed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "fullscreenFinal": "최종 결정을 전체 화면으로 열기",
+      "fullscreenNode": "이 역할의 결론을 전체 화면으로 열기"
     },
     "history": {
       "loading": "Loading evaluation history…",
@@ -2547,15 +2636,6 @@
         "mae": "최대 MAE",
         "exitReturn": "만기 수익률",
         "windowEnd": "기간 종료"
-      },
-      "compare": {
-        "title": "과거 결론 비교",
-        "hint": "2–4개 분석을 선택해 결론 차이를 비교합니다",
-        "go": "선택 항목 비교",
-        "clear": "지우기",
-        "col": "항목",
-        "field": "필드",
-        "empty": "2개 이상 선택하세요"
       },
       "stats": {
         "title": "찬론 성적",

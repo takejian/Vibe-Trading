@@ -1,4 +1,11 @@
 {
+  "common": {
+    "fullscreen": "Vollbild",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "resetZoom": "Zoom zurücksetzen",
+    "close": "Schließen"
+  },
   "app": {
     "version": "v0.1.15"
   },
@@ -1956,7 +1963,87 @@
       "compareSessionTitle": "Makro-Indikatoren-Vergleich",
       "promptIntro": "Führe einen indikatorübergreifenden Vergleich der folgenden {{n}} Rollenbewertungen wichtiger Makroindikatoren durch. Die Materialien sind nach Indikatoren gegliedert und enthalten die Einleitungsbewertung jeder Auswertung.",
       "promptItem": "[Material {{index}}] Indikator: {{indicator}}\nRolle: {{role}} (Quellteam: {{team}})\nBewertungsziel: {{target}}\nDatum: {{date}}\nEinleitungsbewertung: {{conclusion}}",
-      "promptTasks": "Gliedere die Ausgabe wie folgt:\n1. Signalübersicht: Tabelle mit der Richtung jedes Indikators (verbessert / verschlechtert / neutral) und der Kernaussage.\n2. Konsens und Divergenzen: welche Signale sich gegenseitig verstärken und welche widersprüchlich sind (z. B. schwaches Wachstum bei hoher Inflation, lockere Liquidität aber steigende Zinsen).\n3. Zyklusposition: Bestimme auf Basis der Signale die aktuelle Zyklusphase (Rezession / Erholung / Expansion / Stagflation) und gib die Konfidenz an.\n4. Hauptrisiken: die wichtigsten widersprüchlichen Signale und Unsicherheiten.\n5. Implikationen für die Asset Allocation: Leitlinien für Aktien, Anleihen, Rohstoffe und Cash."
+      "promptTasks": "Gliedere die Ausgabe wie folgt:\n1. Signalübersicht: Tabelle mit der Richtung jedes Indikators (verbessert / verschlechtert / neutral) und der Kernaussage.\n2. Konsens und Divergenzen: welche Signale sich gegenseitig verstärken und welche widersprüchlich sind (z. B. schwaches Wachstum bei hoher Inflation, lockere Liquidität aber steigende Zinsen).\n3. Zyklusposition: Bestimme auf Basis der Signale die aktuelle Zyklusphase (Rezession / Erholung / Expansion / Stagflation) und gib die Konfidenz an.\n4. Hauptrisiken: die wichtigsten widersprüchlichen Signale und Unsicherheiten.\n5. Implikationen für die Asset Allocation: Leitlinien für Aktien, Anleihen, Rohstoffe und Cash.",
+      "syn": {
+        "title": "Macro Quantitative Synthesis",
+        "intro": "Aggregates the teams' current-period conclusions into one quantified AI verdict: MCS index, cycle probabilities, five-dimension signals, asset allocation and verifiable claims.",
+        "month": "Monthly",
+        "quarter": "Quarterly",
+        "coverageTitle": "Team conclusion coverage",
+        "covered": "Covered",
+        "missing": "No conclusion",
+        "missingHint": "{{title}} has no conclusion for {{period}}; the synthesis will miss this perspective.",
+        "allCovered": "All four teams have conclusions for this period.",
+        "partialCovered": "Only {{n}}/4 teams have conclusions; you can still synthesize — missing views get low confidence.",
+        "noneCovered": "No team has a conclusion; you can still run an AI synthesis with low-confidence estimates.",
+        "run": "Run synthesis",
+        "running": "Synthesizing…",
+        "inProgress": "A synthesis for this period is already running.",
+        "failed": "Synthesis failed, please try again.",
+        "timeout": "Synthesis timed out, please try again.",
+        "cached": "A report for this period already exists.",
+        "mcsTitle": "Macro Composite Score (MCS)",
+        "mcsHint": "0–100, 50 neutral; weighted five-dimension signals, scaled by confidence",
+        "deltaUp": "+{{n}} vs prior",
+        "deltaDown": "{{n}} vs prior",
+        "deltaFlat": "Flat vs prior",
+        "cycleTitle": "Cycle quadrant probabilities",
+        "cycle": {
+          "recovery": "Recovery",
+          "overheat": "Expansion",
+          "stagflation": "Stagflation",
+          "recession": "Recession"
+        },
+        "dimensionTitle": "Five-dimension signal scorecard",
+        "dimension": {
+          "growth": "Growth",
+          "inflation": "Inflation",
+          "money": "Money & liquidity",
+          "external": "External balance",
+          "synthesis": "Synthesis"
+        },
+        "confidence": "Confidence",
+        "trend": {
+          "up": "Improving",
+          "down": "Weakening",
+          "flat": "Flat"
+        },
+        "signal": {
+          "2": "Strong positive",
+          "1": "Positive",
+          "0": "Neutral",
+          "-1": "Negative",
+          "-2": "Strong negative"
+        },
+        "allocationTitle": "Asset allocation",
+        "asset": {
+          "equity": "Equity",
+          "bond": "Bonds",
+          "commodity": "Commodities",
+          "cash": "Cash"
+        },
+        "alloc": {
+          "2": "Strong overweight",
+          "1": "Overweight",
+          "0": "Neutral",
+          "-1": "Underweight",
+          "-2": "Strong underweight"
+        },
+        "summaryTitle": "Overall conclusion",
+        "adviceTitle": "Action advice",
+        "riskTitle": "Risk triggers",
+        "claimsTitle": "Verifiable claims ({{n}})",
+        "claimsHint": "After each window closes, AI will compare outcomes (coming in a later phase).",
+        "probability": "Probability",
+        "window": "Verification window",
+        "claimStatus": {
+          "pending": "Pending"
+        },
+        "historyTitle": "History",
+        "historyEmpty": "No synthesis reports yet.",
+        "view": "View",
+        "metric": "Metric"
+      }
     },
     "evalHistory": {
       "sectionTitle": "Bewertungsaufzeichnungen",
@@ -2121,7 +2208,9 @@
         "completed": "Completed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "fullscreenFinal": "Finale Entscheidung im Vollbild öffnen",
+      "fullscreenNode": "Rollen-Schlussfolgerung im Vollbild öffnen"
     },
     "history": {
       "loading": "Loading evaluation history…",
@@ -2547,15 +2636,6 @@
         "mae": "Schlechtester MAE",
         "exitReturn": "Endrendite",
         "windowEnd": "Horizontende"
-      },
-      "compare": {
-        "title": "Frühere Einschätzungen vergleichen",
-        "hint": "2–4 Analysen zum Vergleich auswählen",
-        "go": "Auswahl vergleichen",
-        "clear": "Leeren",
-        "col": "Eintrag",
-        "field": "Feld",
-        "empty": "Mindestens 2 Einträge auswählen"
       },
       "stats": {
         "title": "Chanlun-Erfolgsbilanz",

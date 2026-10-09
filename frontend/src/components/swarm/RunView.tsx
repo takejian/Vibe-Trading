@@ -8,6 +8,7 @@ import {
   type FlowEdge,
 } from "@/lib/swarmGraph";
 import { MarkdownContent } from "@/components/common/MarkdownContent";
+import { MarkdownFullscreenButton } from "@/components/common/MarkdownFullscreen";
 import { FlowCanvas, type NodeVisualStatus } from "./FlowCanvas";
 
 interface RunViewProps {
@@ -389,26 +390,37 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
               </span>
             )}
           </h3>
-          <button
-            type="button"
-            onClick={() => setPanelCollapsed((prev) => !prev)}
-            aria-expanded={!panelCollapsed}
-            aria-label={
-              panelCollapsed
-                ? t("swarmStudio.run.expand")
-                : t("swarmStudio.run.collapse")
-            }
-            data-testid="node-panel-toggle"
-            aria-controls={panelBodyId}
-            className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            {panelCollapsed ? t("swarmStudio.run.expand") : t("swarmStudio.run.collapse")}
-            {panelCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
+          <div className="flex shrink-0 items-center gap-1">
+            {selectedTask?.summary && (
+              <MarkdownFullscreenButton
+                title={selectedAgent?.role || t("swarmStudio.run.analysisTitle")}
+                markdown={selectedTask.summary}
+                ariaLabel={t("swarmStudio.run.fullscreenNode")}
+                testId="node-fullscreen-btn"
+                buttonClassName="inline-flex items-center rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              />
             )}
-          </button>
+            <button
+              type="button"
+              onClick={() => setPanelCollapsed((prev) => !prev)}
+              aria-expanded={!panelCollapsed}
+              aria-label={
+                panelCollapsed
+                  ? t("swarmStudio.run.expand")
+                  : t("swarmStudio.run.collapse")
+              }
+              data-testid="node-panel-toggle"
+              aria-controls={panelBodyId}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {panelCollapsed ? t("swarmStudio.run.expand") : t("swarmStudio.run.collapse")}
+              {panelCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         {!panelCollapsed && (
@@ -454,9 +466,20 @@ export function RunView({ runId, readOnly = false, onBack }: RunViewProps) {
           terminal && finalReport ? "border-emerald-400" : "border-border"
         }`}
       >
-        <h3 className="text-sm font-semibold text-foreground">
-          {t("swarmStudio.run.finalDecision")}
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t("swarmStudio.run.finalDecision")}
+          </h3>
+          {terminal && finalReport && (
+            <MarkdownFullscreenButton
+              title={`${t("swarmStudio.run.finalDecision")} · ${detail.id}`}
+              markdown={finalReport}
+              ariaLabel={t("swarmStudio.run.fullscreenFinal")}
+              testId="final-fullscreen-btn"
+              buttonClassName="inline-flex items-center rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            />
+          )}
+        </div>
         {terminal && finalReport ? (
           <div
             className="mt-2 max-h-[50vh] overflow-y-auto text-sm text-foreground"

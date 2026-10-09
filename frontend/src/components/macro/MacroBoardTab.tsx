@@ -21,6 +21,7 @@ import {
   useMacroEvalData,
   type MacroEvalRecord,
 } from "./macroEvalRecords";
+import { MacroSynthesisPanel } from "./MacroSynthesisPanel";
 
 const MAX_COMPARE = 5;
 const COLLAPSED_RUNS = 2;
@@ -38,6 +39,8 @@ export function MacroBoardTab() {
   const [activeRunId, setActiveRunId] = useState("");
   const [keywordDraft, setKeywordDraft] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [economy, setEconomy] = useState("中国");
+  const economies = ["中国", "美国", "日本", "欧元区"];
 
   const roleMap = useMemo(() => {
     const map: Record<string, RoleGroupItem> = {};
@@ -209,6 +212,23 @@ export function MacroBoardTab() {
       <p className="text-xs leading-relaxed text-muted-foreground">
         {t("macro.board.intro")}
       </p>
+
+      <div className="mt-4">
+        <label className="mb-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+          {t("macro.panel.economy")}
+          <select
+            data-testid="macro-board-economy"
+            value={economy}
+            onChange={(e) => setEconomy(e.target.value)}
+            className="rounded-lg border border-border/60 bg-background px-2 py-1 text-xs text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            {economies.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <MacroSynthesisPanel economy={economy} />
+      </div>
 
       {loading && (
         <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">

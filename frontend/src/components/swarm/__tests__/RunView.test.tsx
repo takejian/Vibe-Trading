@@ -142,6 +142,47 @@ describe("RunView layout and conclusion panel", () => {
     expect(body.querySelector("strong")?.textContent).toBe("可靠");
   });
 
+  it("opens the final decision in a zoomable fullscreen dialog", async () => {
+    render(<RunView runId="swarm-777" readOnly />);
+    await screen.findByTestId("final-decision-panel");
+
+    await userEvent.click(screen.getByTestId("final-fullscreen-btn"));
+
+    const dialog = await screen.findByTestId("report-fullscreen");
+    expect(dialog).toBeInTheDocument();
+    // The final report renders inside the dialog through the markdown pipeline.
+    expect(dialog.querySelector(".prose")).not.toBeNull();
+    expect(dialog.querySelectorAll("thead th")).toHaveLength(3);
+    expect(screen.getByTestId("fullscreen-zoom").textContent).toBe("100%");
+
+    // Zoom in moves to 115%; close removes the dialog.
+    await userEvent.click(screen.getByTestId("fullscreen-zoom-in"));
+    expect(screen.getByTestId("fullscreen-zoom").textContent).toBe("115%");
+    await userEvent.click(screen.getByTestId("fullscreen-close"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("report-fullscreen")).toBeNull(),
+    );
+  });
+
+  it("opens a selected role conclusion in a zoomable fullscreen dialog", async () => {
+    render(<RunView runId="swarm-777" readOnly />);
+    await screen.findByTestId("final-decision-panel");
+
+    // No fullscreen entry before a node with a conclusion is selected.
+    expect(screen.queryByTestId("node-fullscreen-btn")).toBeNull();
+    await userEvent.click(screen.getByTestId("canvas-node-risk_officer"));
+    await userEvent.click(screen.getByTestId("node-fullscreen-btn"));
+
+    const dialog = await screen.findByTestId("report-fullscreen");
+    expect(dialog.querySelector("h2")?.textContent).toBe("风险核验结论");
+    expect(dialog.querySelectorAll("thead th")).toHaveLength(3);
+
+    await userEvent.click(screen.getByTestId("fullscreen-close"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("report-fullscreen")).toBeNull(),
+    );
+  });
+
   it("collapses and expands manually, and auto-expands when a node is picked while collapsed", async () => {
     render(<RunView runId="swarm-777" readOnly />);
     await screen.findByTestId("final-decision-panel");

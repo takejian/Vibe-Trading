@@ -1,4 +1,11 @@
 {
+  "common": {
+    "fullscreen": "全屏",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "resetZoom": "重置缩放",
+    "close": "关闭"
+  },
   "app": {
     "version": "v0.1.15"
   },
@@ -1956,7 +1963,87 @@
       "compareSessionTitle": "宏观指标对比分析",
       "promptIntro": "请对以下 {{n}} 份宏观关键指标的智能体角色评估结果进行跨指标对比分析。评估材料按指标分类给出，包含每份评估的开头结论。",
       "promptItem": "【材料{{index}}】指标：{{indicator}}\n角色：{{role}}（来源团队：{{team}}）\n评估标的：{{target}}\n评估日期：{{date}}\n开头结论：{{conclusion}}",
-      "promptTasks": "请按以下结构输出：\n1. 信号汇总：用表格列出每个指标的方向（向好/走弱/中性）与核心判断。\n2. 共识与背离：哪些指标信号相互强化，哪些出现背离（如增长弱但通胀高、流动性宽松但利率上行等）。\n3. 周期定位：综合这些信号判断当前经济周期位置（衰退期/复苏期/过热期/滞胀期），并说明置信度。\n4. 关键风险：最需要警惕的矛盾信号与不确定性。\n5. 资产配置含义：对股票、债券、商品、现金等大类资产的指引。"
+      "promptTasks": "请按以下结构输出：\n1. 信号汇总：用表格列出每个指标的方向（向好/走弱/中性）与核心判断。\n2. 共识与背离：哪些指标信号相互强化，哪些出现背离（如增长弱但通胀高、流动性宽松但利率上行等）。\n3. 周期定位：综合这些信号判断当前经济周期位置（衰退期/复苏期/过热期/滞胀期），并说明置信度。\n4. 关键风险：最需要警惕的矛盾信号与不确定性。\n5. 资产配置含义：对股票、债券、商品、现金等大类资产的指引。",
+      "syn": {
+        "title": "宏观量化汇总",
+        "intro": "归集当期各智能体团队结论，由 AI 综合给出可量化总体研判：MCS 综合指数、周期概率、五维信号、资产建议与可验证命题。",
+        "month": "按月",
+        "quarter": "按季",
+        "coverageTitle": "团队结论覆盖",
+        "covered": "已覆盖",
+        "missing": "本期无结论",
+        "missingHint": "{{title}} 团队本期（{{period}}）暂无分析结论，汇总将缺少该视角。",
+        "allCovered": "四支团队本期结论齐全。",
+        "partialCovered": "本期仅 {{n}}/4 支团队有结论；仍可发起汇总，缺失视角以低置信度处理。",
+        "noneCovered": "本期无任何团队结论；仍可发起 AI 汇总，结果将以低置信度谨慎给出。",
+        "run": "发起汇总分析",
+        "running": "正在汇总分析…",
+        "inProgress": "该期汇总正在生成中，请稍候。",
+        "failed": "汇总分析失败，请稍后重试。",
+        "timeout": "汇总分析超时，请稍后重试。",
+        "cached": "该期汇总报告已存在，展示为既有结果。",
+        "mcsTitle": "宏观综合指数 MCS",
+        "mcsHint": "区间 0–100，50 为中性；五维信号加权并按置信度折算",
+        "deltaUp": "较上期 +{{n}}",
+        "deltaDown": "较上期 {{n}}",
+        "deltaFlat": "与上期持平",
+        "cycleTitle": "周期象限概率",
+        "cycle": {
+          "recovery": "复苏",
+          "overheat": "过热",
+          "stagflation": "滞胀",
+          "recession": "衰退"
+        },
+        "dimensionTitle": "五维信号评分",
+        "dimension": {
+          "growth": "经济增长",
+          "inflation": "通胀",
+          "money": "货币流动性",
+          "external": "对外均衡",
+          "synthesis": "综合配置"
+        },
+        "confidence": "置信度",
+        "trend": {
+          "up": "向好",
+          "down": "走弱",
+          "flat": "持平"
+        },
+        "signal": {
+          "2": "显著利好",
+          "1": "偏利好",
+          "0": "中性",
+          "-1": "偏利空",
+          "-2": "显著利空"
+        },
+        "allocationTitle": "大类资产建议",
+        "asset": {
+          "equity": "股票",
+          "bond": "债券",
+          "commodity": "商品",
+          "cash": "现金"
+        },
+        "alloc": {
+          "2": "强超配",
+          "1": "超配",
+          "0": "标配",
+          "-1": "低配",
+          "-2": "强低配"
+        },
+        "summaryTitle": "总体结论",
+        "adviceTitle": "操作建议",
+        "riskTitle": "风险触发器",
+        "claimsTitle": "可验证命题（{{n}}）",
+        "claimsHint": "验证窗口到期后由 AI 比对实际数据复盘（后续阶段上线）。",
+        "probability": "概率",
+        "window": "验证窗口",
+        "claimStatus": {
+          "pending": "待验证"
+        },
+        "historyTitle": "历史汇总",
+        "historyEmpty": "暂无历史汇总报告。",
+        "view": "查看",
+        "metric": "指标"
+      }
     },
     "evalHistory": {
       "sectionTitle": "评估记录",
@@ -2121,7 +2208,9 @@
         "completed": "已完成",
         "failed": "失败",
         "cancelled": "已取消"
-      }
+      },
+      "fullscreenFinal": "全屏查看最终决策",
+      "fullscreenNode": "全屏查看该角色结论"
     },
     "history": {
       "loading": "正在加载评估历史……",
@@ -2547,15 +2636,6 @@
         "mae": "最大不利MAE",
         "exitReturn": "期末收益",
         "windowEnd": "窗口截止"
-      },
-      "compare": {
-        "title": "历次结论对比",
-        "hint": "勾选 2–4 次分析，对比其结论差异",
-        "go": "对比所选",
-        "clear": "清空",
-        "col": "对比项",
-        "field": "字段",
-        "empty": "勾选至少 2 条记录后再进行对比"
       },
       "stats": {
         "title": "缠论策略战绩",

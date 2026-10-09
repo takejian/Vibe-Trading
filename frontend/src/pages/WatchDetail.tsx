@@ -220,7 +220,7 @@ export function WatchDetail() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 2xl:max-w-[1600px]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
