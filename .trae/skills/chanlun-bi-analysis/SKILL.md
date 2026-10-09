@@ -1,11 +1,11 @@
 ---
 name: chanlun-bi-analysis
-description: Run the chanlun_analyst pipeline for an A-share symbol — objective_kline, czsc bi/zhongshu/divergence, gap-free ASCII bi charts, strict 7-section report to DuckDB. Use for 缠论/笔/中枢/背驰/买卖点 analysis by stock code. Not for fundamentals or live orders.
+description: Run the chanlun_analyst pipeline for an A-share symbol — objective_kline, czsc bi/zhongshu/divergence, gap-free ASCII bi charts, strict 8-section report (7 analytical sections + machine-readable Action Card JSON) to DuckDB. Use for 缠论/笔/中枢/背驰/买卖点 analysis by stock code. Not for fundamentals or live orders.
 ---
 
 # 缠论（Chanlun）个股多级别分析流程
 
-你在本流程中扮演 `technical_analysis_panel:chanlun_analyst` 角色里的"分析师大模型"。角色权威提示词：[technical_analysis_panel.yaml](file:///home/ai/Vibe-Trading/agent/src/swarm/presets/technical_analysis_panel.yaml)（chanlun_analyst.system_prompt，含图形与 7 段规范）；本技能是该角色的可复跑操作手册。输入一个 A 股代码（如 `300014.SZ`），输出一份 7 段报告并入库。**全程只做技术分析，不做下单/持仓操作。**
+你在本流程中扮演 `technical_analysis_panel:chanlun_analyst` 角色里的"分析师大模型"。角色权威提示词：[technical_analysis_panel.yaml](file:///home/ai/Vibe-Trading/agent/src/swarm/presets/technical_analysis_panel.yaml)（chanlun_analyst.system_prompt，含图形、7 段正文规范与第 8 段机读操作结论卡契约）；本技能是该角色的可复跑操作手册。输入一个 A 股代码（如 `300014.SZ`），输出一份 **8 段报告**（7 段分析正文 + 第 8 段操作结论卡 JSON）并入库。**全程只做技术分析，不做下单/持仓操作。**
 
 ## 流程总览
 
@@ -13,8 +13,8 @@ description: Run the chanlun_analyst pipeline for an A-share symbol — objectiv
 2. czsc 结构扫描（去包含→分型→笔→中枢→每笔 MACD 红绿柱面积）
 3. 你做分析师裁决：背驰 → 三类买卖点 → 多级别联立 → Elliott 次级验证 → 打分
 4. 生成「笔为核心、笔笔连续连线、一笔不缺」的 ASCII 图
-5. 按固定 7 段契约写报告（先过解析器）
-6. 解析成功后写入 DuckDB `chanlun_analysis` 历史表并回查
+5. 按固定 8 段契约写报告（1–7 分析段 + 第 8 段机读操作结论卡，先过两个解析器）
+6. 两个解析器都通过后写入 DuckDB `chanlun_analysis` 历史表（含操作结论卡字段）并回查
 
 一律用仓库根目录的 `/home/ai/Vibe-Trading/.venv/bin/python`（czsc 1.0.1 装在其中）。
 
@@ -76,7 +76,7 @@ print('节点明细：' + '；'.join(f'{i+1}={d} {p:.2f}({k})'
 
 CLI 快速预览（自动取 `c.zs_list` 当中枢、无标记）：`.venv/bin/python .../bi_charts.py <payload.json> 1d --tail 20`。图形嵌入报告时一律用 ```` ```text ```` 代码块——前端 MarkdownContent 只渲染 GFM（表格/代码块），**不支持 mermaid/图片**。
 
-## 5. 七段报告契约
+## 5. 八段报告契约（7 分析段 + 第 8 段操作结论卡）
 
 模板：[assets/report_template.md](file:///home/ai/Vibe-Trading/.trae/skills/chanlun-bi-analysis/assets/report_template.md)；解析器完整规则与踩坑：[references/report-contract.md](file:///home/ai/Vibe-Trading/.trae/skills/chanlun-bi-analysis/references/report-contract.md)。要点：
 
@@ -85,6 +85,35 @@ CLI 快速预览（自动取 `c.zs_list` 当中枢、无标记）：`.venv/bin/p
   - `缠论打分 Chanlun score：+1 / 5`（整数 -5..+5）
   - `结构置信度 Confidence：58%`
 - 报告开头写明流程、取数实测（冷启动自动抓数的级别/source/根数/窗口）、截止收盘价与量能背景；所有价位用存档前复权价。
+
+### 第 8 段：操作结论卡 / Action Card（机读，必需）
+
+7 段正文之后**必须**追加标题 `## 8. 操作结论卡 / Action Card`，标题正文里**有且仅有一个** ```` ```json ```` 代码块——无注释、无尾逗号、代码块外不写任何散文。卡片是给软件/前端直接渲染用的"现在该怎么做"，每个数字同样必须来自存档 K 线/扫描输出，算不出就填 `null`，绝不臆造。字段契约（与角色提示词逐字一致）：
+
+| 字段 | 约束 |
+|---|---|
+| `schema_version` | 整数 `1` |
+| `base_price` / `base_date` | 分析时点最新收盘价（number）/ 交易日 `YYYY-MM-DD` |
+| `direction` | `bullish` / `bearish` / `neutral` |
+| `action` | `buy` / `add` / `hold` / `reduce` / `sell` / `wait` |
+| `confidence_pct` | 0–100 整数，**必须与第 7 段 Confidence 同值** |
+| `setup_class` | `1买`/`2买`/`3买`/`1卖`/`2卖`/`3卖`/`none` |
+| `horizon_days` | 整数 1–120（短线 10–20，波段 20–60） |
+| `trigger_price` | 触发/入场价，number 或 null（未触发突破单挂计划价，别假设按 base_price 成交） |
+| `stop_price` | 失效/止损价，number 或 null（多头必须低于 trigger，空头高于） |
+| `target_prices` | 1–3 个严格递增（多头）/递减（空头）数字数组，或 null |
+| `rr_at_t1` | `(T1-trigger)/(trigger-stop)` 保留 2 位小数，或 null |
+| `invalidation` | 一行字符串：什么价格/结构杀掉本结论 |
+| `key_risks` | 一行字符串：主要风险（含数据盲区） |
+| `one_liner` | 一句话 headline，≤60 个汉字 |
+
+一致性硬规则（解析器机械校验，违反即 `contract_violation`）：
+
+- `direction=neutral` 或 `action=wait` → `trigger_price/stop_price/target_prices/rr_at_t1` 全部 null 且 `setup_class="none"`。
+- `bullish`：action ∈ {buy, add, hold, wait}，setup 只能是买点或 none；`bearish` 镜像（sell/reduce + 卖点）。
+- 一旦给出任一价位，trigger 与 stop 必须同时存在，且多空方向、目标价排序必须自洽。
+
+提示词中的两个范例（bullish / neutral）见 YAML 的 `Action Card contract` 段，只学形状不要照抄价格。
 
 ## 6. 先解析、后入库
 
@@ -95,18 +124,24 @@ import sys; sys.path.insert(0, '/home/ai/Vibe-Trading/agent/src')
 from datetime import datetime
 from src.watchlist.db import watchlist_connection, initialize_schema, insert_chanlun_record
 from src.watchlist.chanlun_parser import parse_chanlun_report
+from src.watchlist.action_card import parse_action_card
 parsed = parse_chanlun_report(REPORT)
 assert parsed, 'ABORT: 7 段契约不满足，回去改报告，不要 structured=false 兜底'
+card_result = parse_action_card(REPORT)
+assert card_result['parse'] == 'ok', (
+    f"ABORT: 第 8 段操作结论卡不合规({card_result['parse']}): {card_result['error']}，回去改卡")
 run_id = f"manual-role-chanlun-{datetime.now():%Y%m%d%H%M%S}-300014"
 conn = watchlist_connection(); initialize_schema(conn)
 insert_chanlun_record(run_id=run_id, symbol='300014.SZ', conn=conn,
     dims=parsed['dims'], score=parsed['score'],
     confidence=parsed['confidence'], structured=True,
-    raw_report=REPORT, analyzed_at=datetime.now())
+    raw_report=REPORT, analyzed_at=datetime.now(),
+    card=card_result['card'], card_parse=card_result['parse'])
 ```
 
-- API：`agent/src/watchlist/db.py`（`watchlist_connection/initialize_schema/insert_chanlun_record`），解析器 `agent/src/watchlist/chanlun_parser.py`。
-- 每次运行生成新 run_id；入库后用 SELECT 回查最新行（score/confidence/structured/长度）。
+- API：`agent/src/watchlist/db.py`（`watchlist_connection/initialize_schema/insert_chanlun_record`），7 段解析器 `agent/src/watchlist/chanlun_parser.py`，操作结论卡解析器 `agent/src/watchlist/action_card.py`（返回 `ok` / `no_card` / `contract_violation` 三态；新报告必须 `ok`）。
+- 入库时卡片字段随报告一起落库（`base_price/direction/action/setup_class/trigger_price/stop_price/target_prices/...` 与 `card_parse` 状态列）。
+- 每次运行生成新 run_id；入库后用 SELECT 回查最新行（score/confidence/structured/card_parse/direction/action/长度）。
 - DuckDB DELETE rowcount 显示 -1 是正常现象。
 - 未改前端代码时无需跑 vitest/tsc；若改了渲染组件，跑 `frontend` 下 ChanlunHistory 测试与 `npx tsc -b`。
 
@@ -117,4 +152,4 @@ insert_chanlun_record(run_id=run_id, symbol='300014.SZ', conn=conn,
 - MACD 口径固定 (12,26,9)：DIF=EMA12−EMA26，hist=DIF−DEA9；向上笔取区间正柱和、向下笔取负柱和。
 - 数字（面积/DIF/价位/均线）只引用扫描输出与存档 K 线，不同数据源窗口不可混用为背驰证据。
 - 正文里避免出现形如 `3. 背驰…` 的独立编号行（可能被解析器误判为标题）；标题级别统一用 `##`。
-- 报告完成后自查：① 7 段齐全且解析返回非 None；② 三个时间级别全笔序列与网格齐备、节点数=笔数+1(+未完成笔)；③ 每个买卖点都有触发价/失效价；④ 30m/季线窗口限制已声明；⑤ 入库回查成功。
+- 报告完成后自查：① 7 段齐全且 `parse_chanlun_report` 返回非 None；② 三个时间级别全笔序列与网格齐备、节点数=笔数+1(+未完成笔)；③ 每个买卖点都有触发价/失效价；④ 30m/季线窗口限制已声明；⑤ 第 8 段操作结论卡 `parse_action_card` 返回 `ok`（JSON 合法、confidence_pct 与第 7 段一致、价位方向自洽、neutral/wait 全 null）；⑥ 入库回查成功（含 card_parse=ok）。

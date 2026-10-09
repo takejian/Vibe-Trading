@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "Fixed Income & Derivate",
       "alternatives": "Alternative Anlagen",
       "risk": "Risikomanagement",
+      "data_toolkit": "Datenquellen & Werkzeuge",
       "other": "Sonstige"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "Freigabe widerrufen",
       "approvePrerequisite": "Dieser Skill hat noch keinen bestandenen Probelauf. Mindestens ein qualifizierter Probelauf ist erforderlich.",
       "approveFailed": "Freigabe/Widerruf fehlgeschlagen",
-      "assembledReadonly": "Eingebaute und vom Administrator installierte Skills sind schreibgeschützt; Probelauf und „Als neuen Skill speichern“ sind weiterhin möglich."
+      "assembledReadonly": "Eingebaute und vom Administrator installierte Skills sind schreibgeschützt; Probelauf und „Als neuen Skill speichern“ sind weiterhin möglich.",
+      "usedBy": "Verwendet von",
+      "usedByNone": "Noch keine Rolle verweist auf diese Fähigkeit."
     },
     "form": {
       "name": "Skill-Name (global eindeutig)",

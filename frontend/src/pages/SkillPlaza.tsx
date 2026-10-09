@@ -32,6 +32,31 @@ const PURPOSE_MAX = 200;
 const METHODOLOGY_MAX = 20000;
 const IO_MAX = 4000;
 
+// Mirrors SKILL_CATEGORY_ORDER in src/swarm/skill_catalog.py — built-in
+// skills are laid out in the same financial-research taxonomy as teams in
+// the Role Square, with one extra "data_toolkit" bucket for data adapters
+// and general research tooling.
+const CATEGORY_ORDER = [
+  "technical",
+  "fundamental",
+  "macro",
+  "quant",
+  "sentiment",
+  "event_driven",
+  "allocation",
+  "fixed_income_derivatives",
+  "alternatives",
+  "risk",
+  "data_toolkit",
+  "other",
+] as const;
+const ALL_CATEGORIES = "all";
+
+function categoryRank(id: string): number {
+  const index = CATEGORY_ORDER.indexOf(id as (typeof CATEGORY_ORDER)[number]);
+  return index === -1 ? CATEGORY_ORDER.length : index;
+}
+
 // ---------------------------------------------------------------------------
 // Skill create/edit form (the five business elements)
 // ---------------------------------------------------------------------------
@@ -238,22 +263,192 @@ function SkillForm({
 }
 
 // ---------------------------------------------------------------------------
-// Group card with its own within-group search
+// Skill card + sections
 // ---------------------------------------------------------------------------
 
-interface SkillGroup {
-  key: "builtin" | "custom";
-  entries: SkillCatalogEntry[];
+function SkillCard({
+  entry,
+  onOpen,
+}: {
+  entry: SkillCatalogEntry;
+  onOpen: (ref: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(entry.ref)}
+        data-testid={`skill-card-${entry.name}`}
+        className="flex w-full flex-col rounded border border-border bg-background px-3 py-2 text-left hover:bg-accent"
+      >
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-foreground">
+            {entry.name}
+          </span>
+          {entry.approved ? (
+            <BadgeCheck
+              className="h-3.5 w-3.5 shrink-0 text-emerald-600"
+              aria-label={t("skillPlaza.list.approved")}
+            />
+          ) : entry.kind === "custom" ? (
+            <span
+              className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-400"
+              data-testid={`unapproved-badge-${entry.name}`}
+            >
+              {t("skillPlaza.list.unapprovedMine")}
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+          {entry.description || "—"}
+        </span>
+        {entry.kind === "custom" && entry.approved && (
+          <span className="mt-1 text-[10px] text-muted-foreground">
+            {t("skillPlaza.list.approvedMine")}
+          </span>
+        )}
+      </button>
+    </li>
+  );
 }
 
+const CARD_GRID_CLASS =
+  "grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3";
+
+// Built-in skills: one shared name search, category filter chips, and the
+// cards grouped by financial research category.
+function BuiltinSkillsSection({
+  entries,
+  onOpen,
+}: {
+  entries: SkillCatalogEntry[];
+  onOpen: (ref: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORIES);
+
+  const needle = query.trim().toLowerCase();
+  const searched = entries.filter(
+    (entry) => !needle || entry.name.toLowerCase().includes(needle),
+  );
+
+  const byCategory = useMemo(() => {
+    const buckets = new Map<string, SkillCatalogEntry[]>();
+    for (const entry of searched) {
+      const category = entry.finance_category || "other";
+      const list = buckets.get(category);
+      if (list) {
+        list.push(entry);
+      } else {
+        buckets.set(category, [entry]);
+      }
+    }
+    return [...buckets.entries()].sort(
+      ([a], [b]) => categoryRank(a) - categoryRank(b),
+    );
+  }, [searched]);
+
+  const visibleCategories = byCategory.filter(
+    ([category]) =>
+      activeCategory === ALL_CATEGORIES || category === activeCategory,
+  );
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            {t("skillPlaza.groups.builtin")}
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t("skillPlaza.groups.builtinHint")}
+          </p>
+        </div>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label={t("skillPlaza.list.groupSearch")}
+          placeholder={t("skillPlaza.list.groupSearch")}
+          data-testid="group-search-builtin"
+          className="rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+      </div>
+
+      {byCategory.length > 1 && (
+        <div
+          className="mt-3 flex flex-wrap gap-2"
+          role="group"
+          aria-label={t("swarmStudio.gallery.categoryFilterLabel")}
+          data-testid="skill-category-filter"
+        >
+          <button
+            key={ALL_CATEGORIES}
+            type="button"
+            onClick={() => setActiveCategory(ALL_CATEGORIES)}
+            aria-pressed={activeCategory === ALL_CATEGORIES}
+            data-testid="skill-filter-all"
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              activeCategory === ALL_CATEGORIES
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-card text-muted-foreground hover:border-foreground/50"
+            }`}
+          >
+            {t("swarmStudio.gallery.allCategories")}
+          </button>
+          {byCategory.map(([category, categoryEntries]) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setActiveCategory(category)}
+              aria-pressed={activeCategory === category}
+              data-testid={`skill-filter-${category}`}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                activeCategory === category
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-card text-muted-foreground hover:border-foreground/50"
+              }`}
+            >
+              {t(`swarmStudio.category.${category}`, { defaultValue: category })}
+              <span className="ml-1 opacity-70">{categoryEntries.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 space-y-4" data-testid="skill-group-builtin">
+        {visibleCategories.map(([category, categoryEntries]) => (
+          <div key={category} data-testid={`skill-category-${category}`}>
+            <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t(`swarmStudio.category.${category}`, { defaultValue: category })}
+            </h4>
+            <ul className={CARD_GRID_CLASS}>
+              {categoryEntries.map((entry) => (
+                <SkillCard key={entry.ref} entry={entry} onOpen={onOpen} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {byCategory.length === 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {needle
+            ? t("skillPlaza.list.noMatchInGroup")
+            : t("skillPlaza.list.emptyGroup")}
+        </p>
+      )}
+    </section>
+  );
+}
+
+// Custom skills keep a single standalone group with its own name search.
 function SkillGroupSection({
-  groupKey,
   title,
   hint,
   entries,
   onOpen,
 }: {
-  groupKey: SkillGroup["key"];
   title: string;
   hint: string;
   entries: SkillCatalogEntry[];
@@ -279,50 +474,13 @@ function SkillGroupSection({
           onChange={(e) => setQuery(e.target.value)}
           aria-label={t("skillPlaza.list.groupSearch")}
           placeholder={t("skillPlaza.list.groupSearch")}
-          data-testid={`group-search-${groupKey}`}
+          data-testid="group-search-custom"
           className="rounded border border-border bg-background px-2 py-1 text-xs"
         />
       </div>
-      <ul
-        className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3"
-        data-testid={`skill-group-${groupKey}`}
-      >
+      <ul className={`mt-3 ${CARD_GRID_CLASS}`} data-testid="skill-group-custom">
         {visible.map((entry) => (
-          <li key={entry.ref}>
-            <button
-              type="button"
-              onClick={() => onOpen(entry.ref)}
-              data-testid={`skill-card-${entry.name}`}
-              className="flex w-full flex-col rounded border border-border bg-background px-3 py-2 text-left hover:bg-accent"
-            >
-              <span className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {entry.name}
-                </span>
-                {entry.approved ? (
-                  <BadgeCheck
-                    className="h-3.5 w-3.5 shrink-0 text-emerald-600"
-                    aria-label={t("skillPlaza.list.approved")}
-                  />
-                ) : entry.kind === "custom" ? (
-                  <span
-                    className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-400"
-                    data-testid={`unapproved-badge-${entry.name}`}
-                  >
-                    {t("skillPlaza.list.unapprovedMine")}
-                  </span>
-                ) : null}
-              </span>
-              <span className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-                {entry.description || "—"}
-              </span>
-              {entry.kind === "custom" && entry.approved && (
-                <span className="mt-1 text-[10px] text-muted-foreground">
-                  {t("skillPlaza.list.approvedMine")}
-                </span>
-              )}
-            </button>
-          </li>
+          <SkillCard key={entry.ref} entry={entry} onOpen={onOpen} />
         ))}
       </ul>
       {visible.length === 0 && (
@@ -425,11 +583,12 @@ export function SkillPlaza() {
     void loadList();
   }, [loadList]);
 
-  const groups = useMemo<SkillGroup[]>(
-    () => [
-      { key: "builtin", entries: catalog.filter((entry) => entry.kind !== "custom") },
-      { key: "custom", entries: catalog.filter((entry) => entry.kind === "custom") },
-    ],
+  const builtinEntries = useMemo(
+    () => catalog.filter((entry) => entry.kind !== "custom"),
+    [catalog],
+  );
+  const customEntries = useMemo(
+    () => catalog.filter((entry) => entry.kind === "custom"),
     [catalog],
   );
 
@@ -973,6 +1132,32 @@ export function SkillPlaza() {
                     </dd>
                   </div>
                 )}
+                <div data-testid="skill-used-by">
+                  <dt className="text-xs font-medium text-muted-foreground">
+                    {t("skillPlaza.detail.usedBy")}
+                  </dt>
+                  <dd className="mt-1 text-foreground">
+                    {profile.used_by && profile.used_by.length > 0 ? (
+                      <ul className="flex flex-wrap gap-1.5" data-testid="skill-used-by-list">
+                        {profile.used_by.map((item) => (
+                          <li
+                            key={item.ref}
+                            className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[11px]"
+                          >
+                            <span className="font-medium">{item.name}</span>
+                            <span className="text-muted-foreground">
+                              · {item.source}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {t("skillPlaza.detail.usedByNone")}
+                      </span>
+                    )}
+                  </dd>
+                </div>
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">
                     {t("skillPlaza.form.methodology")}
@@ -1194,18 +1379,14 @@ export function SkillPlaza() {
                 )}
               </div>
             )}
-            <SkillGroupSection
-              groupKey="builtin"
-              title={t("skillPlaza.groups.builtin")}
-              hint={t("skillPlaza.groups.builtinHint")}
-              entries={groups[0].entries}
+            <BuiltinSkillsSection
+              entries={builtinEntries}
               onOpen={(ref) => void openDetail(ref)}
             />
             <SkillGroupSection
-              groupKey="custom"
               title={t("skillPlaza.groups.custom")}
               hint={t("skillPlaza.groups.customHint")}
-              entries={groups[1].entries}
+              entries={customEntries}
               onOpen={(ref) => void openDetail(ref)}
             />
 

@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "채권·파생상품",
       "alternatives": "대체자산",
       "risk": "리스크 관리",
+      "data_toolkit": "데이터 소스 및 도구",
       "other": "기타"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "승인 취소",
       "approvePrerequisite": "이 스킬에는 통과한 시범 운영 기록이 아직 없습니다. 최소 한 번의 합격한 시범 운영 결과가 필요합니다.",
       "approveFailed": "승인/취소 실패",
-      "assembledReadonly": "내장/관리자 설치 스킬은 읽기 전용입니다. 시범 운영이나 새 커스텀 스킬로 저장은 가능합니다."
+      "assembledReadonly": "내장/관리자 설치 스킬은 읽기 전용입니다. 시범 운영이나 새 커스텀 스킬로 저장은 가능합니다.",
+      "usedBy": "참조 역할",
+      "usedByNone": "이 스킬을 참조하는 역할이 아직 없습니다."
     },
     "form": {
       "name": "스킬 이름(전역 고유)",

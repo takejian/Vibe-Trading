@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "Renta fija y derivados",
       "alternatives": "Activos alternativos",
       "risk": "Gestión de riesgos",
+      "data_toolkit": "Fuentes de datos y herramientas",
       "other": "Otros"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "Revocar aprobación",
       "approvePrerequisite": "Esta habilidad aún no tiene ninguna prueba superada; se requiere al menos un resultado de prueba calificado.",
       "approveFailed": "Error al aprobar/revocar",
-      "assembledReadonly": "Las habilidades integradas o instaladas por el administrador son de solo lectura; puede probarlas o guardarlas como una habilidad nueva."
+      "assembledReadonly": "Las habilidades integradas o instaladas por el administrador son de solo lectura; puede probarlas o guardarlas como una habilidad nueva.",
+      "usedBy": "Usado por",
+      "usedByNone": "Ningún rol referencia esta habilidad todavía."
     },
     "form": {
       "name": "Nombre de la habilidad (único a nivel global)",

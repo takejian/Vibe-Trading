@@ -1,6 +1,6 @@
 # {名称}（{SYMBOL}）缠论（Chan Theory）分析报告
 
-> 执行流程：technical_analysis_panel:chanlun_analyst 角色标准流程（objective_kline 读「客观数据」存档→czsc 去包含/分型/笔/中枢→MACD 红绿柱面积判背驰→三类买卖点→多级别联立；图形以笔为核心，笔与笔之间连续连线、画全全部笔），Elliott 仅次级验证。
+> 执行流程：technical_analysis_panel:chanlun_analyst 角色标准流程（objective_kline 读「客观数据」存档→czsc 去包含/分型/笔/中枢→MACD 红绿柱面积判背驰→三类买卖点→多级别联立；图形以笔为核心，笔与笔之间连续连线、画全全部笔），Elliott 仅次级验证；7 段分析正文之后，第 8 段输出机读操作结论卡（Action Card）。
 > 取数实测：{逐级别状态 not_fetched/ready、refreshed、source、根数、起止窗口；30m/季线窗口限制声明}。
 > 截止 {DATE} 收盘 {CLOSE}（量能/RSI 背景一句话）。价位均为存档前复权价。
 
@@ -109,3 +109,27 @@
 减分项：① {证据（−n）}；② …
 
 结论：{2-4 句最终裁决——信号组合、左侧/右侧、可执行动作、总止损、加仓条件}。技术分析非投资建议。
+
+{生成前删除本花括号行：标题 `8. 操作结论卡 / Action Card` 的正文里有且仅有一个 json fenced 代码块，代码块外不得写任何文字，无注释/无尾逗号；每个数字来自存档数据，算不出填 null；confidence_pct 必须与上方 Confidence 同值；direction=neutral 或 action=wait 时 trigger_price/stop_price/target_prices/rr_at_t1 全部为 null 且 setup_class="none"；看涨 action∈buy/add/hold/wait、setup 为买点，看跌镜像；下方仅为形状示例，价格全部替换为实测值}
+
+## 8. 操作结论卡 / Action Card
+
+```json
+{
+  "schema_version": 1,
+  "base_price": 0.00,
+  "base_date": "YYYY-MM-DD",
+  "direction": "bullish",
+  "action": "buy",
+  "confidence_pct": 0,
+  "setup_class": "3买",
+  "horizon_days": 20,
+  "trigger_price": 0.00,
+  "stop_price": 0.00,
+  "target_prices": [0.00, 0.00],
+  "rr_at_t1": 0.00,
+  "invalidation": "收盘跌回中枢下沿 X 下方且30m出现反向分型",
+  "key_risks": "大盘系统性回调；30m数据盲区",
+  "one_liner": "≤60汉字的一句话 headline 结论"
+}
+```

@@ -1248,7 +1248,10 @@ export interface CustomTeamRequest {
 export interface SkillCatalogEntry {
   name: string;
   description: string;
+  /** Coarse package category from SKILL.md frontmatter. */
   category: string;
+  /** Financial research category id; see swarmStudio.category.* i18n keys. */
+  finance_category: string;
   /** "bundled" ships with Vibe Trading; "user" was imported/synced/materialized. */
   source: "bundled" | "user";
   /** "bundled"/"user" assembled package, or "custom" personal skill. */
@@ -1259,6 +1262,15 @@ export interface SkillCatalogEntry {
   approved: boolean;
   /** For custom skills derived via "save as new": the source skill ref. */
   derived_from?: string | null;
+  /** Number of roles referencing this skill. */
+  used_by_count?: number;
+}
+
+/** One role that references a skill (skill detail "used by" list). */
+export interface SkillUsedByRef {
+  ref: string;
+  name: string;
+  source: string;
 }
 
 export interface SkillProfile {
@@ -1270,8 +1282,10 @@ export interface SkillProfile {
   inputs: string;
   outputs: string;
   category: string;
+  finance_category: string;
   approved: boolean;
   derived_from?: string | null;
+  used_by: SkillUsedByRef[];
   created_at?: string;
   updated_at?: string;
 }

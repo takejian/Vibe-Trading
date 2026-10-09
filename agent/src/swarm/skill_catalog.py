@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.agent.skills import SkillsLoader
+from src.swarm.presets import list_presets, load_preset
 from src.swarm.skill_approvals import SkillApprovalStore
 
 if TYPE_CHECKING:
@@ -43,6 +44,193 @@ FINANCE_KEYWORDS: tuple[str, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Financial research taxonomy (same desk language as agent/preset categories)
+# ---------------------------------------------------------------------------
+
+#: Category order for skill display; mirrors PRESET_CATEGORY_ORDER in
+#: ``src/swarm/presets.py`` with one extra bucket, ``data_toolkit``, for
+#: market-data adapters and general research tooling that is not itself an
+#: analysis style.
+SKILL_CATEGORY_ORDER: tuple[str, ...] = (
+    "technical",
+    "fundamental",
+    "macro",
+    "quant",
+    "sentiment",
+    "event_driven",
+    "allocation",
+    "fixed_income_derivatives",
+    "alternatives",
+    "risk",
+    "data_toolkit",
+    "other",
+)
+
+#: Bundled skill name -> financial research category id. Every built-in
+#: skill is classified once here; skills absent from the map fall back to
+#: ``"other"``.
+SKILL_CATEGORIES: dict[str, str] = {
+    # Technical analysis
+    "technical-basic": "technical",
+    "candlestick": "technical",
+    "chanlun": "technical",
+    "elliott-wave": "technical",
+    "harmonic": "technical",
+    "ichimoku": "technical",
+    "smc": "technical",
+    "minute-analysis": "technical",
+    "volatility": "technical",
+    # Fundamental & equity research
+    "fundamental-filter": "fundamental",
+    "financial-statement": "fundamental",
+    "valuation-model": "fundamental",
+    "deep-company-series": "fundamental",
+    "dividend-analysis": "fundamental",
+    "management-deep-dive": "fundamental",
+    "private-company-research": "fundamental",
+    "earnings-forecast": "fundamental",
+    "earnings-revision": "fundamental",
+    "bottleneck-hunter": "fundamental",
+    "investor-lenses": "fundamental",
+    "thesis-tracker": "fundamental",
+    "edgar-sec-filings": "fundamental",
+    # Macro economy & strategy
+    "macro-analysis": "macro",
+    "global-macro": "macro",
+    "geopolitical-risk": "macro",
+    "sector-rotation": "macro",
+    "behavioral-finance": "macro",
+    "cross-market-strategy": "macro",
+    # Quant research & arbitrage
+    "factor-research": "quant",
+    "quant-statistics": "quant",
+    "multi-factor": "quant",
+    "ml-strategy": "quant",
+    "pair-trading": "quant",
+    "alpha-zoo": "quant",
+    "correlation-analysis": "quant",
+    "correlation-regime": "quant",
+    "adr-hshare": "quant",
+    "seasonal": "quant",
+    "market-microstructure": "quant",
+    "execution-model": "quant",
+    # Sentiment & alternative data
+    "sentiment-analysis": "sentiment",
+    "social-media-intelligence": "sentiment",
+    "hk-connect-flow": "sentiment",
+    "us-etf-flow": "sentiment",
+    # Event-driven
+    "event-driven": "event_driven",
+    "corporate-events": "event_driven",
+    # Asset allocation & portfolio management
+    "asset-allocation": "allocation",
+    "etf-analysis": "allocation",
+    "fund-analysis": "allocation",
+    "research-goal": "allocation",
+    # Fixed income & derivatives
+    "credit-analysis": "fixed_income_derivatives",
+    "convertible-bond": "fixed_income_derivatives",
+    "options-strategy": "fixed_income_derivatives",
+    "options-payoff": "fixed_income_derivatives",
+    "options-advanced": "fixed_income_derivatives",
+    "hedging-strategy": "fixed_income_derivatives",
+    # Alternative assets (digital assets & commodities)
+    "commodity-analysis": "alternatives",
+    "ccxt": "alternatives",
+    "okx-market": "alternatives",
+    "crypto-derivatives": "alternatives",
+    "perp-funding-basis": "alternatives",
+    "defi-yield": "alternatives",
+    "onchain-analysis": "alternatives",
+    "stablecoin-flow": "alternatives",
+    "liquidation-heatmap": "alternatives",
+    "token-unlock-treasury": "alternatives",
+    # Risk management
+    "risk-analysis": "risk",
+    "ashare-pre-st-filter": "risk",
+    "performance-attribution": "risk",
+    "shadow-account": "risk",
+    # Data sources & general toolkit
+    "akshare": "data_toolkit",
+    "eastmoney": "data_toolkit",
+    "mootdx": "data_toolkit",
+    "qveris": "data_toolkit",
+    "sec-edgar": "data_toolkit",
+    "tushare": "data_toolkit",
+    "yfinance": "data_toolkit",
+    "data-routing": "data_toolkit",
+    "backtest-diagnose": "data_toolkit",
+    "doc-reader": "data_toolkit",
+    "pine-script": "data_toolkit",
+    "regulatory-knowledge": "data_toolkit",
+    "report-generate": "data_toolkit",
+    "trade-journal": "data_toolkit",
+    "vnpy-export": "data_toolkit",
+    "web-reader": "data_toolkit",
+    "research-discipline": "data_toolkit",
+    "strategy-dev-manager": "data_toolkit",
+    "strategy-discovery": "data_toolkit",
+    "strategy-generate": "data_toolkit",
+}
+
+
+def skill_finance_category(name: str) -> str:
+    """Return the financial research category id for a skill name.
+
+    Unknown / user-authored skills fall back to ``"other"``.
+    """
+    return SKILL_CATEGORIES.get(name, "other")
+
+
+def build_skill_usage_index() -> dict[str, list[dict]]:
+    """Map every skill name to the roles (agents) that reference it.
+
+    Both built-in preset agents (``skills:`` lists inside each preset YAML)
+    and user custom roles are scanned. Each reference is
+    ``{ref, name, source}`` where ``ref`` is the same role reference used by
+    the Role Square (``"preset:agent"`` or custom role id), ``name`` is the
+    human-readable role name and ``source`` is the containing preset/custom
+    title. A skill used by no role simply maps to an empty list.
+    """
+    usage: dict[str, list[dict]] = {}
+
+    def _record(skill_name: str, ref: str, name: str, source: str) -> None:
+        references = usage.setdefault(skill_name, [])
+        if not any(item["ref"] == ref for item in references):
+            references.append({"ref": ref, "name": name, "source": source})
+
+    for summary in list_presets():
+        preset_name = summary["name"]
+        try:
+            data = load_preset(preset_name)
+        except Exception:
+            continue
+        preset_title = str(data.get("title", "") or summary.get("title", ""))
+        for agent in data.get("agents", []):
+            if not isinstance(agent, dict):
+                continue
+            agent_id = str(agent.get("id", ""))
+            role_name = str(agent.get("role", "") or agent_id)
+            ref = f"{preset_name}:{agent_id}"
+            for skill_name in agent.get("skills", []):
+                if isinstance(skill_name, str) and skill_name.strip():
+                    _record(skill_name.strip(), ref, role_name, preset_title)
+
+    # User custom roles.
+    from src.swarm.roles import RoleStore
+
+    for role in RoleStore().list_roles():
+        for skill_name in getattr(role, "skills", []) or []:
+            _record(
+                str(skill_name),
+                role.id,
+                role.name,
+                "自建角色",
+            )
+    return usage
+
+
 def is_finance_related(
     name: str,
     description: str = "",
@@ -68,8 +256,8 @@ def list_assembled_skills(
 ) -> list[dict]:
     """Return all assembled skills with approval state.
 
-    Each item: ``{name, description, category, source, kind, ref,
-    approved, derived_from}``.
+    Each item: ``{name, description, category, finance_category, source,
+    kind, ref, approved, derived_from, used_by_count}``.
 
     * assembled packages (bundled directories or operator-installed user
       packages) use ``kind`` ``"bundled"``/``"user"``, ref
@@ -90,6 +278,8 @@ def list_assembled_skills(
     custom_by_id = {skill.id: skill for skill in custom_store.list_skills()}
     user_dir = Path(loader._user_skills_dir) if loader._user_skills_dir else None
     items: list[dict] = []
+    # Build once: which roles reference each skill.
+    usage_index = build_skill_usage_index()
     for skill in loader.skills:
         source = "bundled"
         custom_record = None
@@ -112,11 +302,13 @@ def list_assembled_skills(
                     "name": custom_record.name,
                     "description": custom_record.purpose,
                     "category": "custom",
+                    "finance_category": skill_finance_category(custom_record.name),
                     "source": "user",
                     "kind": "custom",
                     "ref": custom_record.id,
                     "approved": custom_record.approved,
                     "derived_from": custom_record.derived_from,
+                    "used_by_count": len(usage_index.get(custom_record.name, [])),
                 }
             )
         else:
@@ -125,14 +317,23 @@ def list_assembled_skills(
                     "name": skill.name,
                     "description": skill.description,
                     "category": skill.category,
+                    "finance_category": skill_finance_category(skill.name),
                     "source": source,
                     "kind": source,
                     "ref": f"{ASSEMBLED_TEMPLATE_PREFIX}{skill.name}",
                     "approved": skill.name in approved,
                     "derived_from": None,
+                    "used_by_count": len(usage_index.get(skill.name, [])),
                 }
             )
-    items.sort(key=lambda item: (item["source"], item["category"], item["name"]))
+    items.sort(
+        key=lambda item: (
+            SKILL_CATEGORY_ORDER.index(item["finance_category"])
+            if item["finance_category"] in SKILL_CATEGORY_ORDER
+            else len(SKILL_CATEGORY_ORDER),
+            item["name"],
+        )
+    )
     return items
 
 
@@ -185,6 +386,7 @@ def resolve_skill(
         raise ValueError("技能引用不能为空")
     loader = loader or SkillsLoader()
     approvals = approvals or SkillApprovalStore()
+    usage_index = build_skill_usage_index()
 
     if ref.startswith(ASSEMBLED_TEMPLATE_PREFIX):
         name = ref[len(ASSEMBLED_TEMPLATE_PREFIX):].strip()
@@ -200,8 +402,10 @@ def resolve_skill(
             "inputs": "",
             "outputs": "",
             "category": skill.category,
+            "finance_category": skill_finance_category(skill.name),
             "approved": approvals.is_approved(skill.name),
             "derived_from": None,
+            "used_by": usage_index.get(skill.name, []),
         }
 
     if not is_custom_skill_id(ref):
@@ -217,8 +421,10 @@ def resolve_skill(
         "inputs": record.inputs,
         "outputs": record.outputs,
         "category": "custom",
+        "finance_category": skill_finance_category(record.name),
         "approved": record.approved,
         "derived_from": record.derived_from,
+        "used_by": usage_index.get(record.name, []),
         "created_at": record.created_at,
         "updated_at": record.updated_at,
     }

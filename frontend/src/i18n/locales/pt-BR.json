@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "Renda Fixa e Derivativos",
       "alternatives": "Ativos Alternativos",
       "risk": "Gestão de Riscos",
+      "data_toolkit": "Fontes de dados e ferramentas",
       "other": "Outros"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "Revogar aprovação",
       "approvePrerequisite": "Esta habilidade ainda não tem um teste qualificado; é necessário ao menos um resultado de teste aprovado.",
       "approveFailed": "Falha ao aprovar/revogar",
-      "assembledReadonly": "Habilidades embutidas ou instaladas pelo administrador são somente leitura; você ainda pode testá-las ou salvá-las como uma nova habilidade."
+      "assembledReadonly": "Habilidades embutidas ou instaladas pelo administrador são somente leitura; você ainda pode testá-las ou salvá-las como uma nova habilidade.",
+      "usedBy": "Usado por",
+      "usedByNone": "Nenhum papel referencia esta habilidade ainda."
     },
     "form": {
       "name": "Nome da habilidade (globalmente único)",

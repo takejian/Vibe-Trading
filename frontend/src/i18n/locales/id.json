@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "Pendapatan Tetap & Derivatif",
       "alternatives": "Aset Alternatif",
       "risk": "Manajemen Risiko",
+      "data_toolkit": "Sumber data dan perkakas",
       "other": "Lainnya"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "Cabut persetujuan",
       "approvePrerequisite": "Keterampilan ini belum punya uji coba yang lulus; diperlukan setidaknya satu hasil uji coba yang memenuhi syarat.",
       "approveFailed": "Gagal menyetujui/mencabut",
-      "assembledReadonly": "Keterampilan bawaan/pasangan administrator bersifat hanya-baca; Anda tetap bisa mengujinya atau menyimpannya sebagai keterampilan baru."
+      "assembledReadonly": "Keterampilan bawaan/pasangan administrator bersifat hanya-baca; Anda tetap bisa mengujinya atau menyimpannya sebagai keterampilan baru.",
+      "usedBy": "Digunakan oleh",
+      "usedByNone": "Belum ada peran yang merujuk ke keterampilan ini."
     },
     "form": {
       "name": "Nama keterampilan (unik secara global)",

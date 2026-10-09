@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "固定收益与衍生品",
       "alternatives": "另类资产",
       "risk": "风险管理",
+      "data_toolkit": "数据源与工具集",
       "other": "其他"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "取消通过",
       "approvePrerequisite": "该技能尚无合格的试运行记录，须先取得至少一次合格试运行成果后才能放开通过。",
       "approveFailed": "放开/取消通过失败",
-      "assembledReadonly": "内置与管理员装配技能只读，仍可发起试运行或另存为新的自建技能。"
+      "assembledReadonly": "内置与管理员装配技能只读，仍可发起试运行或另存为新的自建技能。",
+      "usedBy": "被引用",
+      "usedByNone": "暂无角色引用该技能。"
     },
     "form": {
       "name": "技能名称（全局唯一）",

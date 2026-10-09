@@ -2021,6 +2021,7 @@
       "fixed_income_derivatives": "Fixed Income & Derivatives",
       "alternatives": "Alternative Assets",
       "risk": "Risk Management",
+      "data_toolkit": "Data Sources & Toolkit",
       "other": "Other"
     },
     "gallery": {
@@ -2307,7 +2308,9 @@
       "unapprove": "Revoke approval",
       "approvePrerequisite": "Approve is available only after at least one qualified trial run of this skill.",
       "approveFailed": "Approve / revoke failed",
-      "assembledReadonly": "Assembled skills are read-only; you can still trial them or save them as a new custom skill."
+      "assembledReadonly": "Assembled skills are read-only; you can still trial them or save them as a new custom skill.",
+      "usedBy": "Used by",
+      "usedByNone": "No role references this skill yet."
     },
     "form": {
       "name": "Skill name (globally unique)",
