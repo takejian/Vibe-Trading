@@ -62,8 +62,23 @@ DIMENSION_TEAMS: dict[str, tuple[str, ...]] = {
 TRENDS = ("up", "down", "flat")
 DIRECTIONS = ("up", "down", "flat")
 
-#: Claim 初始状态；第二期末复盘时改写。
-CLAIM_STATUS_PENDING = "pending"
+#: Claim 验证状态。
+CLAIM_STATUS_PENDING = "pending"  # 未到期 / 尚未判定
+CLAIM_STATUS_HIT = "hit"  # 命中
+CLAIM_STATUS_MISS = "miss"  # 未中
+CLAIM_STATUS_PARTIAL = "partial"  # 接近阈值 / 部分正确
+CLAIM_STATUS_DATA_MISSING = "data_missing"  # 窗口到期但本地库无实际数据
+
+#: 已终态（verify 默认不再重判；data_missing 允许重试取数）。
+CLAIM_TERMINAL_STATUSES = (
+    CLAIM_STATUS_HIT,
+    CLAIM_STATUS_MISS,
+    CLAIM_STATUS_PARTIAL,
+)
+CLAIM_VERIFIED_STATUSES = CLAIM_TERMINAL_STATUSES + (CLAIM_STATUS_DATA_MISSING,)
+
+REVIEW_TYPE_AI = "ai"
+REVIEW_TYPE_MANUAL = "manual"
 
 
 @dataclass(frozen=True)
@@ -153,6 +168,40 @@ class SynthesisClaim:
 
 
 @dataclass(frozen=True)
+class SynthesisReview:
+    """一期报告的一次复盘点评（AI 或人工）。"""
+
+    report_id: int
+    review_type: str  # ai / manual
+    comment: str
+    id: Optional[int] = None
+    hit_rate: Optional[float] = None
+    brier_score: Optional[float] = None
+    counts: Optional[dict[str, int]] = None
+    attribution: Optional[str] = None
+    lessons: Optional[str] = None
+    reviewer: Optional[str] = None
+    create_time: Optional[str] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "report_id": self.report_id,
+            "review_type": self.review_type,
+            "hit_rate": round(self.hit_rate, 3) if self.hit_rate is not None else None,
+            "brier_score": (
+                round(self.brier_score, 3) if self.brier_score is not None else None
+            ),
+            "counts": dict(self.counts) if self.counts else None,
+            "comment": self.comment,
+            "attribution": self.attribution,
+            "lessons": self.lessons,
+            "reviewer": self.reviewer,
+            "create_time": self.create_time,
+        }
+
+
+@dataclass(frozen=True)
 class SynthesisReport:
     """一期宏观量化汇总报告（聚合根）。"""
 
@@ -170,6 +219,7 @@ class SynthesisReport:
     teams: list[TeamCoverage]
     dimensions: list[DimensionSignal]
     claims: list[SynthesisClaim]
+    reviews: list[SynthesisReview] = field(default_factory=list)
     status: str = "completed"
     id: Optional[int] = None
     create_time: Optional[str] = None
@@ -202,6 +252,7 @@ class SynthesisReport:
             },
             "dimensions": [dimension.to_dict() for dimension in self.dimensions],
             "claims": [claim.to_dict() for claim in self.claims],
+            "reviews": [review.to_dict() for review in self.reviews],
             "status": self.status,
             "claim_count": self.claim_count,
             "create_time": self.create_time,

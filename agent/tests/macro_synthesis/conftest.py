@@ -123,3 +123,38 @@ def run_writer():
 
     return _write
 
+@pytest.fixture
+def market_payload(valid_payload):
+    """claims 中含 daily_bar / fx_rate 可机判命题（窗口设为 2026-09，已到期）。"""
+
+    def _build() -> dict:
+        data = valid_payload()
+        data["claims"][0].update(
+            {
+                "dimension": "synthesis",
+                "text": "沪深300 在 9 月收于 3900 点以上",
+                "metric": "CSI300",
+                "direction": "up",
+                "predicted_value": ">=3900",
+                "probability": 0.6,
+                "window_start": "2026-09-01",
+                "window_end": "2026-09-30",
+                "verify_source": "daily_bar",
+            }
+        )
+        data["claims"][1].update(
+            {
+                "dimension": "external",
+                "text": "美元兑人民币 9 月末回落至 7.12 下方",
+                "metric": "USDCNY",
+                "direction": "down",
+                "predicted_value": "<=7.12",
+                "probability": 0.55,
+                "window_start": "2026-09-01",
+                "window_end": "2026-09-30",
+                "verify_source": "fx_rate",
+            }
+        )
+        return data
+
+    return _build

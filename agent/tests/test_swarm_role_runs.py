@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from src.swarm.models import RunStatus, TaskStatus
 from src.swarm.role_catalog import list_role_groups
-from src.swarm.role_runs import build_role_run, role_run_succeeded
+from src.swarm.role_runs import (
+    build_role_run,
+    register_completed_role_run,
+    role_run_succeeded,
+)
 from src.swarm.roles import RoleStore
+from src.swarm.store import SwarmStore
 
 
 @pytest.fixture
@@ -125,3 +132,71 @@ def test_role_run_succeeded_rule() -> None:
         update={"status": RunStatus.completed, "final_report": "# 结论\n..."}
     )
     assert role_run_succeeded(via_report) is True
+
+
+def test_register_completed_role_run_persists_terminal_run(tmp_path) -> None:
+    ref = _first_builtin_ref()
+    store = SwarmStore(tmp_path / "runs")
+    finished = datetime(2026, 10, 9, 4, 7, tzinfo=timezone.utc)
+
+    run = register_completed_role_run(
+        role_ref=ref,
+        target="002007.SZ",
+        question="缠论多级别结构与操作结论？",
+        report="# 华兰生物缠论分析\n...完整八段报告...",
+        run_id="manual-role-chanlun-20261009120700-002007",
+        analyzed_at=finished,
+        store=store,
+    )
+
+    assert run.id == "manual-role-chanlun-20261009120700-002007"
+    assert run.kind == "role_run"
+    assert run.trial_role == ref
+    assert run.status == RunStatus.completed
+    assert run.final_report.startswith("# 华兰生物缠论分析")
+    assert run.completed_at == finished.isoformat()
+    assert len(run.tasks) == 1
+    task = run.tasks[0]
+    assert task.status == TaskStatus.completed
+    assert task.summary == run.final_report
+    assert role_run_succeeded(run) is True
+
+    reloaded = store.load_run(run.id)
+    assert reloaded is not None
+    assert reloaded.status == RunStatus.completed
+    assert reloaded.final_report == run.final_report
+    assert [r.id for r in store.list_runs(limit=100)] == [run.id]
+
+
+def test_register_completed_role_run_is_idempotent(tmp_path) -> None:
+    ref = _first_builtin_ref()
+    store = SwarmStore(tmp_path / "runs")
+    kwargs = dict(
+        role_ref=ref,
+        target="002007.SZ",
+        question="q",
+        report="报告 v1",
+        run_id="manual-role-chanlun-20261009120700-002007",
+        store=store,
+    )
+
+    first = register_completed_role_run(**kwargs)
+    second = register_completed_role_run(**{**kwargs, "report": "报告 v2"})
+
+    assert second.id == first.id
+    assert second.final_report == "报告 v1"
+    assert len(store.list_runs(limit=100)) == 1
+
+
+def test_register_completed_role_run_rejects_empty_report(tmp_path) -> None:
+    ref = _first_builtin_ref()
+    store = SwarmStore(tmp_path / "runs")
+    with pytest.raises(ValueError):
+        register_completed_role_run(
+            role_ref=ref,
+            target="002007.SZ",
+            question="q",
+            report="   ",
+            run_id="manual-x",
+            store=store,
+        )

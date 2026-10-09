@@ -2037,12 +2037,33 @@
         "probability": "概率",
         "window": "验证窗口",
         "claimStatus": {
-          "pending": "待验证"
+          "pending": "待验证",
+          "hit": "命中",
+          "miss": "未中",
+          "partial": "部分正确",
+          "data_missing": "数据缺失"
         },
         "historyTitle": "历史汇总",
         "historyEmpty": "暂无历史汇总报告。",
         "view": "查看",
-        "metric": "指标"
+        "metric": "指标",
+        "verify": "刷新判定",
+        "review": "AI 一键复盘",
+        "reviewing": "AI 复盘中…",
+        "reviewsTitle": "复盘与点评",
+        "hitRate": "命中率",
+        "brier": "Brier 精度",
+        "actualValue": "实际值",
+        "attribution": "偏差归因",
+        "lessons": "改进建议",
+        "manualTitle": "人工点评",
+        "commentPlaceholder": "写下你对本期分析结论的点评…",
+        "optionalScore": "可选评分 0~1",
+        "submitComment": "提交点评",
+        "aiReviewer": "AI 复盘",
+        "manualReviewer": "人工",
+        "reviewBlocked": "暂无可判定命题，无法生成 AI 复盘。",
+        "autoVerified": "已自动刷新到期命题的判定。"
       }
     },
     "evalHistory": {

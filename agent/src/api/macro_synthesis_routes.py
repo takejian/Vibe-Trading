@@ -37,6 +37,12 @@ class SynthesisRequestBody(BaseModel):
     allow_partial: bool = True
 
 
+class ReviewCommentRequestBody(BaseModel):
+    comment: str = Field(min_length=1, max_length=2000)
+    hit_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    reviewer: Optional[str] = Field(default=None, max_length=50)
+
+
 def get_synthesis_service() -> MacroSynthesisService:
     """工厂接缝；测试 monkeypatch 此函数注入伪服务。"""
     return MacroSynthesisService()
@@ -137,4 +143,71 @@ def register_macro_synthesis_routes(app: FastAPI) -> None:
             report = repo.get_report_by_id(report_id)
         if report is None:
             raise HTTPException(status_code=404, detail="汇总报告不存在。")
+        return {"status": "ok", "report": report.to_dict()}
+
+    @app.post(
+        "/api/macro/synthesis/reports/{report_id}/verify",
+        dependencies=[Depends(require_auth)],
+    )
+    def verify_synthesis_report(
+        report_id: int,
+        service: MacroSynthesisService = Depends(get_synthesis_service),
+    ):
+        try:
+            report = service.verify_report(report_id)
+        except SynthesisServiceError as exc:
+            return JSONResponse(
+                status_code=getattr(exc, "status_code", 400),
+                content=_error_response(exc),
+            )
+        return {"status": "ok", "report": report.to_dict()}
+
+    @app.post(
+        "/api/macro/synthesis/reports/{report_id}/review",
+        dependencies=[Depends(require_auth)],
+    )
+    def review_synthesis_report(
+        report_id: int,
+        service: MacroSynthesisService = Depends(get_synthesis_service),
+    ):
+        try:
+            report, review = service.ai_review(report_id)
+        except SynthesisLLMTimeoutError as exc:
+            return JSONResponse(status_code=504, content=_error_response(exc))
+        except SynthesisFailedError as exc:
+            return JSONResponse(
+                status=exc.status_code, content=_error_response(exc)
+            )
+        except SynthesisServiceError as exc:
+            return JSONResponse(
+                status_code=getattr(exc, "status_code", 400),
+                content=_error_response(exc),
+            )
+        return {
+            "status": "ok",
+            "report": report.to_dict(),
+            "review": review.to_dict(),
+        }
+
+    @app.post(
+        "/api/macro/synthesis/reports/{report_id}/comments",
+        dependencies=[Depends(require_auth)],
+    )
+    def add_synthesis_comment(
+        report_id: int,
+        body: ReviewCommentRequestBody,
+        service: MacroSynthesisService = Depends(get_synthesis_service),
+    ):
+        try:
+            report = service.add_comment(
+                report_id,
+                body.comment,
+                hit_rate=body.hit_rate,
+                reviewer=body.reviewer,
+            )
+        except SynthesisServiceError as exc:
+            return JSONResponse(
+                status_code=getattr(exc, "status_code", 400),
+                content=_error_response(exc),
+            )
         return {"status": "ok", "report": report.to_dict()}

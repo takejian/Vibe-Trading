@@ -20,6 +20,7 @@ from src.swarm.custom_spec import _escape_template_text
 from src.swarm.models import RunStatus, SwarmAgentSpec, SwarmRun, SwarmTask, TaskStatus
 from src.swarm.role_catalog import parse_builtin_ref, resolve_role
 from src.swarm.roles import RoleStore
+from src.swarm.store import SwarmStore, swarm_runs_root
 
 _UPSTREAM_SENTINEL = "\x00__UPSTREAM_CONTEXT__\x00"
 
@@ -118,6 +119,89 @@ def build_role_run(
         kind="role_run",
         trial_role=role_ref,
     )
+
+
+def register_completed_role_run(
+    *,
+    role_ref: str,
+    target: str,
+    question: str,
+    report: str,
+    run_id: str,
+    analyzed_at: datetime | None = None,
+    store: SwarmStore | None = None,
+    role_store: "RoleStore | None" = None,
+) -> SwarmRun:
+    """Register an already-finished standalone role run in the swarm store.
+
+    Offline pipelines (e.g. the chanlun-bi-analysis skill) produce a qualified
+    role report without going through the live swarm worker, but the Role
+    Square reads only ``kind="role_run"`` files from the swarm store. This
+    bridges that gap by persisting a terminal single-agent run whose
+    ``final_report`` (and sole task summary) is the finished report.
+
+    Idempotent: if ``run_id`` already exists on disk it is loaded and
+    returned unchanged, so re-running an import never duplicates the record.
+
+    Args:
+        role_ref: Built-in role reference (``"preset:agent_id"``) or custom
+            role id.
+        target: Evaluation target, e.g. a stock symbol.
+        question: Research question the report answers.
+        report: Full finished report text (becomes final_report).
+        run_id: Caller-chosen bare run-directory name, ideally the same id
+            used for the analysis row in DuckDB.
+        analyzed_at: Analysis completion time; naive values are interpreted as
+            local time. Defaults to now (UTC).
+        store: Override swarm store (tests).
+        role_store: Override custom-role store (tests).
+
+    Returns:
+        The persisted completed :class:`SwarmRun`.
+
+    Raises:
+        ValueError: Empty report or an invalid/unknown role reference.
+    """
+    report = (report or "").strip()
+    if not report:
+        raise ValueError("角色运行报告不能为空")
+    run_id = (run_id or "").strip()
+    if not run_id:
+        raise ValueError("run_id 不能为空")
+
+    store = store or SwarmStore(swarm_runs_root())
+    existing = store.load_run(run_id)
+    if existing is not None:
+        return existing
+
+    if analyzed_at is None:
+        finished = datetime.now(timezone.utc)
+    elif analyzed_at.tzinfo is None:
+        finished = analyzed_at.astimezone(timezone.utc)
+    else:
+        finished = analyzed_at.astimezone(timezone.utc)
+    finished_iso = finished.isoformat()
+
+    run = build_role_run(role_ref, target, question, role_store)
+    task = run.tasks[0].model_copy(
+        update={
+            "status": TaskStatus.completed,
+            "summary": report,
+            "started_at": finished_iso,
+            "completed_at": finished_iso,
+        }
+    )
+    run = run.model_copy(
+        update={
+            "id": run_id,
+            "status": RunStatus.completed,
+            "tasks": [task],
+            "completed_at": finished_iso,
+            "final_report": report,
+        }
+    )
+    store.create_run(run)
+    return run
 
 
 def role_run_succeeded(run: SwarmRun) -> bool:

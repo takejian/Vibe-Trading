@@ -21,6 +21,7 @@ from .models import (
     DimensionSignal,
     SynthesisClaim,
     SynthesisReport,
+    SynthesisReview,
     TeamCoverage,
 )
 
@@ -150,7 +151,11 @@ class MacroSynthesisRepository:
     # -- 读 ---------------------------------------------------------------
 
     def _hydrate(
-        self, row: tuple, dimensions: list[DimensionSignal], claims: list[SynthesisClaim]
+        self,
+        row: tuple,
+        dimensions: list[DimensionSignal],
+        claims: list[SynthesisClaim],
+        reviews: list[SynthesisReview],
     ) -> SynthesisReport:
         coverage_payload = json.loads(row[11])
         teams = [TeamCoverage(**item) for item in coverage_payload.get("teams", [])]
@@ -170,6 +175,7 @@ class MacroSynthesisRepository:
             teams=teams,
             dimensions=dimensions,
             claims=claims,
+            reviews=reviews,
             status=row[12],
             create_time=_iso(row[14]),
         )
@@ -221,8 +227,37 @@ class MacroSynthesisRepository:
             for r in rows
         ]
 
+    def _load_reviews(self, report_id: int) -> list[SynthesisReview]:
+        rows = self._conn.execute(
+            "SELECT id, report_id, review_type, hit_rate, brier_score, counts, comment, "
+            "attribution, lessons, reviewer, create_time "
+            "FROM macro_synthesis_review WHERE report_id = ? ORDER BY id",
+            [report_id],
+        ).fetchall()
+        return [
+            SynthesisReview(
+                id=r[0],
+                report_id=r[1],
+                review_type=r[2],
+                hit_rate=r[3],
+                brier_score=r[4],
+                counts=json.loads(r[5]) if r[5] else None,
+                comment=r[6],
+                attribution=r[7],
+                lessons=r[8],
+                reviewer=r[9],
+                create_time=_iso(r[10]),
+            )
+            for r in rows
+        ]
+
     def _row_to_report(self, row: tuple) -> SynthesisReport:
-        report = self._hydrate(row, self._load_dimensions(row[0]), self._load_claims(row[0]))
+        report = self._hydrate(
+            row,
+            self._load_dimensions(row[0]),
+            self._load_claims(row[0]),
+            self._load_reviews(row[0]),
+        )
         from dataclasses import replace as _replace
         from .periods import period_label
 
@@ -343,3 +378,58 @@ class MacroSynthesisRepository:
 
         stored = self.get_report_by_id(report_id)
         return stored if stored is not None else report
+
+    # -- Claims 判定 / Review 写入 ----------------------------------------
+
+    def update_claim_verification(
+        self,
+        claim_id: int,
+        status: str,
+        actual_value: Optional[float],
+        observed_date: Optional[str],
+    ) -> None:
+        """更新一条命题的判定结果。"""
+        self._conn.execute(
+            "UPDATE macro_synthesis_claim "
+            "SET status = ?, actual_value = ?, verified_at = COALESCE(?, verified_at) "
+            "WHERE id = ?",
+            [
+                status,
+                None if actual_value is None else str(actual_value),
+                observed_date,
+                claim_id,
+            ],
+        )
+
+    def insert_review(self, review: SynthesisReview) -> SynthesisReview:
+        """写入一条复盘点评并回填 id。"""
+        conn = self._conn
+        try:
+            conn.execute("BEGIN")
+            conn.execute(
+                "INSERT INTO macro_synthesis_review "
+                "(report_id, review_type, hit_rate, brier_score, counts, comment, "
+                "attribution, lessons, reviewer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    review.report_id,
+                    review.review_type,
+                    review.hit_rate,
+                    review.brier_score,
+                    _dumps(review.counts) if review.counts else None,
+                    review.comment,
+                    review.attribution,
+                    review.lessons,
+                    review.reviewer,
+                ],
+            )
+            review_id = int(
+                conn.execute("SELECT currval('seq_macro_syn_review')").fetchone()[0]
+            )
+            conn.execute("COMMIT")
+        except Exception as exc:
+            conn.execute("ROLLBACK")
+            raise SynthesisDBError(f"复盘点评写入失败：{exc}") from exc
+        from dataclasses import replace as _replace
+
+        return _replace(review, id=review_id)
+

@@ -10,23 +10,33 @@ from __future__ import annotations
 import json
 import re
 import threading
+from datetime import date
 from typing import Optional
 
 from src.config.accessor import get_env_config
 
-from . import coverage, periods
+from . import coverage, periods, verifiers
 from .db import MacroSynthesisRepository, SynthesisDBError
 from .models import (
     ASSET_KEYS,
+    CLAIM_STATUS_DATA_MISSING,
+    CLAIM_STATUS_HIT,
+    CLAIM_STATUS_MISS,
+    CLAIM_STATUS_PARTIAL,
+    CLAIM_STATUS_PENDING,
+    CLAIM_TERMINAL_STATUSES,
     CYCLE_KEYS,
     DIMENSIONS,
     DIMENSION_TEAMS,
     DIMENSION_WEIGHTS,
     DIRECTIONS,
+    REVIEW_TYPE_AI,
+    REVIEW_TYPE_MANUAL,
     TRENDS,
     DimensionSignal,
     SynthesisClaim,
     SynthesisReport,
+    SynthesisReview,
     TeamCoverage,
 )
 
@@ -101,6 +111,9 @@ stagflation 滞胀（增长弱、通胀高）、recession 衰退（增长弱、�
 - dimension：所属维度；text：命题完整表述；metric：关联指标代码（如 CN_PMI、CN_CPI、US_CPI、CN10Y、USDCNY、CSI300）；
 - direction：up/down/flat；predicted_value：预测值或区间或阈值表述；probability：0~1 实现概率；
 - window_start / window_end：YYYY-MM-DD，验证窗口（数据发布/观察起止日期）；verify_source：验证数据源标识。
+  verify_source 取值约定：指数/行情点位用 daily_bar（metric 填工程代码，如沪深300填 000300.SH）；
+  汇率用 fx_rate（metric 填六位货币对，如 USDCNY）；宏观月度指标用 cn_macro_monthly 等。
+- 5~10 条命题中，至少包含 2 条 verify_source 为 daily_bar 或 fx_rate 的行情/汇率类可机判命题。
 不要给出无法证伪的模糊表述。
 
 【输出格式】严格按以下结构（示例值需替换）：
@@ -231,6 +244,38 @@ def parse_synthesis_payload(raw: object) -> tuple[Optional[dict], Optional[str]]
             )
             if claim["window_start"] > claim["window_end"]:
                 raise ValueError(f"claims[{index}] 验证窗口起止颠倒。")
+    except ValueError as exc:
+        return None, str(exc)
+    return data, None
+
+
+REVIEW_SYSTEM_PROMPT = """你是严谨的宏观研究质检主管。请依据一份宏观汇总报告的可验证命题（claims）
+及其到期后的实际数据判定结果，给出客观、尖锐、有建设性的结构化复盘。只输出纯 JSON。
+
+输出结构：
+{
+  "comment": "总体点评：原结论是否成立、对节奏与拐点的把握如何，100~300字",
+  "attribution": "偏差归因：区分数据问题、逻辑问题、突发外生事件或模型倾向；并明确指出是否存在系统性偏多或偏空",
+  "lessons": "改进建议：下期应加强/弱化哪些信号、关注哪些指标或触发条件，具体可执行"
+}
+不要回避问题，也不要在缺乏证据时过度批评；以判定明细为唯一依据。"""
+
+
+def parse_review_payload(raw: object) -> tuple[Optional[dict], Optional[str]]:
+    """解析 AI 复盘 JSON。"""
+    if not isinstance(raw, str) or not raw.strip():
+        return None, "复盘输出为空。"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return None, f"复盘输出不是合法 JSON：{exc.msg}"
+    if not isinstance(data, dict):
+        return None, "复盘 JSON 顶层必须是对象。"
+    try:
+        for key in ("comment", "attribution", "lessons"):
+            value = data.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"复盘字段 {key} 必须是非空字符串。")
     except ValueError as exc:
         return None, str(exc)
     return data, None
@@ -466,3 +511,169 @@ class MacroSynthesisService:
             raise SynthesisFailedError(f"模型调用失败：{exc}") from exc
         content = getattr(response, "content", None)
         return content if isinstance(content, str) else ""
+
+    # -- 二期：判定与复盘 -------------------------------------------------
+
+    def verify_report(self, report_id: int) -> SynthesisReport:
+        """扫描报告中已到期命题并取数判定。
+
+        * pending：仅当 window_end <= 今天才判定，未到期保持 pending；
+        * data_missing：允许重试（数据可能在窗口后补灌）；
+        * hit/miss/partial：终态不重判。
+        """
+        repo = self._get_repo()
+        report = repo.get_report_by_id(report_id)
+        if report is None:
+            raise SynthesisServiceError("汇总报告不存在。")
+        today = date.today().isoformat()
+        for claim in report.claims:
+            if claim.id is None:
+                continue
+            if claim.status in CLAIM_TERMINAL_STATUSES:
+                continue
+            if claim.status == CLAIM_STATUS_PENDING and claim.window_end > today:
+                continue
+            status, actual_value, observed_date = verifiers.verify_claim(
+                repo._conn, claim
+            )
+            repo.update_claim_verification(
+                claim.id, status, actual_value, observed_date
+            )
+        return repo.get_report_by_id(report_id)
+
+    @staticmethod
+    def _review_stats(report: SynthesisReport) -> dict:
+        """统计判定结果、方向命中率与 Brier 分数（仅已判定命题）。"""
+        counts = {
+            CLAIM_STATUS_PENDING: 0,
+            CLAIM_STATUS_HIT: 0,
+            CLAIM_STATUS_MISS: 0,
+            CLAIM_STATUS_PARTIAL: 0,
+            CLAIM_STATUS_DATA_MISSING: 0,
+        }
+        brier_terms: list[float] = []
+        weighted_hits = 0.0
+        resolved = 0
+        for claim in report.claims:
+            counts[claim.status] = counts.get(claim.status, 0) + 1
+            if claim.status == CLAIM_STATUS_HIT:
+                outcome = 1.0
+            elif claim.status == CLAIM_STATUS_MISS:
+                outcome = 0.0
+            elif claim.status == CLAIM_STATUS_PARTIAL:
+                outcome = 0.5
+            else:
+                continue
+            resolved += 1
+            weighted_hits += outcome
+            brier_terms.append((float(claim.probability) - outcome) ** 2)
+        hit_rate = round(weighted_hits / resolved, 3) if resolved else None
+        brier = (
+            round(sum(brier_terms) / len(brier_terms), 3) if brier_terms else None
+        )
+        return {
+            "counts": counts,
+            "resolved": resolved,
+            "hit_rate": hit_rate,
+            "brier_score": brier,
+        }
+
+    def ai_review(self, report_id: int) -> tuple[SynthesisReport, SynthesisReview]:
+        """先确保到期命题已判定，再由 AI 生成结构化复盘点评。"""
+        report = self.verify_report(report_id)
+        stats = self._review_stats(report)
+        if stats["resolved"] == 0:
+            raise SynthesisServiceError(
+                "当前没有任何可判定的命题（验证窗口可能未到期或实际数据缺失），"
+                "暂无法生成有依据的 AI 复盘。"
+            )
+        messages = [
+            {"role": "system", "content": REVIEW_SYSTEM_PROMPT},
+            {"role": "user", "content": self._build_review_message(report, stats)},
+        ]
+        llm = self._build_llm()
+        payload: Optional[dict] = None
+        last_reason = "未知原因。"
+        for attempt in range(2):
+            raw = self._invoke_llm(llm, messages)
+            payload, last_reason = parse_review_payload(raw)
+            if payload is not None:
+                break
+            messages = [
+                *messages,
+                {"role": "assistant", "content": str(raw or "")},
+                {"role": "user", "content": _RETRY_INSTRUCTION},
+            ]
+        if payload is None:
+            raise SynthesisFailedError(f"复盘输出不符合约定：{last_reason}")
+
+        repo = self._get_repo()
+        review = SynthesisReview(
+            report_id=report_id,
+            review_type=REVIEW_TYPE_AI,
+            hit_rate=stats["hit_rate"],
+            brier_score=stats["brier_score"],
+            counts=stats["counts"],
+            comment=payload["comment"].strip(),
+            attribution=payload["attribution"].strip(),
+            lessons=payload["lessons"].strip(),
+            reviewer="ai",
+        )
+        stored_review = repo.insert_review(review)
+        refreshed = repo.get_report_by_id(report_id)
+        return refreshed, stored_review
+
+    def add_comment(
+        self,
+        report_id: int,
+        comment: str,
+        hit_rate: Optional[float] = None,
+        reviewer: Optional[str] = None,
+    ) -> SynthesisReport:
+        """追加一条人工点评。"""
+        text = (comment or "").strip()
+        if not text:
+            raise SynthesisServiceError("点评内容不能为空。")
+        if hit_rate is not None and not 0 <= hit_rate <= 1:
+            raise SynthesisServiceError("人工评分必须在 0~1 之间。")
+        repo = self._get_repo()
+        if repo.get_report_by_id(report_id) is None:
+            raise SynthesisServiceError("汇总报告不存在。")
+        review = SynthesisReview(
+            report_id=report_id,
+            review_type=REVIEW_TYPE_MANUAL,
+            hit_rate=round(hit_rate, 3) if hit_rate is not None else None,
+            comment=text,
+            reviewer=reviewer or "user",
+        )
+        repo.insert_review(review)
+        return repo.get_report_by_id(report_id)
+
+    @staticmethod
+    def _build_review_message(report: SynthesisReport, stats: dict) -> str:
+        lines = [
+            f"报告期次：{report.period_label}",
+            f"总体结论：{report.summary}",
+            "",
+            f"判定统计：{stats['counts']}",
+            f"方向命中率：{stats['hit_rate']}",
+            f"Brier 概率精度：{stats['brier_score']}"
+            "（0~2，越低越准；0.25 为无技巧基准）",
+            "",
+            "各命题判定明细（预测 / 概率 / 实际值 / 结果）：",
+        ]
+        for claim in report.claims:
+            lines.append(
+                f"- [{claim.status}] {claim.text}｜预测 {claim.predicted_value}"
+                f"（概率 {claim.probability}）｜实际 {claim.actual_value or '无数据'}"
+            )
+        lines.extend(
+            [
+                "",
+                "请基于以上事实输出复盘 JSON：comment 总体点评（结论是否成立、"
+                "节奏与拐点把握）、attribution 偏差归因（数据/逻辑/突发事件/模型倾向，"
+                "并指出是否存在系统性偏多或偏空）、lessons 对下期分析的具体改进建议。"
+                "只输出纯 JSON。",
+            ]
+        )
+        return "\n".join(lines)

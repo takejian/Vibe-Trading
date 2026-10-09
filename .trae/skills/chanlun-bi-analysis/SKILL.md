@@ -137,9 +137,19 @@ insert_chanlun_record(run_id=run_id, symbol='300014.SZ', conn=conn,
     confidence=parsed['confidence'], structured=True,
     raw_report=REPORT, analyzed_at=datetime.now(),
     card=card_result['card'], card_parse=card_result['parse'])
+
+# 同步登记为 chanlun_analyst 角色的已完成 role_run，否则角色评估页看不到本次分析：
+# 角色页只读 SwarmStore 里 kind="role_run" 的文件，不读 chanlun_analysis 表。
+from src.swarm.role_runs import register_completed_role_run
+register_completed_role_run(
+    role_ref='technical_analysis_panel:chanlun_analyst',
+    target='300014.SZ',
+    question='缠论多级别结构（笔/中枢/背驰/买卖点）与操作结论？',
+    report=REPORT, run_id=run_id, analyzed_at=datetime.now())
 ```
 
 - API：`agent/src/watchlist/db.py`（`watchlist_connection/initialize_schema/insert_chanlun_record`），7 段解析器 `agent/src/watchlist/chanlun_parser.py`，操作结论卡解析器 `agent/src/watchlist/action_card.py`（返回 `ok` / `no_card` / `contract_violation` 三态；新报告必须 `ok`）。
+- **必须在 DuckDB 入库后调用 `src.swarm.role_runs.register_completed_role_run`**（参数如上）：用同一 `run_id` 在 SwarmStore 落一个 `kind="role_run"` 的 completed 文件（final_report=报告全文），记录才会出现在 web 端「智能体/角色评估」的 chanlun_analyst 列表里并可用 RunView 打开。函数幂等（run 目录已存在则跳过），重复执行安全。
 - 入库时卡片字段随报告一起落库（`base_price/direction/action/setup_class/trigger_price/stop_price/target_prices/...` 与 `card_parse` 状态列）。
 - 每次运行生成新 run_id；入库后用 SELECT 回查最新行（score/confidence/structured/card_parse/direction/action/长度）。
 - DuckDB DELETE rowcount 显示 -1 是正常现象。
@@ -152,4 +162,4 @@ insert_chanlun_record(run_id=run_id, symbol='300014.SZ', conn=conn,
 - MACD 口径固定 (12,26,9)：DIF=EMA12−EMA26，hist=DIF−DEA9；向上笔取区间正柱和、向下笔取负柱和。
 - 数字（面积/DIF/价位/均线）只引用扫描输出与存档 K 线，不同数据源窗口不可混用为背驰证据。
 - 正文里避免出现形如 `3. 背驰…` 的独立编号行（可能被解析器误判为标题）；标题级别统一用 `##`。
-- 报告完成后自查：① 7 段齐全且 `parse_chanlun_report` 返回非 None；② 三个时间级别全笔序列与网格齐备、节点数=笔数+1(+未完成笔)；③ 每个买卖点都有触发价/失效价；④ 30m/季线窗口限制已声明；⑤ 第 8 段操作结论卡 `parse_action_card` 返回 `ok`（JSON 合法、confidence_pct 与第 7 段一致、价位方向自洽、neutral/wait 全 null）；⑥ 入库回查成功（含 card_parse=ok）。
+- 报告完成后自查：① 7 段齐全且 `parse_chanlun_report` 返回非 None；② 三个时间级别全笔序列与网格齐备、节点数=笔数+1(+未完成笔)；③ 每个买卖点都有触发价/失效价；④ 30m/季线窗口限制已声明；⑤ 第 8 段操作结论卡 `parse_action_card` 返回 `ok`（JSON 合法、confidence_pct 与第 7 段一致、价位方向自洽、neutral/wait 全 null）；⑥ 入库回查成功（含 card_parse=ok）；⑦ 已调用 `register_completed_role_run` 登记 role_run，`GET /swarm/role-runs?role_ref=technical_analysis_panel:chanlun_analyst` 能看到本次 run_id。

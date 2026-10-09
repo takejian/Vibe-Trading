@@ -2037,12 +2037,33 @@
         "probability": "Probability",
         "window": "Verification window",
         "claimStatus": {
-          "pending": "Pending"
+          "pending": "Pending",
+          "hit": "Hit",
+          "miss": "Miss",
+          "partial": "Partly correct",
+          "data_missing": "No data"
         },
         "historyTitle": "History",
         "historyEmpty": "No synthesis reports yet.",
         "view": "View",
-        "metric": "Metric"
+        "metric": "Metric",
+        "verify": "Verify now",
+        "review": "AI review",
+        "reviewing": "Reviewing…",
+        "reviewsTitle": "Reviews",
+        "hitRate": "Hit rate",
+        "brier": "Brier score",
+        "actualValue": "Actual",
+        "attribution": "Attribution",
+        "lessons": "Lessons",
+        "manualTitle": "Your review",
+        "commentPlaceholder": "Add your review of this analysis…",
+        "optionalScore": "Optional score 0–1",
+        "submitComment": "Submit",
+        "aiReviewer": "AI review",
+        "manualReviewer": "Manual",
+        "reviewBlocked": "No verifiable claims resolved yet; AI review unavailable.",
+        "autoVerified": "Auto-refreshed verification of due claims."
       }
     },
     "evalHistory": {

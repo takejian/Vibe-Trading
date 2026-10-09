@@ -106,6 +106,20 @@ export interface SynthesisClaim {
   ai_comment?: string | null;
 }
 
+export interface SynthesisReview {
+  id: number;
+  report_id: number;
+  review_type: "ai" | "manual";
+  hit_rate?: number | null;
+  brier_score?: number | null;
+  counts?: Record<string, number> | null;
+  comment: string;
+  attribution?: string | null;
+  lessons?: string | null;
+  reviewer?: string | null;
+  create_time?: string | null;
+}
+
 export interface SynthesisReport {
   id: number;
   economy: string;
@@ -122,6 +136,7 @@ export interface SynthesisReport {
   coverage: { all_covered: boolean; teams: SynthesisCoverageTeam[] };
   dimensions: SynthesisDimension[];
   claims: SynthesisClaim[];
+  reviews: SynthesisReview[];
   status: string;
   claim_count: number;
   create_time?: string | null;
@@ -984,6 +999,24 @@ export const api = {
   getSynthesisReport: (id: number) =>
     request<{ status: string; report: SynthesisReport }>(
       `/api/macro/synthesis/reports/${id}`,
+    ),
+  verifySynthesisReport: (id: number) =>
+    request<{ status: string; report: SynthesisReport }>(
+      `/api/macro/synthesis/reports/${id}/verify`,
+      { method: "POST" },
+    ),
+  reviewSynthesisReport: (id: number) =>
+    request<{ status: string; report: SynthesisReport; review: SynthesisReview }>(
+      `/api/macro/synthesis/reports/${id}/review`,
+      { method: "POST" },
+    ),
+  addSynthesisComment: (
+    id: number,
+    body: { comment: string; hit_rate?: number; reviewer?: string },
+  ) =>
+    request<{ status: string; report: SynthesisReport }>(
+      `/api/macro/synthesis/reports/${id}/comments`,
+      { method: "POST", body: JSON.stringify(body) },
     ),
 
   // Connector runtime channel — privileged surface actions (NOT agent tools).
