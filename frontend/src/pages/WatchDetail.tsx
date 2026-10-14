@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import {
@@ -26,7 +26,14 @@ export function WatchDetail() {
   const symbol = decodeURIComponent(params.symbol ?? "");
   const locale = i18n.language || "en";
 
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: TabKey = TABS.includes(tabParam as TabKey)
+    ? (tabParam as TabKey)
+    : "overview";
+  const setTab = (key: TabKey) => {
+    setSearchParams(key === "overview" ? {} : { tab: key }, { replace: true });
+  };
   const [profile, setProfile] = useState<WatchProfileResponse | null>(null);
   const [company, setCompany] = useState<CompanyProfile | null>(null);
   const [notFound, setNotFound] = useState(false);

@@ -18,6 +18,7 @@ import {
   type WatchEntry,
 } from "@/lib/api";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { PaperTradeDialog } from "@/components/paper/PaperTradeDialog";
 import { Skeleton } from "@/components/common/Skeleton";
 
 type SortKey = "price" | "total_market_cap" | "pe" | "pb";
@@ -59,6 +60,7 @@ export function Watchlist() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<WatchEntry | null>(null);
+  const [buyTarget, setBuyTarget] = useState<WatchEntry | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [compareHint, setCompareHint] = useState(false);
@@ -328,6 +330,13 @@ export function Watchlist() {
                   <td className="px-3 py-2.5 text-right">
                     <button
                       type="button"
+                      className="mr-3 rounded-md border border-red-500/50 px-2 py-0.5 text-xs text-red-500 hover:bg-red-500/10"
+                      onClick={() => setBuyTarget(entry)}
+                    >
+                      {t("paper.buy")}
+                    </button>
+                    <button
+                      type="button"
                       className="mr-3 text-primary hover:underline"
                       onClick={() => navigate(`/watch/${encodeURIComponent(entry.symbol)}`)}
                     >
@@ -353,6 +362,16 @@ export function Watchlist() {
           onClose={() => setAddOpen(false)}
           onAdded={onAdded}
           existing={new Set(entries.map((e) => e.symbol))}
+        />
+      )}
+
+      {buyTarget && (
+        <PaperTradeDialog
+          mode="buy"
+          symbol={buyTarget.symbol}
+          name={buyTarget.name}
+          onClose={() => setBuyTarget(null)}
+          onDone={() => void load()}
         />
       )}
 

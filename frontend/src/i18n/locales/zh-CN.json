@@ -16,6 +16,7 @@
     "scheduled": "定时任务",
     "reports": "报告",
     "portfolio": "持仓",
+    "paperPortfolio": "模拟持仓",
     "alphaZoo": "Alpha 因子库",
     "settings": "设置",
     "correlation": "相关性矩阵",
@@ -2742,6 +2743,123 @@
     "error": {
       "dataFailed": "数据服务异常，请重试",
       "duplicate": "该标的已在关注列表"
+    }
+  },
+  "paper": {
+    "title": "模拟持仓",
+    "buy": "买入",
+    "sell": "卖出",
+    "refresh": "刷新",
+    "reset": "重置账户",
+    "resetting": "重置中…",
+    "loading": "加载中…",
+    "loadFailed": "模拟持仓加载失败",
+    "stale": "陈旧",
+    "t1Disabled": "T+1：下一交易日起可卖",
+    "session": {
+      "live": "实时价",
+      "close": "收盘价",
+      "liveTag": "交易中 · 实时价成交",
+      "closedTag": "已收盘 · 按收盘价成交"
+    },
+    "tabs": {
+      "positions": "持仓",
+      "orders": "流水",
+      "closes": "已平仓",
+      "nav": "净值"
+    },
+    "account": {
+      "initial": "初始资金",
+      "cash": "可用现金",
+      "marketValue": "持仓市值",
+      "totalAsset": "总资产",
+      "cumPnl": "累计盈亏",
+      "dayPnl": "当日盈亏"
+    },
+    "col": {
+      "name": "股票",
+      "qty": "持仓",
+      "sellable": "可卖",
+      "avgCost": "成本价",
+      "currentPrice": "现价",
+      "priceTime": "价格时间",
+      "marketValue": "市值",
+      "unrealizedPnl": "浮动盈亏",
+      "returnPct": "收益率",
+      "chanlunScore": "缠论打分",
+      "actions": "操作",
+      "time": "时间",
+      "side": "方向",
+      "price": "价格",
+      "amount": "成交额",
+      "commission": "佣金",
+      "stampTax": "印花税",
+      "transferFee": "过户费",
+      "session": "价格口径"
+    },
+    "side": {
+      "buy": "买入",
+      "sell": "卖出"
+    },
+    "positions": {
+      "empty": "暂无持仓，去关注列表点击“买入”建仓。"
+    },
+    "orders": {
+      "empty": "暂无成交流水。"
+    },
+    "closes": {
+      "empty": "暂无已平仓记录。",
+      "buyPrice": "买入价",
+      "sellPrice": "卖出价",
+      "buyCost": "买入成本",
+      "proceeds": "卖出净收入",
+      "holdingDays": "持有天数"
+    },
+    "stats": {
+      "closes": "平仓笔数",
+      "winRate": "胜率",
+      "avgReturn": "平均收益率",
+      "totalPnl": "累计已实现盈亏",
+      "avgPnl": "平均盈亏",
+      "avgHoldingDays": "平均持有天数",
+      "totalFees": "累计费用"
+    },
+    "nav": {
+      "totalAsset": "总资产",
+      "baseline": "初始资金",
+      "empty": "暂无净值数据。",
+      "range": {
+        "5d": "近5日",
+        "20d": "近20日",
+        "all": "全部"
+      }
+    },
+    "dialog": {
+      "buyTitle": "模拟买入",
+      "sellTitle": "模拟卖出",
+      "close": "关闭",
+      "price": "当前价格",
+      "qty": "买入股数（100 的整数倍）",
+      "sellable": "当前可卖：{{n}} 股",
+      "qtyInvalid": "数量须为大于 0 的 100 股整数倍",
+      "chanlun": "买入时缠论打分",
+      "noChanlun": "暂无缠论打分",
+      "amount": "成交金额",
+      "commission": "佣金",
+      "stampTax": "印花税",
+      "transferFee": "过户费",
+      "totalCost": "预计占用资金",
+      "netProceeds": "预计回款",
+      "confirmBuy": "确认买入",
+      "confirmSell": "确认卖出",
+      "cancel": "取消",
+      "previewFailed": "行情试算失败",
+      "submitFailed": "下单失败",
+      "t1Hint": "T+1 规则：买入当日不可卖，下一交易日起可卖。"
+    },
+    "resetConfirm": {
+      "title": "重置模拟账户？",
+      "message": "将清空全部模拟持仓、成交记录与净值快照，现金恢复为初始资金。"
     }
   }
 }

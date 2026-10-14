@@ -21,6 +21,7 @@
     "scheduled": "Programado",
     "reports": "Informes",
     "portfolio": "Cartera",
+    "paperPortfolio": "Cartera simulada",
     "alphaZoo": "Alpha Zoo",
     "settings": "Configuración",
     "correlation": "Matriz de correlación",
@@ -2742,6 +2743,123 @@
     "error": {
       "dataFailed": "Error del servicio de datos, reintenta",
       "duplicate": "Este valor ya está en tu lista"
+    }
+  },
+  "paper": {
+    "title": "Paper Portfolio",
+    "buy": "Buy",
+    "sell": "Sell",
+    "refresh": "Refresh",
+    "reset": "Reset",
+    "resetting": "Resetting…",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load paper portfolio",
+    "stale": "stale",
+    "t1Disabled": "T+1: sellable from the next trading day",
+    "session": {
+      "live": "Intraday",
+      "close": "Close",
+      "liveTag": "Market open · intraday price",
+      "closedTag": "Market closed · trades use close price"
+    },
+    "tabs": {
+      "positions": "Positions",
+      "orders": "Orders",
+      "closes": "Closed trades",
+      "nav": "NAV"
+    },
+    "account": {
+      "initial": "Initial cash",
+      "cash": "Available cash",
+      "marketValue": "Market value",
+      "totalAsset": "Total assets",
+      "cumPnl": "Cumulative P&L",
+      "dayPnl": "Day P&L"
+    },
+    "col": {
+      "name": "Symbol",
+      "qty": "Qty",
+      "sellable": "Sellable",
+      "avgCost": "Avg cost",
+      "currentPrice": "Current",
+      "priceTime": "Price time",
+      "marketValue": "Mkt value",
+      "unrealizedPnl": "Unrealized P&L",
+      "returnPct": "Return",
+      "chanlunScore": "Chanlun",
+      "actions": "Actions",
+      "time": "Time",
+      "side": "Side",
+      "price": "Price",
+      "amount": "Turnover",
+      "commission": "Commission",
+      "stampTax": "Stamp tax",
+      "transferFee": "Transfer fee",
+      "session": "Session"
+    },
+    "side": {
+      "buy": "Buy",
+      "sell": "Sell"
+    },
+    "positions": {
+      "empty": "No open positions. Use Buy on the watchlist to open one."
+    },
+    "orders": {
+      "empty": "No trades yet."
+    },
+    "closes": {
+      "empty": "No closed trades yet.",
+      "buyPrice": "Buy px",
+      "sellPrice": "Sell px",
+      "buyCost": "Buy cost",
+      "proceeds": "Net proceeds",
+      "holdingDays": "Held (d)"
+    },
+    "stats": {
+      "closes": "Closed trades",
+      "winRate": "Win rate",
+      "avgReturn": "Avg return",
+      "totalPnl": "Realized P&L",
+      "avgPnl": "Avg P&L",
+      "avgHoldingDays": "Avg hold (d)",
+      "totalFees": "Total fees"
+    },
+    "nav": {
+      "totalAsset": "Total assets",
+      "baseline": "Initial cash",
+      "empty": "No NAV data yet.",
+      "range": {
+        "5d": "5D",
+        "20d": "20D",
+        "all": "All"
+      }
+    },
+    "dialog": {
+      "buyTitle": "Simulated buy",
+      "sellTitle": "Simulated sell",
+      "close": "Close",
+      "price": "Price",
+      "qty": "Quantity (shares, multiples of 100)",
+      "sellable": "Sellable now: {{n}}",
+      "qtyInvalid": "Quantity must be a positive multiple of 100",
+      "chanlun": "Chanlun score at buy",
+      "noChanlun": "No Chanlun score yet",
+      "amount": "Turnover",
+      "commission": "Commission",
+      "stampTax": "Stamp tax",
+      "transferFee": "Transfer fee",
+      "totalCost": "Total cost",
+      "netProceeds": "Net proceeds",
+      "confirmBuy": "Confirm buy",
+      "confirmSell": "Confirm sell",
+      "cancel": "Cancel",
+      "previewFailed": "Preview unavailable",
+      "submitFailed": "Order failed",
+      "t1Hint": "T+1: shares bought on a trade date are sellable from the next trading day."
+    },
+    "resetConfirm": {
+      "title": "Reset paper account?",
+      "message": "This clears all simulated positions, trades and NAV history and restores the initial cash."
     }
   }
 }

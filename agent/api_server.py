@@ -9,9 +9,7 @@ infrastructure lives in ``src.api.{security,models,helpers,state}``.
 from __future__ import annotations
 
 import logging
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request, status  # noqa: F401
 from fastapi.responses import FileResponse  # noqa: F401
@@ -114,50 +112,21 @@ from src.api.state import (  # noqa: F401, E402
 console = Console()
 logger = logging.getLogger(__name__)
 
-from src.api.channels_routes import (  # noqa: E402
+from src.api.channels_routes import (  # noqa: F401, E402
     _start_channel_runtime,
     _stop_channel_runtime,
 )
-from src.api.scheduled_routes import (  # noqa: E402
+from src.api.scheduled_routes import (  # noqa: F401, E402
     _start_scheduled_research_executor,
     _stop_scheduled_research_executor,
 )
 
 
-async def _run_startup_preflight() -> None:
-    """Run preflight checks on server startup."""
-    from src.preflight import run_preflight
-
-    from src.config import migrate as _migrate
-
-    try:
-        _migrate.migrate_legacy_state()  # one-time pre-#904 state move; must never block startup
-    except Exception:  # pragma: no cover — best-effort
-        logging.getLogger(__name__).warning("Legacy state migration failed", exc_info=True)
-    run_preflight(console)
-    _start_scheduled_research_executor()
-    from src.config.accessor import get_env_config
-
-    if get_env_config().agent_tuning.vibe_trading_channels_auto_start:
-        await _start_channel_runtime()
-
-
-async def _stop_scheduled_research_on_shutdown() -> None:
-    """Stop the scheduled research executor on server shutdown."""
-    try:
-        await _stop_channel_runtime()
-    finally:
-        await _stop_scheduled_research_executor()
-
-
-@asynccontextmanager
-async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Run API startup and guaranteed reverse-order shutdown."""
-    try:
-        await _run_startup_preflight()
-        yield
-    finally:
-        await _stop_scheduled_research_on_shutdown()
+from src.api.lifecycle import (  # noqa: F401, E402
+    _lifespan,
+    _run_startup_preflight,
+    _stop_scheduled_research_on_shutdown,
+)
 
 
 app = FastAPI(
@@ -255,6 +224,8 @@ from src.api.swarm_routes import _get_swarm_runtime  # noqa: F401, E402
 # --- Watchlist (personal A-share favorites) ---
 from src.api.watchlist_routes import register_watchlist_routes  # noqa: E402
 register_watchlist_routes(app)
+from src.api.paper_routes import register_paper_routes  # noqa: E402
+register_paper_routes(app)
 
 # --- Live trading ---
 from src.api.live_routes import register_live_routes  # noqa: E402

@@ -178,13 +178,13 @@ export function MacroSynthesisPanel({ economy }: Props) {
   useEffect(() => {
     if (!report) return;
     const today = new Date().toISOString().slice(0, 10);
-    const hasDue = report.claims.some(
+    const hasDue = (report.claims ?? []).some(
       (claim) =>
         (claim.status === "pending" && claim.window_end <= today) ||
         claim.status === "data_missing",
     );
     if (!hasDue) return;
-    const key = `${report.id}:${report.claims.map((c) => c.status).join(",")}`;
+    const key = `${report.id}:${(report.claims ?? []).map((c) => c.status).join(",")}`;
     if (autoKeys.current.has(key)) return;
     autoKeys.current.add(key);
     void doVerify(true);
@@ -270,7 +270,7 @@ export function MacroSynthesisPanel({ economy }: Props) {
           : t("macro.board.syn.deltaFlat")
     : "";
 
-  const reviews = report ? [...report.reviews].reverse() : [];
+  const reviews = report ? [...(report.reviews ?? [])].reverse() : [];
 
   return (
     <section
@@ -432,7 +432,7 @@ export function MacroSynthesisPanel({ economy }: Props) {
             </p>
             <div className="mt-2 space-y-2">
               {DIM_ORDER.map((key) => {
-                const dim = report.dimensions.find((d) => d.dimension === key);
+                const dim = (report.dimensions ?? []).find((d) => d.dimension === key);
                 if (!dim) return null;
                 return (
                   <div key={key} className="flex flex-wrap items-center gap-2">
@@ -500,7 +500,7 @@ export function MacroSynthesisPanel({ economy }: Props) {
               {t("macro.board.syn.riskTitle")}
             </p>
             <ul className="mt-1 list-disc space-y-1 pl-4">
-              {report.risk_triggers.map((trigger, index) => (
+              {(report.risk_triggers ?? []).map((trigger, index) => (
                 <li key={index} className="text-xs leading-relaxed text-muted-foreground">
                   {trigger}
                 </li>
@@ -512,7 +512,7 @@ export function MacroSynthesisPanel({ economy }: Props) {
           <div data-testid="macro-syn-claims" className="rounded-lg border border-border/50 bg-background/50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] font-medium text-foreground">
-                {t("macro.board.syn.claimsTitle", { n: report.claims.length })}
+                {t("macro.board.syn.claimsTitle", { n: (report.claims ?? []).length })}
               </p>
               <button
                 type="button"
@@ -533,7 +533,7 @@ export function MacroSynthesisPanel({ economy }: Props) {
               {t("macro.board.syn.claimsHint")}
             </p>
             <div className="mt-2 space-y-2">
-              {report.claims.map((claim) => (
+              {(report.claims ?? []).map((claim) => (
                 <div key={claim.id ?? `${claim.metric}-${claim.text}`} className="rounded-lg border border-border/40 bg-card p-2">
                   <div className="flex items-start gap-2">
                     <TrendIcon trend={claim.direction} />

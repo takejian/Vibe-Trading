@@ -37,6 +37,7 @@ __all__ = [
     "PathConfig",
     "OcrConfig",
     "MemoryConfig",
+    "PaperConfig",
 ]
 
 
@@ -681,6 +682,36 @@ class MemoryConfig(_EnvBase):
 
 
 # ---------------------------------------------------------------------------
+# Paper portfolio (simulated A-share holdings)
+# ---------------------------------------------------------------------------
+
+
+class PaperConfig(_EnvBase):
+    """Simulated paper-portfolio parameters (source: ``src/paper/``).
+
+    Fees mirror retail A-share conventions; all values are tunable via env
+    vars but the UI exposes no editor for them.
+    """
+
+    vibe_paper_initial_cash: float = Field(alias="VIBE_PAPER_INITIAL_CASH", default=100000.0)
+    vibe_paper_commission_rate: float = Field(
+        alias="VIBE_PAPER_COMMISSION_RATE", default=0.00025
+    )
+    vibe_paper_commission_min: float = Field(
+        alias="VIBE_PAPER_COMMISSION_MIN", default=5.0
+    )
+    vibe_paper_stamp_tax_rate: float = Field(
+        alias="VIBE_PAPER_STAMP_TAX_RATE", default=0.0005
+    )
+    vibe_paper_transfer_fee_rate: float = Field(
+        alias="VIBE_PAPER_TRANSFER_FEE_RATE", default=0.00001
+    )
+    vibe_paper_refresh_enabled: EnvBool = Field(
+        alias="VIBE_PAPER_REFRESH_ENABLED", default=True
+    )
+
+
+# ---------------------------------------------------------------------------
 # Top-level composition
 # ---------------------------------------------------------------------------
 
@@ -705,6 +736,7 @@ class EnvConfig(_EnvBase):
     paths: PathConfig = Field(default_factory=PathConfig)
     ocr: OcrConfig = Field(default_factory=OcrConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    paper: PaperConfig = Field(default_factory=PaperConfig)
 
     @model_validator(mode="after")
     def _resolve_api_key_alias(self) -> "EnvConfig":

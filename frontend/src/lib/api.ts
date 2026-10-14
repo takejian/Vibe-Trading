@@ -1064,6 +1064,48 @@ export const api = {
       body: JSON.stringify({ broker }),
     }),
 
+  // --- Simulated paper portfolio (/api/paper) ----------------------------
+  paperAccount: () => request<PaperAccount>("/api/paper/account"),
+  paperPositions: () => request<PaperPositionsResponse>("/api/paper/positions"),
+  paperBuy: (symbol: string, qty: number) =>
+    request<PaperTradeResponse>("/api/paper/buy", {
+      method: "POST",
+      body: JSON.stringify({ symbol, qty }),
+    }),
+  paperSell: (symbol: string, qty: number) =>
+    request<PaperTradeResponse>("/api/paper/sell", {
+      method: "POST",
+      body: JSON.stringify({ symbol, qty }),
+    }),
+  paperOrders: (params?: { symbol?: string; side?: "buy" | "sell"; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.symbol) q.set("symbol", params.symbol);
+    if (params?.side) q.set("side", params.side);
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return request<{ items: PaperOrder[] }>(`/api/paper/orders${qs ? `?${qs}` : ""}`);
+  },
+  paperCloses: (params?: { symbol?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.symbol) q.set("symbol", params.symbol);
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return request<PaperClosesResponse>(`/api/paper/closes${qs ? `?${qs}` : ""}`);
+  },
+  paperNav: (range: "all" | "5d" | "20d" = "all") =>
+    request<{ items: PaperNavPoint[] }>(`/api/paper/nav?range=${range}`),
+  paperPreview: (symbol: string, qty: number | null, side: "buy" | "sell" = "buy") => {
+    const q = new URLSearchParams({ symbol, side });
+    if (qty) q.set("qty", String(qty));
+    return request<PaperPreview>(`/api/paper/buy-preview?${q.toString()}`);
+  },
+  paperRefresh: () =>
+    request<{ refreshed: number }>("/api/paper/refresh", { method: "POST" }),
+  paperReset: () =>
+    request<{ status: string }>("/api/paper/reset", { method: "POST" }),
+
   // --- M16 personal A-share watchlist -------------------------------------
   listWatch: () => request<WatchListResponse>("/watch/list"),
   addWatch: (body: AddWatchRequest) =>
@@ -2673,6 +2715,137 @@ export interface ToolTrailItem {
   preview?: string;
   call_id?: string;
   timestamp?: number;
+}
+
+// --- Paper portfolio types (contract with src/api/paper_routes.py) ---
+
+export interface PaperAccount {
+  initial_capital: number;
+  cash: number;
+  market_value: number;
+  total_asset: number;
+  cumulative_pnl: number;
+  cumulative_return_pct: number;
+  day_pnl: number | null;
+  is_live: boolean;
+  trade_date: string;
+}
+
+export interface PaperPosition {
+  symbol: string;
+  name: string | null;
+  qty: number;
+  sellable_qty: number;
+  avg_cost: number;
+  cost: number;
+  current_price: number;
+  price_time: string | null;
+  stale: boolean;
+  market_value: number;
+  unrealized_pnl: number;
+  return_pct: number;
+  chanlun_score: number | null;
+  chanlun_confidence: number | null;
+  chanlun_score_text: string | null;
+  chanlun_analyzed_at: string | null;
+}
+
+export interface PaperPositionsResponse {
+  items: PaperPosition[];
+  is_live: boolean;
+  trade_date: string;
+}
+
+export interface PaperOrder {
+  id: string;
+  side: "buy" | "sell";
+  symbol: string;
+  name: string | null;
+  qty: number;
+  price: number;
+  amount: number;
+  commission: number;
+  stamp_tax: number;
+  transfer_fee: number;
+  price_session: "live" | "close";
+  price_trade_date: string;
+  chanlun_score: number | null;
+  chanlun_score_text: string | null;
+  chanlun_analyzed_at: string | null;
+  traded_at: string;
+}
+
+export interface PaperClose {
+  id: string;
+  symbol: string;
+  name: string | null;
+  qty: number;
+  buy_cost: number;
+  sell_proceeds: number;
+  realized_pnl: number;
+  return_pct: number;
+  holding_days: number;
+  chanlun_score: number | null;
+  buy_price: number;
+  sell_price: number;
+  bought_at: string;
+  sold_at: string;
+  buy_session: string;
+  sell_session: string;
+}
+
+export interface PaperCloseStats {
+  closes: number;
+  wins: number;
+  win_rate: number;
+  avg_pnl: number;
+  avg_return_pct: number;
+  avg_holding_days: number;
+  total_realized_pnl: number;
+}
+
+export interface PaperClosesResponse {
+  items: PaperClose[];
+  stats: PaperCloseStats;
+  total_fees: number;
+}
+
+export interface PaperNavPoint {
+  snapped_at: string;
+  cash: number;
+  market_value: number;
+  total_asset: number;
+  nav: number;
+}
+
+export interface PaperPreview {
+  symbol: string;
+  price: number;
+  price_session: "live" | "close";
+  price_trade_date: string;
+  source: string;
+  qty: number | null;
+  amount: number;
+  commission: number;
+  stamp_tax: number;
+  transfer_fee: number;
+  total_cost: number;
+  net_proceeds: number;
+  chanlun: {
+    run_id: string;
+    score: number | null;
+    confidence: number | null;
+    dim7_chanlun_score: string | null;
+    analyzed_at: string | null;
+  } | null;
+  watched: boolean;
+}
+
+export interface PaperTradeResponse {
+  order: PaperOrder;
+  closes?: { realized_pnl: number; return_pct: number }[];
+  price_session: "live" | "close";
+  price_trade_date: string;
 }
 
 // --- M16 watchlist types (contract with src/api/watchlist_routes.py) ---
