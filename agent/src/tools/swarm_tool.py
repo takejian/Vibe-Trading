@@ -118,6 +118,22 @@ _PRESET_KEYWORDS: list[tuple[str, list[str], float]] = [
         0.9,
     ),
     (
+        "macro_event_task_force",
+        [
+            "macro event",
+            "geopolitical",
+            "breaking news",
+            "突发事件",
+            "宏观事件",
+            "地缘",
+            "历史复盘",
+            "厄尔尼诺",
+            "俄乌",
+            "疫情影响",
+        ],
+        0.9,
+    ),
+    (
         "etf_allocation_desk",
         [
             r"\bETF\b",
@@ -635,6 +651,7 @@ def _build_variables(preset_name: str, prompt: str) -> dict[str, str]:
         "risk_committee": {"goal": g},
         "factor_research_committee": {"market": market, "factor_type": "value"},
         "event_driven_task_force": {"market": market, "event_type": "all types"},
+        "macro_event_task_force": {"event": g, "mode": "live", "market": market, "time_horizon": "未来3-6个月"},
         "etf_allocation_desk": {"risk_profile": _risk_to_etf_profile(risk), "market": market},
         "derivatives_strategy_desk": {"target": g, "view": "neutral"},
         "crypto_research_lab": {"target": "BTC, ETH, SOL", "timeframe": "medium-term 1-3 months"},

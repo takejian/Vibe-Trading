@@ -3,8 +3,21 @@
   "scope": "agent/src",
   "description": "agent/src 包级分层唯一真源。L0 基础/实体/安全 -> L1 数据与基础能力 -> L2 工具与业务能力 -> L3 智能体编排 -> L4 入口/适配。grandfathered_reverse_edges 为冻结存量反向边（只减不增，新增需 reviewer 签字）；bidirectional_debt_pairs 为已登记同层/跨层双向依赖债。来源：harness/.analysis/architecture.json (2026-09-24)。",
   "layers": {
-    "L0": ["config", "core", "entities", "governance", "security", "utils"],
-    "L1": ["factors", "market_data", "memory", "providers", "quantlib"],
+    "L0": [
+      "config",
+      "core",
+      "entities",
+      "governance",
+      "security",
+      "utils"
+    ],
+    "L1": [
+      "factors",
+      "market_data",
+      "memory",
+      "providers",
+      "quantlib"
+    ],
     "L2": [
       "channels",
       "channelsui",
@@ -21,12 +34,27 @@
       "strategy_store",
       "tools",
       "trading",
-      "watchlist"
+      "watchlist",
+      "eventradar"
     ],
-    "L3": ["agent", "macro_synthesis", "session", "swarm"],
-    "L4": ["api", "openbb_bridge", "preflight", "ui_services"]
+    "L3": [
+      "agent",
+      "macro_synthesis",
+      "session",
+      "swarm"
+    ],
+    "L4": [
+      "api",
+      "openbb_bridge",
+      "preflight",
+      "ui_services"
+    ]
   },
-  "module_nodes": ["market_data", "preflight", "ui_services"],
+  "module_nodes": [
+    "market_data",
+    "preflight",
+    "ui_services"
+  ],
   "grandfathered_reverse_edges": [
     {
       "from": "tools",
@@ -86,22 +114,77 @@
     }
   ],
   "bidirectional_debt_pairs": [
-    ["tools", "agent"],
-    ["trading", "live"],
-    ["swarm", "tools"],
-    ["api", "scheduled_research"],
-    ["channels", "channelsui"],
-    ["channels", "security"],
-    ["scheduled_research", "channels"],
-    ["tools", "factors"],
-    ["tools", "trading"],
-    ["live", "tools"],
-    ["shadow_account", "tools"],
-    ["tools", "goal"],
-    ["tools", "scheduled_research"],
-    ["strategy_store", "strategy_discovery"],
-    ["memory", "agent"],
-    ["portfolio", "tools"],
-    ["tools", "session"]
+    [
+      "tools",
+      "agent"
+    ],
+    [
+      "trading",
+      "live"
+    ],
+    [
+      "swarm",
+      "tools"
+    ],
+    [
+      "api",
+      "scheduled_research"
+    ],
+    [
+      "channels",
+      "channelsui"
+    ],
+    [
+      "channels",
+      "security"
+    ],
+    [
+      "scheduled_research",
+      "channels"
+    ],
+    [
+      "tools",
+      "factors"
+    ],
+    [
+      "tools",
+      "trading"
+    ],
+    [
+      "live",
+      "tools"
+    ],
+    [
+      "shadow_account",
+      "tools"
+    ],
+    [
+      "tools",
+      "goal"
+    ],
+    [
+      "tools",
+      "scheduled_research"
+    ],
+    [
+      "strategy_store",
+      "strategy_discovery"
+    ],
+    [
+      "memory",
+      "agent"
+    ],
+    [
+      "portfolio",
+      "tools"
+    ],
+    [
+      "tools",
+      "session"
+    ],
+    [
+      "eventradar",
+      "tools"
+    ]
   ]
 }

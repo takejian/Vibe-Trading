@@ -123,6 +123,7 @@ SKILL_CATEGORIES: dict[str, str] = {
     # Event-driven
     "event-driven": "event_driven",
     "corporate-events": "event_driven",
+    "breaking-news-radar": "event_driven",
     # Asset allocation & portfolio management
     "asset-allocation": "allocation",
     "etf-analysis": "allocation",

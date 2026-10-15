@@ -52,6 +52,9 @@ const SkillPlaza = lazy(() =>
 const Watchlist = lazy(() =>
   import("@/pages/Watchlist").then((m) => ({ default: m.Watchlist })),
 );
+const EventAnalysis = lazy(() =>
+  import("@/pages/EventAnalysis").then((m) => ({ default: m.EventAnalysis })),
+);
 const WatchDetail = lazy(() =>
   import("@/pages/WatchDetail").then((m) => ({ default: m.WatchDetail })),
 );
@@ -80,6 +83,7 @@ export const router = createBrowserRouter([
       { path: "/about", element: wrap(Home) },
       { path: "/agent", element: wrap(Agent) },
       { path: "/macro", element: wrap(Macro) },
+      { path: "/event", element: wrap(EventAnalysis) },
       { path: "/swarm", element: wrap(SwarmStudio) },
       { path: "/roles", element: wrap(RoleSquare) },
       { path: "/skills", element: wrap(SkillPlaza) },

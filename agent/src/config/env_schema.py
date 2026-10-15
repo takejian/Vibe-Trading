@@ -711,6 +711,29 @@ class PaperConfig(_EnvBase):
     )
 
 
+class EventRadarConfig(_EnvBase):
+    """Breaking-news radar parameters (source: ``src/eventradar/``)."""
+
+    vibe_event_radar_enabled: EnvBool = Field(
+        alias="VIBE_EVENT_RADAR_ENABLED", default=True
+    )
+    vibe_event_scan_interval_minutes: int = Field(
+        alias="VIBE_EVENT_SCAN_INTERVAL_MINUTES", default=30
+    )
+    vibe_event_dedup_window_hours: int = Field(
+        alias="VIBE_EVENT_DEDUP_WINDOW_HOURS", default=72
+    )
+    vibe_event_verify_min_sources: int = Field(
+        alias="VIBE_EVENT_VERIFY_MIN_SOURCES", default=2
+    )
+    vibe_event_confirm_threshold: float = Field(
+        alias="VIBE_EVENT_CONFIRM_THRESHOLD", default=0.70
+    )
+    vibe_event_paradigm_threshold: int = Field(
+        alias="VIBE_EVENT_PARADIGM_THRESHOLD", default=15
+    )
+
+
 # ---------------------------------------------------------------------------
 # Top-level composition
 # ---------------------------------------------------------------------------
@@ -737,6 +760,7 @@ class EnvConfig(_EnvBase):
     ocr: OcrConfig = Field(default_factory=OcrConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
+    event_radar: EventRadarConfig = Field(default_factory=EventRadarConfig)
 
     @model_validator(mode="after")
     def _resolve_api_key_alias(self) -> "EnvConfig":

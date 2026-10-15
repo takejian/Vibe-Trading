@@ -227,6 +227,10 @@ register_watchlist_routes(app)
 from src.api.paper_routes import register_paper_routes  # noqa: E402
 register_paper_routes(app)
 
+# --- Event analysis: breaking-news radar + macro Task Force ---
+from src.api.event_routes import register_event_routes  # noqa: E402
+register_event_routes(app)
+
 # --- Live trading ---
 from src.api.live_routes import register_live_routes  # noqa: E402
 register_live_routes(app)

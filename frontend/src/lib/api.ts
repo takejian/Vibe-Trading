@@ -553,6 +553,115 @@ function appendQueryParam(url: string, key: string, value: string): string {
   return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
 }
 
+// --- Event analysis types ---
+
+export type RadarScope = "china" | "global" | "all";
+export type RadarVerifyAction =
+  | "confirm"
+  | "flag_dispute"
+  | "mark_rumor"
+  | "dismiss";
+
+export interface RadarScanRun {
+  id: string;
+  scope: string;
+  trigger_type: string;
+  status: "running" | "completed" | "partial" | "failed";
+  source_status?: Array<{ name: string; status: string; count: number }>;
+  candidates: number;
+  duplicates: number;
+  new_events: number;
+  escalated: number;
+  to_review: number;
+  error?: string | null;
+  started_at: string;
+  finished_at?: string | null;
+}
+
+export interface RadarEvent {
+  event_id: string;
+  title: string;
+  event_type: string;
+  entities?: string[];
+  regions?: string[];
+  summary?: string;
+  impact_direction?: "positive" | "negative" | "uncertain";
+  affected_assets?: Array<{ asset: string; direction: string }>;
+  novelty_class: "known_continuation" | "known_escalation" | "new_paradigm";
+  paradigm_scores?: Record<string, number> | null;
+  paradigm_total?: number | null;
+  long_term_themes?: string[];
+  impact_level?: "high" | "medium" | "low";
+  verify_status:
+    | "unverified"
+    | "verifying"
+    | "confirmed"
+    | "disputed"
+    | "rumor"
+    | "dismissed";
+  confidence?: number;
+  source_count: number;
+  first_seen_at: string;
+  last_update_at: string;
+  locked_by_human: boolean;
+}
+
+export interface RadarEventQuery {
+  status?: string;
+  novelty?: string;
+  event_type?: string;
+  region?: string;
+  keyword?: string;
+}
+
+export interface RadarEvidence {
+  id: string;
+  url: string;
+  source_name?: string;
+  source_tier?: number;
+  title?: string;
+  snippet?: string;
+  published_at?: string;
+  fetched_at?: string;
+  is_independent: boolean;
+}
+
+export interface RadarTimelineItem {
+  change_type: string;
+  from?: string;
+  to?: string;
+  actor: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface RadarEventDetail extends RadarEvent {
+  evidence: RadarEvidence[];
+  timeline: RadarTimelineItem[];
+  reports: Array<{
+    id: string;
+    mode: string;
+    status: string;
+    title: string;
+    created_at: string;
+  }>;
+}
+
+export interface EventReport {
+  id: string;
+  event_id?: string | null;
+  run_id: string;
+  mode: "live" | "retrospective";
+  title: string;
+  market?: string;
+  time_horizon?: string;
+  status: "pending" | "running" | "completed" | "incomplete" | "failed";
+  markdown?: string;
+  sections_present?: string[];
+  created_at: string;
+  completed_at?: string | null;
+}
+
 export const api = {
   uploadFile,
   getCorrelation: (codes: string, days: number, method: "pearson" | "spearman") =>
@@ -1257,6 +1366,67 @@ export const api = {
         }),
       },
     ),
+
+  // --- Event analysis: breaking radar + macro Task Force ---
+
+  radarScan: (scope: RadarScope) =>
+    request<RadarScanRun>("/events/scan", {
+      method: "POST",
+      body: JSON.stringify({ scope }),
+    }),
+  radarScanRuns: () => request<RadarScanRun[]>("/events/scan-runs"),
+  radarEvents: (filters?: RadarEventQuery) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.novelty) params.set("novelty", filters.novelty);
+    if (filters?.event_type) params.set("event_type", filters.event_type);
+    if (filters?.region) params.set("region", filters.region);
+    if (filters?.keyword) params.set("keyword", filters.keyword);
+    const query = params.toString();
+    return request<{ items: RadarEvent[] }>(
+      `/events/events${query ? `?${query}` : ""}`,
+    );
+  },
+  radarEventDetail: (eventId: string) =>
+    request<RadarEventDetail>(
+      `/events/events/${encodeURIComponent(eventId)}`,
+    ),
+  radarVerify: (
+    eventId: string,
+    body: { action: RadarVerifyAction; note?: string },
+  ) =>
+    request<RadarEvent>(
+      `/events/events/${encodeURIComponent(eventId)}/verify`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  radarAnalyze: (
+    eventId: string,
+    body: { mode: "live" | "retrospective"; market?: string; time_horizon?: string },
+  ) =>
+    request<{ report_id: string; run_id: string; status: string; title: string }>(
+      `/events/events/${encodeURIComponent(eventId)}/analyze`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  eventAnalyzeCustom: (body: {
+    event_title: string;
+    event_period?: string;
+    market?: string;
+  }) =>
+    request<{ report_id: string; run_id: string; status: string; title: string }>(
+      "/events/analyze",
+      { method: "POST", body: JSON.stringify({ ...body, mode: "retrospective" }) },
+    ),
+  eventReports: (filters?: { mode?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.mode) params.set("mode", filters.mode);
+    if (filters?.status) params.set("status", filters.status);
+    const query = params.toString();
+    return request<{ items: EventReport[] }>(
+      `/events/reports${query ? `?${query}` : ""}`,
+    );
+  },
+  eventReport: (reportId: string) =>
+    request<EventReport>(`/events/reports/${encodeURIComponent(reportId)}`),
 };
 
 // --- Scheduled research types ---

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router";
-import { Activity, BarChart3, Bot, CalendarClock, CandlestickChart, Check, ChevronDown, FileText, Globe2, Languages, Moon, Star, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2, Shapes, Sparkles, Users, ChartLine } from "lucide-react";
+import { Activity, BarChart3, Bot, CalendarClock, CandlestickChart, Check, ChevronDown, FileText, Globe2, Languages, Moon, Star, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2, Shapes, Sparkles, Users, ChartLine, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { api, type SessionItem } from "@/lib/api";
@@ -22,6 +22,7 @@ export function Layout() {
   const NAV = [
     { to: "/", icon: Bot, label: t('layout.agent') },
     { to: "/macro", icon: Globe2, label: t('layout.macroAnalysis') },
+    { to: "/event", icon: Radar, label: t('layout.eventAnalysis') },
     { to: "/swarm", icon: Users, label: t('layout.swarmStudio') },
     { to: "/roles", icon: Shapes, label: t('layout.roleSquare') },
     { to: "/skills", icon: Sparkles, label: t('layout.skillPlaza') },
