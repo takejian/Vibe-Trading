@@ -732,6 +732,29 @@ class EventRadarConfig(_EnvBase):
     vibe_event_paradigm_threshold: int = Field(
         alias="VIBE_EVENT_PARADIGM_THRESHOLD", default=15
     )
+    vibe_event_daily_scan_enabled: EnvBool = Field(
+        alias="VIBE_EVENT_DAILY_SCAN_ENABLED", default=True
+    )
+    vibe_event_daily_scan_at: str = Field(
+        alias="VIBE_EVENT_DAILY_SCAN_AT", default="04:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+    )
+    vibe_event_review_enabled: EnvBool = Field(
+        alias="VIBE_EVENT_REVIEW_ENABLED", default=True
+    )
+    vibe_event_review_at: str = Field(
+        alias="VIBE_EVENT_REVIEW_AT", default="05:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+    )
+    vibe_event_feed_head_n: int = Field(
+        alias="VIBE_EVENT_FEED_HEAD_N", default=5, ge=1, le=50
+    )
+    vibe_event_top_n: int = Field(
+        alias="VIBE_EVENT_TOP_N", default=5, ge=1, le=20
+    )
+    vibe_event_tf_fresh_days: int = Field(
+        alias="VIBE_EVENT_TF_FRESH_DAYS", default=7, ge=1, le=365
+    )
 
 
 # ---------------------------------------------------------------------------

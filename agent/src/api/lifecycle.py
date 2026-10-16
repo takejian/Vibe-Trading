@@ -66,6 +66,10 @@ async def _stop_scheduled_research_on_shutdown() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run API startup and guaranteed reverse-order shutdown."""
+    from src.eventradar.scheduler import (
+        start_event_radar_scheduler,
+        stop_event_radar_scheduler,
+    )
     from src.paper.scheduler import (
         start_paper_scheduler,
         stop_paper_scheduler,
@@ -78,7 +82,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await startup()
         start_paper_scheduler(app)
+        start_event_radar_scheduler(app)
         yield
     finally:
+        await stop_event_radar_scheduler(app)
         await stop_paper_scheduler(app)
         await shutdown()

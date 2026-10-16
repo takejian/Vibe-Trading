@@ -141,6 +141,122 @@ def test_junk_title_filter() -> None:
     assert not is_junk("美联储意外降息50个基点 全球市场剧烈波动")
 
 
+def test_cls_sign_matches_rsshub_scheme() -> None:
+    import hashlib
+
+    from src.eventradar.sources import _cls_signed_params
+
+    params = _cls_signed_params()
+    encoded = "appName=CailianpressWeb&os=web&sv=8.7.9"
+    expected = hashlib.md5(hashlib.sha1(encoded.encode()).hexdigest().encode())
+    assert params["sign"] == expected.hexdigest()
+    assert list(params)[:3] == ["appName", "os", "sv"]
+
+
+def test_cls_depth_normalizer_shape() -> None:
+    payload = {
+        "data": {
+            "top_article": [
+                {"id": 1, "title": "头条一", "brief": "摘要一", "ctime": 1792042178},
+            ],
+            "depth_list": [
+                {"id": 2, "title": "", "brief": "仅摘要的深度稿",
+                 "ctime": 1792040760, "source": "财联社"},
+                {"id": 1, "title": "重复头条", "brief": "x", "ctime": 1792042178},
+                {"id": 3, "title": "", "brief": "", "ctime": None},
+            ],
+        }
+    }
+    items = sources._normalize_cls_depth(payload, "财联社·头条")
+    assert [i["url"] for i in items] == [
+        "https://www.cls.cn/detail/1", "https://www.cls.cn/detail/2"
+    ]
+    assert items[0]["origin"] == "investment-news-collector"
+    assert items[1]["title"] == "仅摘要的深度稿"
+    assert items[1]["published_at"] is not None
+
+
+def test_wallstreetcn_normalizers() -> None:
+    lives = sources._normalize_wsc_lives({"data": {"items": [
+        {"id": 10, "content_text": "<p>美联储宣布降息25个基点</p>",
+         "highlight_title": "", "uri": "https://wallstreetcn.com/livenews/10",
+         "display_time": 1792044225},
+        {"id": 11, "content_text": "", "uri": "x", "display_time": None},
+    ]}})
+    assert len(lives) == 1
+    assert lives[0]["title"] == "美联储宣布降息25个基点"
+    assert lives[0]["origin"] == "wallstreetcn-news"
+
+    articles = sources._normalize_wsc_articles({"data": {"items": [
+        {"resource_type": "article", "resource": {
+            "id": 20, "title": "能源停火破裂？", "content_short": "泽连斯基称…",
+            "uri": "https://wallstreetcn.com/articles/20",
+            "display_time": 1792042935}},
+    ]}})
+    assert articles[0]["snippet"] == "泽连斯基称…"
+    assert articles[0]["url"] == "https://wallstreetcn.com/articles/20"
+
+
+def test_collect_scope_routes_to_curated_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cls_only = ({"name": "cls", "status": "ok", "count": 1},
+                [{"url": "https://www.cls.cn/detail/1", "title": "财联社稿",
+                  "snippet": "", "source_name": "财联社"}])
+    wsc_only = ({"name": "wsc", "status": "ok", "count": 1},
+                [{"url": "https://wallstreetcn.com/articles/2", "title": "见闻稿",
+                  "snippet": "", "source_name": "华尔街见闻"}])
+    monkeypatch.setattr(sources, "_CHINA_CHANNELS",
+                        (lambda: cls_only,))
+    monkeypatch.setattr(sources, "_GLOBAL_CHANNELS",
+                        (lambda: wsc_only,))
+
+    china = sources.collect("china")
+    assert {c["url"] for c in china["candidates"]} == {
+        "https://www.cls.cn/detail/1"
+    }
+    glob = sources.collect("global")
+    assert {c["url"] for c in glob["candidates"]} == {
+        "https://wallstreetcn.com/articles/2"
+    }
+    both = sources.collect("all")
+    assert len(both["candidates"]) == 2
+
+
+def test_collect_isolates_failed_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sources, "_CHINA_CHANNELS", (
+        lambda: ({"name": "cls", "status": "error", "count": 0}, []),
+    ))
+    monkeypatch.setattr(sources, "_GLOBAL_CHANNELS", (
+        lambda: (
+            {"name": "wsc", "status": "ok", "count": 1},
+            [{"url": "https://wallstreetcn.com/articles/2", "title": "见闻稿",
+              "snippet": "", "source_name": "华尔街见闻"}],
+        ),
+    ))
+    out = sources.collect("all")
+    assert {s["status"] for s in out["sources"]} == {"error", "ok"}
+    assert len(out["candidates"]) == 1
+
+
+def test_daily_scheduler_anchor_math() -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from src.eventradar.scheduler import next_run_after, parse_daily_at
+
+    assert parse_daily_at("04:00") == (4, 0)
+    assert parse_daily_at("23:59") == (23, 59)
+    assert parse_daily_at("24:00") is None
+    assert parse_daily_at("x") is None
+
+    tz = ZoneInfo("Asia/Shanghai")
+    before = datetime(2026, 10, 15, 3, 59, tzinfo=tz)
+    due = datetime(2026, 10, 15, 4, 0, tzinfo=tz)
+    assert next_run_after(before, 4, 0) == due
+    assert next_run_after(due, 4, 0) == datetime(2026, 10, 16, 4, 0, tzinfo=tz)
+
+
 def test_report_section_contract() -> None:
     headings_live = [
         "## 事件确认与定义", "## 情景分析", "## 传导链分析",
@@ -229,6 +345,19 @@ def test_second_scan_does_not_duplicate(
     run2 = _wait_scan()
     assert run2["new_events"] == 0
     assert len([e for e in service.list_events() if "厄尔尼诺" in e["title"]]) == 1
+
+
+def test_top5_ranking_puts_confirmed_paradigm_first(
+    isolated_db: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sources, "collect", lambda scope="all": _fake_candidates())
+    service.start_scan("all", llm_factory=None)
+    _wait_scan()
+    top = service.list_events(limit=1)
+    assert len(top) == 1
+    assert "厄尔尼诺" in top[0]["title"]
+    assert top[0]["verify_status"] == "confirmed"
+    assert len(service.list_events(limit=5)) <= 5
 
 
 def test_human_lock_blocks_analysis_and_requires_confirmation(
@@ -351,3 +480,403 @@ def test_preset_loads_with_four_role_chain() -> None:
     assert [t["id"] for t in spec["tasks"]] == [
         "task-scout", "task-impact", "task-history", "task-strategy",
     ]
+
+
+# ===========================================================================
+# v1.2: head-N collection, chart filtering
+# ===========================================================================
+
+def test_collect_truncates_each_channel_to_head_n(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _eight_channel(label_root: str, url_root: str):
+        cands = [
+            {"url": f"{url_root}/{i}", "title": f"{label_root}新闻{i}",
+             "snippet": "", "source_name": label_root}
+            for i in range(8)
+        ]
+        return lambda: (
+            {"name": label_root, "status": "ok", "count": 8}, cands
+        )
+
+    monkeypatch.setattr(sources, "_CHINA_CHANNELS", (
+        _eight_channel("财联社·头条", "https://www.cls.cn/1000"),
+        _eight_channel("财联社·环球", "https://www.cls.cn/1007"),
+    ))
+    monkeypatch.setattr(sources, "_GLOBAL_CHANNELS", (
+        _eight_channel("华尔街见闻·7x24",
+                       "https://wallstreetcn.com/livenews"),
+        _eight_channel("华尔街见闻·全球",
+                       "https://wallstreetcn.com/articles"),
+    ))
+    # collect() is the single head-N cut: china = two CLS columns x head-5;
+    # all = four channels x head-5.
+    china = sources.collect("china", head_n=5)
+    assert len(china["candidates"]) == 10
+    both = sources.collect("all", head_n=5)
+    assert len(both["candidates"]) == 20
+
+
+def test_chart_pages_are_junk() -> None:
+    assert sources.is_junk(
+        "美元指数走势图", "", "https://wallstreetcn.com/charts/dxy"
+    )
+    assert not sources.is_junk(
+        "美联储宣布加息25个基点", "", "https://wallstreetcn.com/articles/9"
+    )
+
+
+def _six_distinct_candidates() -> dict[str, Any]:
+    titles = [
+        "以色列与哈马斯达成临时停火协议 人道物资进入加沙",
+        "欧盟正式通过新一轮人工智能监管法案 2027年实施",
+        "智利北部发生7.1级地震 矿区运营暂停",
+        "日本央行意外加息25个基点 日元汇率大幅波动",
+        "阿根廷与国际货币基金达成债务重组新协议",
+        "红海航运保险费率单周上涨四成 货船绕行好望角",
+    ]
+    candidates = [
+        {"url": f"https://www.cls.cn/detail/{500 + i}",
+         "title": title, "snippet": "", "source_name": "财联社·头条",
+         "published_at": f"2026-10-15 0{i+1}:00:00"}
+        for i, title in enumerate(titles)
+    ]
+    return {"sources": [{"name": "cls", "status": "ok", "count": 6}],
+            "candidates": candidates}
+
+
+# ===========================================================================
+# v1.2: daily Top-N snapshot + transient purge + archive/discard
+# ===========================================================================
+
+def test_scan_writes_top5_picks_and_purges_remaining(
+    isolated_db: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sources, "collect",
+                        lambda scope="all": _six_distinct_candidates())
+    service.start_scan("all", llm_factory=None)
+    _wait_scan()
+    events = service.list_events(limit=50)
+    picks = service.daily_picks()
+    assert len(events) == 5            # 6 events → Top 5 kept, 1 purged
+    assert [p["rank_position"] for p in picks] == [1, 2, 3, 4, 5]
+    assert all(p["event_id"] for p in picks)
+
+
+def test_archive_survives_purge_and_discard_cascades(
+    isolated_db: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sources, "collect", lambda scope="all": _fake_candidates())
+    service.start_scan("all", llm_factory=None)
+    _wait_scan()
+    elnino = [e for e in service.list_events() if "厄尔尼诺" in e["title"]][0]
+    rumor = [e for e in service.list_events() if "未经证实" in e["title"]][0]
+
+    archived = service.archive_event(elnino["event_id"], True)
+    assert archived["archived"] is True
+    service.discard_event(rumor["event_id"])
+    with pytest.raises(service.EventNotFound):
+        service.discard_event(rumor["event_id"])
+
+    # Discard cascades: event gone, but its pick snapshot survives with a
+    # nulled event_id (must check before the next scan rewrites today's picks).
+    assert any(p["event_id"] is None for p in service.daily_picks())
+
+    # A second scan purges transient events but keeps the archived one.
+    service.start_scan("all", llm_factory=None)
+    _wait_scan()
+    assert service.event_detail(elnino["event_id"])["archived"] is True
+
+
+def test_archive_list_leaderboard_and_pick_stats(
+    isolated_db: Any,
+) -> None:
+    from src.eventradar import db as edb
+
+    conn = edb.event_connection()
+    edb.initialize_schema(conn)
+    try:
+        edb.insert_event(conn, {
+            "event_id": "a1", "title": "长期事件甲", "event_type": "geopolitics",
+            "cluster_key": "k-a1", "novelty_class": "new_paradigm",
+            "verify_status": "verifying",
+            "first_seen_at": "2026-10-10 00:00:00",
+            "last_update_at": "2026-10-14 00:00:00",
+        })
+        edb.set_archived(conn, "a1", True)
+        edb.insert_event(conn, {
+            "event_id": "a2", "title": "长期事件乙", "event_type": "trade_tariff",
+            "cluster_key": "k-a2", "novelty_class": "known_escalation",
+            "verify_status": "confirmed",
+            "first_seen_at": "2026-10-14 00:00:00",
+            "last_update_at": "2026-10-14 00:00:00",
+        })
+        edb.set_archived(conn, "a2", True)
+        for day in ("2026-10-12", "2026-10-13", "2026-10-14"):
+            edb.upsert_daily_pick(
+                conn, pick_date=day, rank_position=1, event_id="a1",
+                title_snapshot="长期事件甲", source_channels=["财联社·头条"],
+                scan_id=None,
+            )
+        edb.upsert_daily_pick(
+            conn, pick_date="2026-10-14", rank_position=2, event_id="a2",
+            title_snapshot="长期事件乙", source_channels=["华尔街见闻·7x24"],
+            scan_id=None,
+        )
+    finally:
+        conn.close()
+
+    board = service.leaderboard(window_days=30)
+    assert board[0]["event_id"] == "a1" and board[0]["pick_days"] == 3
+    archive = service.list_archive()["items"]
+    a1 = [a for a in archive if a["event_id"] == "a1"][0]
+    assert a1["pick_days"] == 3
+    assert a1["first_pick_date"] == "2026-10-12"
+    by_date = service.list_archive(date_from="2026-10-14")["items"]
+    assert {a["event_id"] for a in by_date} == {"a1", "a2"}
+
+
+# ===========================================================================
+# v1.2: tracking reviews
+# ===========================================================================
+
+def test_review_kinds_for_weekday_weekday_and_month_start() -> None:
+    from datetime import datetime
+    from src.eventradar import tracking
+
+    wed = datetime(2026, 10, 14, 5, 0)   # Wednesday
+    mon = datetime(2026, 10, 12, 5, 0)   # Monday
+    first = datetime(2026, 11, 1, 5, 0)  # Sunday, day 1
+    assert tracking.review_kinds_for(wed) == ["daily"]
+    assert tracking.review_kinds_for(mon) == ["daily", "weekly"]
+    assert tracking.review_kinds_for(first) == ["daily", "monthly"]
+
+
+def test_manual_recheck_appends_evidence_and_confirms(
+    isolated_db: Any,
+) -> None:
+    from src.eventradar import db as edb
+    from src.eventradar import tracking
+
+    conn = edb.event_connection()
+    edb.initialize_schema(conn)
+    try:
+        edb.insert_event(conn, {
+            "event_id": "t1", "title": "超强厄尔尼诺已形成 全球气候异常",
+            "event_type": "climate_disaster", "entities": ["厄尔尼诺"],
+            "cluster_key": "k-t1", "novelty_class": "new_paradigm",
+            "verify_status": "verifying", "confidence": 0.4,
+            "source_count": 1,
+            "first_seen_at": "2026-10-13 00:00:00",
+            "last_update_at": "2026-10-13 00:00:00",
+        })
+        edb.set_archived(conn, "t1", True)
+        edb.insert_evidence(
+            conn, event_id="t1",
+            url="https://www.cls.cn/detail/old",
+            source_name="财联社·头条", source_tier=2,
+            title="厄尔尼诺形成", snippet="", published_at=None,
+        )
+    finally:
+        conn.close()
+
+    new_candidates = [
+        {"url": "https://www.reuters.com/elnino-fresh",
+         "title": "NOAA宣布超强厄尔尼诺形成 天气异常持续",
+         "snippet": "reuters confirms el nino", "source_name": "reuters.com"},
+        {"url": "https://www.cls.cn/detail/old",  # URL dedup: ignored
+         "title": "厄尔尼诺形成", "snippet": "", "source_name": "财联社·头条"},
+    ]
+    review = tracking.recheck_event("t1", kind="manual", candidates=new_candidates)
+    assert review["verdict"] == "true"
+    assert review["status"] == "confirmed"
+    assert review["actor"] == "manual"
+
+    detail = service.event_detail("t1")
+    assert detail["verify_status"] == "confirmed"
+    assert detail["review_monthly"]["verdict"] == "true"
+    assert len(detail["evidence"]) == 2
+
+
+def test_manual_recheck_requires_archived_event(isolated_db: Any) -> None:
+    from src.eventradar import db as edb
+    from src.eventradar import tracking
+
+    conn = edb.event_connection()
+    edb.initialize_schema(conn)
+    try:
+        edb.insert_event(conn, {
+            "event_id": "t2", "title": "未归档临时事件",
+            "event_type": "politics", "cluster_key": "k-t2",
+            "novelty_class": "known_continuation",
+            "verify_status": "verifying",
+            "first_seen_at": "2026-10-15 00:00:00",
+            "last_update_at": "2026-10-15 00:00:00",
+        })
+    finally:
+        conn.close()
+    with pytest.raises(tracking.TrackingError):
+        tracking.recheck_event("t2", kind="manual", candidates=[])
+
+
+# ===========================================================================
+# v1.2: TF candidates + report cancel/retry/evaluate
+# ===========================================================================
+
+def test_tf_candidates_only_fresh_confirmed(isolated_db: Any) -> None:
+    from src.eventradar import db as edb
+
+    conn = edb.event_connection()
+    edb.initialize_schema(conn)
+    try:
+        edb.insert_event(conn, {
+            "event_id": "old1", "title": "一个月前证实的事",
+            "event_type": "politics", "cluster_key": "k-old",
+            "novelty_class": "known_escalation",
+            "verify_status": "confirmed",
+            "first_seen_at": "2026-09-01 00:00:00",
+            "last_update_at": "2026-09-02 00:00:00",
+        })
+        edb.insert_event(conn, {
+            "event_id": "new1", "title": "昨天证实的事",
+            "event_type": "politics", "cluster_key": "k-new",
+            "novelty_class": "new_paradigm",
+            "verify_status": "confirmed",
+            "first_seen_at": "2026-10-14 00:00:00",
+            "last_update_at": "2026-10-14 00:00:00",
+        })
+    finally:
+        conn.close()
+    ids = {e["event_id"] for e in service.tf_candidates(days=7)}
+    assert ids == {"new1"}
+
+
+_LIVE_MARKDOWN = """## 事件确认与定义
+正文。
+## 情景分析
+正文。
+## 传导链分析
+正文。
+## 跨资产与行业影响矩阵
+正文。
+## 受益与受损板块及标的线索
+有色板块受益，关注铜与航运。
+## 催化日历与跟踪指标
+正文。
+## 反方观点与证伪条件
+正文。
+<!-- EVENT-REPORT-META
+expected_outcome: 通胀压力上行
+guidance: 增持实物资产对冲
+-->
+"""
+
+
+def test_report_cancel_retry_and_evaluate(
+    isolated_db: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.eventradar import db as edb
+
+    monkeypatch.setattr(sources, "collect", lambda scope="all": _fake_candidates())
+    service.start_scan("all", llm_factory=None)
+    _wait_scan()
+    event_id = [
+        e for e in service.list_events() if "厄尔尼诺" in e["title"]
+    ][0]["event_id"]
+
+    class _FakeRun:
+        def __init__(self, run_id: str, status: str = "running") -> None:
+            self.id = run_id
+            self.status = status
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self.cancelled: list[str] = []
+
+        def start_run(self, preset_name: str, user_vars: dict[str, Any]) -> Any:
+            return _FakeRun(f"run-{len(self.cancelled)}-{id(self)}")
+
+        def cancel_run(self, run_id: str) -> bool:
+            self.cancelled.append(run_id)
+            return True
+
+    runtime = _FakeRuntime()
+    started = service.start_analysis(runtime, event_id=event_id)
+    report_id = started["report_id"]
+    canceled = service.cancel_report(runtime, report_id)
+    assert canceled["status"] == "canceled" and canceled["canceled_at"]
+    with pytest.raises(service.EventRadarError):
+        service.cancel_report(runtime, report_id)
+
+    # A failed report can be retried into a brand-new run/report.
+    conn = edb.event_connection()
+    edb.initialize_schema(conn)
+    try:
+        edb.insert_report(conn, {
+            "id": "rep-failed", "event_id": event_id, "run_id": "run-dead",
+            "mode": "live", "title": "失败报告", "market": "A股+全球",
+            "time_horizon": "未来3-6个月", "status": "failed",
+        })
+        edb.insert_report(conn, {
+            "id": "rep-done", "event_id": event_id, "run_id": "run-ok",
+            "mode": "live", "title": "完成报告", "market": "A股+全球",
+            "time_horizon": "未来3-6个月", "status": "completed",
+            "markdown": _LIVE_MARKDOWN,
+            "expected_outcome": "通胀压力上行",
+            "guidance": "增持实物资产对冲",
+            "completed_at": "2026-10-14 10:00:00",
+        })
+    finally:
+        conn.close()
+    retried = service.retry_report(runtime, "rep-failed")
+    assert retried["report_id"] != "rep-failed"
+    assert service.get_report(runtime, "rep-failed")["status"] == "failed"
+
+    evaluated = service.evaluate_report("rep-done", {
+        "rating": "accurate", "note": "方向正确",
+        "period_start": "2026-10-15", "period_end": "2027-01-15",
+    })
+    assert evaluated["eval_rating"] == "accurate" and evaluated["evaluated_at"]
+    assert evaluated["expected_outcome"] == "通胀压力上行"
+    assert evaluated["guidance"] == "增持实物资产对冲"
+    with pytest.raises(service.EventRadarError):
+        service.evaluate_report("rep-done", {"rating": "bogus"})
+
+
+# ===========================================================================
+# v1.2: HTTP surface for archive / reviews / TF candidates
+# ===========================================================================
+
+def test_http_archive_recheck_and_tf_candidates(
+    client: TestClient, isolated_db: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sources, "collect", lambda scope="all": _fake_candidates())
+    client.post("/events/scan", json={"scope": "all"})
+    for _ in range(100):
+        runs = client.get("/events/scan-runs").json()
+        if runs and runs[0]["status"] in ("completed", "partial", "failed"):
+            break
+        time.sleep(0.05)
+
+    event_id = client.get(
+        "/events/events?status=confirmed&limit=1"
+    ).json()["items"][0]["event_id"]
+
+    arch = client.post(f"/events/events/{event_id}/archive", json={"archived": True})
+    assert arch.status_code == 200 and arch.json()["archived"] is True
+    archive = client.get("/events/archive").json()["items"]
+    assert any(a["event_id"] == event_id for a in archive)
+
+    board = client.get("/events/archive/leaderboard").json()["items"]
+    assert isinstance(board, list)
+    picks = client.get("/events/daily-picks").json()["items"]
+    assert len(picks) >= 1
+
+    recheck = client.post(f"/events/events/{event_id}/recheck")
+    assert recheck.status_code == 200
+    assert recheck.json()["verdict"] in {
+        "true", "false", "unverified", "error"
+    }
+
+    tf = client.get("/events/tf-candidates").json()["items"]
+    assert any(e["event_id"] == event_id for e in tf)

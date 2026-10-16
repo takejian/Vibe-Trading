@@ -332,7 +332,7 @@
 
 - **2026-05-11** 🧭 **Memory slug, accounting swarm, dan preflight CLI**: persistent memory sekarang mempertahankan karakter CJK saat membuat file slug, mencegah silent filename collision untuk note Mandarin/Jepang/Korea ([#95](https://github.com/HKUDS/Vibe-Trading/pull/95), terima kasih @voidborne-d). Total swarm run sekarang memprioritaskan token usage yang dilaporkan provider dengan fallback estimasi yang sudah ada ([#94](https://github.com/HKUDS/Vibe-Trading/pull/94), terima kasih @Teerapat-Vatpitak), dan UI run CLI mendapat startup preflight check untuk masalah environment umum ([#96](https://github.com/HKUDS/Vibe-Trading/pull/96), terima kasih @ykykj).
 
-- **2026-05-10** 🧱 **Regression guardrail + metadata run**: memory recall sekarang memperlakukan underscore sebagai token boundary, sehingga saved memory snake_case seperti `mcp_wiring_test` cocok dengan query natural-language seperti "mcp wiring" ([#87](https://github.com/HKUDS/Vibe-Trading/pull/87), terima kasih @hp083625). Server MCP memiliki subprocess smoke test yang mencakup initialize → `tools/list` → `tools/call` untuk menjaga first-call deadlock path ([#86](https://github.com/HKUDS/Vibe-Trading/pull/86)), sementara hardening low-risk masuk untuk test Windows yang path-sensitive, API best-effort exception handling, validation allowed-root `run_dir` backtest, dan metadata provider/model SwarmRun ([#88](https://github.com/HKUDS/Vibe-Trading/pull/88), [#90](https://github.com/HKUDS/Vibe-Trading/pull/90), [#91](https://github.com/HKUDS/Vibe-Trading/pull/91), [#92](https://github.com/HKUDS/Vibe-Trading/pull/92), terima kasih @Teerapat-Vatpitak).
+- **2026-05-10** 🧱 **Regression guardrail + metadata run**: memory recall sekarang memperlakukan underscore sebagai token boundary, sehingga saved memory snake_case seperti `mcp_wiring_test` cocok dengan query natural-language seperti "mcp wiring" ([#87](https://github.com/HKUDS/Vibe-Trading/pull/87), terima kasih @hp083625). Server MCP memiliki subprocess smoke test yang mencakup initialize → `tools/list` → `tools/call` untuk menjaga first-call deadlock path ([#86](https://github.com/HKUDS/Vibe-Trading/pull/86)), sementara hardening low-risk masuk untuk test Windows yang path-sensitive, API best-effort exception handling, validation allowed-root `run_dir` backtest, dan metadata provider/model SwarmRun ([#88](https://github.com/HKUDS/Vibe-Trading/pull/88), [#90](https://github.com/HKUDS/Vibe-Trading/pull/90), [#93](https://github.com/HKUDS/Vibe-Trading/pull/93), [#92](https://github.com/HKUDS/Vibe-Trading/pull/92), terima kasih @Teerapat-Vatpitak).
 
 - **2026-05-09** 🛡️ **Hardening path API + stabilitas server MCP**: route run/session API sekarang memvalidasi path ID sebelum lookup, menolak parameter malformed yang mengandung newline dan mengunci behaviour tersebut dalam auth/security regression suite ([#80](https://github.com/HKUDS/Vibe-Trading/pull/80), terima kasih @SJoon99). Server MCP sekarang melakukan pre-warm tool registry di main thread sebelum melayani `tools/call`, menghindari first-call deadlock pada lazy tool discovery ([#85](https://github.com/HKUDS/Vibe-Trading/pull/85), terima kasih @Teerapat-Vatpitak). Vite dev proxy juga menghormati `VITE_API_URL` untuk target backend non-default ([#82](https://github.com/HKUDS/Vibe-Trading/pull/82), terima kasih @voidborne-d).
 
@@ -669,9 +669,9 @@ Di luar OHLCV, **22 tool data read-only** menjangkau fundamental & flow — fund
 Inventaris detail dilipat di bawah agar README utama tetap mudah dipindai. Buka bagian yang Anda perlukan saat ingin memeriksa building block yang tersedia.
 
 <details>
-<summary><b>Library Skill Finansial</b> <sub>91 skill dalam 9 kategori</sub></summary>
+<summary><b>Library Skill Finansial</b> <sub>93 skill dalam 9 kategori</sub></summary>
 
-- 📊 91 skill finansial khusus yang diorganisasi dalam 9 kategori
+- 📊 93 skill finansial khusus yang diorganisasi dalam 9 kategori
 - 🌐 Cakupan lengkap dari market tradisional hingga crypto & DeFi
 - 🔬 Kapabilitas menyeluruh dari sourcing data hingga riset quant
 
@@ -1641,7 +1641,7 @@ Jelajahi di ClawHub: [clawhub.ai/skills/vibe-trading](https://clawhub.ai/skills/
 <details>
 <summary><b>OpenSpace — skill yang berkembang sendiri</b></summary>
 
-Semua 91 skill finansial dipublikasikan di [open-space.cloud](https://open-space.cloud) dan berkembang secara otonom melalui engine self-evolution OpenSpace.
+Semua 93 skill finansial dipublikasikan di [open-space.cloud](https://open-space.cloud) dan berkembang secara otonom melalui engine self-evolution OpenSpace.
 
 Untuk menggunakan OpenSpace, tambahkan kedua server MCP ke config agent Anda:
 
@@ -1663,7 +1663,7 @@ Untuk menggunakan OpenSpace, tambahkan kedua server MCP ke config agent Anda:
 }
 ```
 
-OpenSpace akan menemukan seluruh 91 skill secara otomatis, mengaktifkan auto-fix, auto-improve, dan sharing komunitas. Cari skill Vibe-Trading melalui `search_skills("finance backtest")` pada agent mana pun yang terhubung OpenSpace.
+OpenSpace akan menemukan seluruh 93 skill secara otomatis, mengaktifkan auto-fix, auto-improve, dan sharing komunitas. Cari skill Vibe-Trading melalui `search_skills("finance backtest")` pada agent mana pun yang terhubung OpenSpace.
 
 </details>
 
@@ -1997,7 +1997,7 @@ Vibe-Trading/
 │   │   ├── agent/                  # ReAct agent core
 │   │   │   ├── loop.py             #   5-layer compression + read/write tool batching
 │   │   │   ├── context.py          #   system prompt + auto-recall from persistent memory
-│   │   │   ├── skills.py           #   skill loader (91 bundled + user-created via CRUD)
+│   │   │   ├── skills.py           #   skill loader (93 bundled + user-created via CRUD)
 │   │   │   ├── tools.py            #   tool base class + registry
 │   │   │   ├── memory.py           #   lightweight workspace state per run
 │   │   │   ├── frontmatter.py      #   shared YAML frontmatter parser
@@ -2024,7 +2024,7 @@ Vibe-Trading/
 │   │   ├── api/                    # FastAPI route modules
 │   │   │   └── alpha_routes.py     #   /alpha/list, /alpha/{id}, /alpha/bench, SSE stream
 │   │   │
-│   │   ├── skills/                 # 91 finance skills in 9 categories (SKILL.md each)
+│   │   ├── skills/                 # 93 finance skills in 9 categories (SKILL.md each)
 │   │   ├── swarm/                  # Swarm DAG execution engine
 │   │   │   └── presets/            #   30 swarm preset YAML definitions
 │   │   ├── session/                # Multi-turn chat + FTS5 session search

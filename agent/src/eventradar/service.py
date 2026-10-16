@@ -14,6 +14,7 @@ import threading
 import uuid
 from datetime import datetime
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from src.eventradar import db as edb
 from src.eventradar import dedup, extract, report as report_mod, scoring, sources
@@ -21,10 +22,20 @@ from src.eventradar import dedup, extract, report as report_mod, scoring, source
 logger = logging.getLogger(__name__)
 
 PRESET_NAME = "macro_event_task_force"
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 
 VALID_SCOPES = ("china", "global", "all")
 VALID_MODES = ("live", "retrospective")
-TERMINAL_REPORT_STATUSES = ("completed", "incomplete", "failed")
+TERMINAL_REPORT_STATUSES = ("completed", "incomplete", "failed", "canceled")
+
+_STATUS_RANK = {
+    scoring.STATUS_CONFIRMED: 0, scoring.STATUS_VERIFYING: 1,
+    scoring.STATUS_DISPUTED: 2, scoring.STATUS_UNVERIFIED: 3,
+    scoring.STATUS_RUMOR: 4,
+}
+_NOVELTY_RANK = {
+    "new_paradigm": 0, "known_escalation": 1,
+}
 
 
 class EventRadarError(ValueError):
@@ -159,9 +170,10 @@ def _run_scan(scan_id: str, scope: str,
             unique, known, llm_factory=llm_factory
         )
 
-        # 4. Match -> merge or create.
+        # 4. Match -> merge or create. Track every event this scan touched.
         new_count = 0
         escalated = 0
+        touched_ids: list[str] = []
         for event in events:
             indexes = [i for i in event["evidence_indexes"] if 0 <= i < len(unique)]
             if not indexes:
@@ -170,15 +182,31 @@ def _run_scan(scan_id: str, scope: str,
             existing = _match_existing(conn, event, known, evidences,
                                        cfg.vibe_event_dedup_window_hours)
             if existing is not None:
+                touched_ids.append(existing["event_id"])
                 if _merge_into_event(conn, existing, event, evidences, scan_id, cfg):
                     escalated += 1
             else:
-                _create_event(conn, event, evidences, scan_id, cfg)
+                event_id = _create_event(conn, event, evidences, scan_id, cfg)
+                touched_ids.append(event_id)
                 new_count += 1
 
+        # 5. Daily Top-N snapshot + transient purge. Archived events always
+        # survive; among events touched today only the Top-N stay on the radar.
+        archived_rows = conn.execute(
+            "SELECT event_id FROM radar_event WHERE COALESCE(archived, false) = true"
+        ).fetchall()
+        archived_ids = {r[0] for r in archived_rows}
+        top_n = int(cfg.vibe_event_top_n)
+        top_events = _top_touched(conn, touched_ids, top_n)
+        top_ids = {e["event_id"] for e in top_events}
+        purged = edb.purge_transient(conn, top_ids | archived_ids)
+        _write_daily_picks(conn, top_events, scan_id)
+        logger.info("scan %s: %d event(s) on today's Top-%d, %d transient purged",
+                    scan_id, len(top_events), top_n, purged)
+
         to_review_rows = conn.execute(
-            "SELECT count(*) FROM radar_event WHERE verify_status IN "
-            "('unverified', 'verifying', 'disputed', 'rumor')"
+            "SELECT count(*) FROM radar_event WHERE COALESCE(archived, false) = true "
+            "AND verify_status IN ('unverified', 'verifying', 'disputed')"
         ).fetchone()
         to_review = int(to_review_rows[0]) if to_review_rows else 0
 
@@ -197,6 +225,51 @@ def _run_scan(scan_id: str, scope: str,
         )
     finally:
         conn.close()
+
+
+def _importance_key(event: dict[str, Any]) -> tuple[Any, ...]:
+    """Ranking identical to db.list_events' ORDER BY (status, novelty, …)."""
+    try:
+        ts = datetime.fromisoformat(event.get("last_update_at") or "").timestamp()
+    except ValueError:
+        ts = 0.0
+    return (
+        _STATUS_RANK.get(event.get("verify_status"), 5),
+        _NOVELTY_RANK.get(event.get("novelty_class"), 2),
+        -float(event.get("confidence") or 0),
+        -int(event.get("source_count") or 0),
+        -ts,
+    )
+
+
+def _top_touched(
+    conn: Any, touched_ids: list[str], top_n: int
+) -> list[dict[str, Any]]:
+    events = edb.list_events_by_ids(conn, touched_ids)
+    events.sort(key=_importance_key)
+    return events[:top_n]
+
+
+def _write_daily_picks(
+    conn: Any, top_events: list[dict[str, Any]], scan_id: str
+) -> None:
+    """Replace today's Top-N snapshot (later scans within a day overwrite)."""
+    today = datetime.now(SHANGHAI_TZ).date()
+    conn.execute("DELETE FROM radar_daily_pick WHERE pick_date = ?", [today])
+    for rank, event in enumerate(top_events, start=1):
+        evidence = edb.list_evidence(conn, event["event_id"])
+        channels = sorted({
+            e["source_name"] for e in evidence if e.get("source_name")
+        })
+        edb.upsert_daily_pick(
+            conn,
+            pick_date=today,
+            rank_position=rank,
+            event_id=event["event_id"],
+            title_snapshot=event["title"],
+            source_channels=channels,
+            scan_id=scan_id,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +404,7 @@ def _create_event(
     evidences: list[dict[str, Any]],
     scan_id: str,
     cfg: Any,
-) -> None:
+) -> str:
     seen_at = _seen_at(evidences)
     novelty, total, scores, themes = _apply_paradigm(event, cfg)
     event_id = str(uuid.uuid4())
@@ -390,6 +463,7 @@ def _create_event(
     if status != scoring.STATUS_UNVERIFIED:
         edb.add_timeline(conn, event_id=event_id, change_type="status_changed",
                          from_value=scoring.STATUS_UNVERIFIED, to_value=status)
+    return event_id
 
 
 def _merge_into_event(
@@ -512,10 +586,15 @@ def event_detail(event_id: str) -> dict[str, Any]:
             raise EventNotFound("事件不存在")
         event["evidence"] = edb.list_evidence(conn, event_id)
         event["timeline"] = edb.list_timeline(conn, event_id)
+        event["pick_stats"] = edb.pick_stats_for_event(conn, event_id)
         event["reports"] = [
             {"id": r["id"], "mode": r["mode"], "status": r["status"],
-             "title": r["title"], "created_at": r["created_at"]}
-            for r in edb.list_reports(conn, limit=20) if r.get("event_id") == event_id
+             "title": r["title"], "created_at": r["created_at"],
+             "completed_at": r.get("completed_at"),
+             "expected_outcome": r.get("expected_outcome"),
+             "guidance": r.get("guidance"),
+             "eval_rating": r.get("eval_rating")}
+            for r in edb.list_reports(conn, event_id=event_id, limit=50)
         ]
         return event
     finally:
@@ -547,6 +626,104 @@ def verify_event(event_id: str, action: str, note: str | None = None,
         return edb.get_event(conn, event_id)  # type: ignore[return-value]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Archive: keep / discard / lists / leaderboard / recheck (v1.2)
+# ---------------------------------------------------------------------------
+
+def archive_event(event_id: str, archived: bool = True) -> dict[str, Any]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        event = edb.get_event(conn, event_id)
+        if event is None:
+            raise EventNotFound("事件不存在")
+        edb.set_archived(conn, event_id, archived)
+        edb.add_timeline(
+            conn, event_id=event_id,
+            change_type="archived" if archived else "unarchived",
+            actor="manual",
+        )
+        return edb.get_event(conn, event_id)  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def discard_event(event_id: str) -> None:
+    """Physical discard from the radar: no archive, no history."""
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        event = edb.get_event(conn, event_id)
+        if event is None:
+            raise EventNotFound("事件不存在")
+        edb.delete_event_cascade(conn, event_id)
+    finally:
+        conn.close()
+
+
+def list_archive(**filters: Any) -> dict[str, Any]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        items = edb.list_archive(conn, **filters)
+        return {"items": items}
+    finally:
+        conn.close()
+
+
+def leaderboard(window_days: int = 30, limit: int = 10) -> list[dict[str, Any]]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        return edb.pick_leaderboard(
+            conn, window_days=window_days, limit=limit
+        )
+    finally:
+        conn.close()
+
+
+def daily_picks(
+    date_from: str | None = None, date_to: str | None = None, limit: int = 200
+) -> list[dict[str, Any]]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        return edb.list_daily_picks(
+            conn, date_from=date_from, date_to=date_to, limit=limit
+        )
+    finally:
+        conn.close()
+
+
+def tf_candidates(days: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """Confirmed events fresh enough for the Task Force tab (default 7 days)."""
+    cfg = _cfg()
+    fresh_days = int(days or cfg.vibe_event_tf_fresh_days)
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        return edb.list_tf_candidates(conn, days=fresh_days, limit=limit)
+    finally:
+        conn.close()
+
+
+def manual_recheck(event_id: str) -> dict[str, Any]:
+    """Ad-hoc truth check; result overwrites the monthly review field."""
+    from src.eventradar import tracking
+
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        if edb.get_event(conn, event_id) is None:
+            raise EventNotFound("事件不存在")
+    finally:
+        conn.close()
+    try:
+        return tracking.recheck_event(event_id, kind="manual")
+    except tracking.TrackingError as exc:
+        raise EventRadarError(str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -649,7 +826,14 @@ def _reconcile(conn: Any, item: dict[str, Any], runtime: Any) -> dict[str, Any]:
             edb.update_report_fields(conn, item["id"], {"status": run_status})
             item["status"] = run_status
         return item
-    if run_status in ("failed", "cancelled"):
+    if run_status == "cancelled":
+        if item["status"] != "canceled":
+            edb.update_report_fields(
+                conn, item["id"],
+                {"status": "canceled", "canceled_at": datetime.now()},
+            )
+        return edb.get_report(conn, item["id"]) or item
+    if run_status == "failed":
         edb.update_report_fields(conn, item["id"], {"status": "failed"})
         item["status"] = "failed"
         return item
@@ -660,10 +844,13 @@ def _reconcile(conn: Any, item: dict[str, Any], runtime: Any) -> dict[str, Any]:
         item["status"] = "failed"
         return item
     complete, present = report_mod.validate_report(final_report, item["mode"])
+    expected, guidance = report_mod.extract_summary(final_report, item["mode"])
     edb.update_report_fields(conn, item["id"], {
         "status": "completed" if complete else "incomplete",
         "markdown": final_report,
         "sections_present": present,
+        "expected_outcome": expected,
+        "guidance": guidance,
         "completed_at": datetime.now(),
     })
     archived = edb.get_report(conn, item["id"])
@@ -689,5 +876,96 @@ def get_report(runtime: Any, report_id: str) -> dict[str, Any]:
         if item is None:
             raise EventNotFound("报告不存在")
         return _reconcile(conn, item, runtime)
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Report operations: cancel / delete / retry / evaluate (v1.2)
+# ---------------------------------------------------------------------------
+
+RETRYABLE_STATUSES = ("failed", "incomplete", "canceled")
+EVALUATABLE_STATUSES = ("completed", "incomplete")
+EVAL_RATINGS = ("accurate", "partial", "off", "wrong")
+
+
+def cancel_report(runtime: Any, report_id: str) -> dict[str, Any]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        item = edb.get_report(conn, report_id)
+        if item is None:
+            raise EventNotFound("报告不存在")
+        if item["status"] not in ("pending", "running"):
+            raise EventRadarError("仅运行中的报告可以取消")
+        try:
+            runtime.cancel_run(item["run_id"])
+        except Exception as exc:  # swarm-level failure is a 409, not a 500
+            raise EventRadarError(f"取消运行失败：{exc}") from exc
+        edb.update_report_fields(conn, report_id, {
+            "status": "canceled", "canceled_at": datetime.now(),
+        })
+        return edb.get_report(conn, report_id)  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def delete_report(report_id: str) -> None:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        if edb.get_report(conn, report_id) is None:
+            raise EventNotFound("报告不存在")
+        edb.delete_report(conn, report_id)
+    finally:
+        conn.close()
+
+
+def retry_report(runtime: Any, report_id: str) -> dict[str, Any]:
+    """Re-launch with the same event/mode/market/horizon as a new report."""
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        old = edb.get_report(conn, report_id)
+        if old is None:
+            raise EventNotFound("报告不存在")
+        if old["status"] not in RETRYABLE_STATUSES:
+            raise EventRadarError("仅失败、不完整或已取消的报告可以重试")
+    finally:
+        conn.close()
+    return start_analysis(
+        runtime,
+        event_id=old.get("event_id"),
+        mode=old["mode"],
+        market=old.get("market") or "A股+全球",
+        time_horizon=old.get("time_horizon") or "",
+        event_title=old["title"] if not old.get("event_id") else "",
+        event_period=old.get("time_horizon") or "",
+    )
+
+
+def evaluate_report(report_id: str, evaluation: dict[str, Any]) -> dict[str, Any]:
+    rating = evaluation.get("rating")
+    if rating not in EVAL_RATINGS:
+        raise EventRadarError(
+            f"非法评级：{rating}（可选 accurate/partial/off/wrong）"
+        )
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        item = edb.get_report(conn, report_id)
+        if item is None:
+            raise EventNotFound("报告不存在")
+        if item["status"] not in EVALUATABLE_STATUSES:
+            raise EventRadarError("仅已产出的报告可以做事后评价")
+        edb.update_report_fields(conn, report_id, {
+            "eval_rating": rating,
+            "eval_note": (evaluation.get("note") or "").strip() or None,
+            "eval_period_start": evaluation.get("period_start"),
+            "eval_period_end": evaluation.get("period_end"),
+            "eval_related_report_id": evaluation.get("related_report_id"),
+            "evaluated_at": datetime.now(),
+        })
+        return edb.get_report(conn, report_id)  # type: ignore[return-value]
     finally:
         conn.close()

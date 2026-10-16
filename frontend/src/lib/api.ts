@@ -578,6 +578,18 @@ export interface RadarScanRun {
   finished_at?: string | null;
 }
 
+export interface ReviewRecord {
+  verdict: "true" | "false" | "unverified" | "error";
+  reason?: string;
+  checked_at?: string;
+  actor?: string;
+  new_evidence?: number;
+  independent_sources?: number;
+  best_tier?: number;
+  status?: string;
+  skipped?: boolean;
+}
+
 export interface RadarEvent {
   event_id: string;
   title: string;
@@ -604,6 +616,37 @@ export interface RadarEvent {
   first_seen_at: string;
   last_update_at: string;
   locked_by_human: boolean;
+  archived?: boolean;
+  archived_at?: string | null;
+  review_daily?: ReviewRecord | null;
+  review_weekly?: ReviewRecord | null;
+  review_monthly?: ReviewRecord | null;
+}
+
+export interface ArchiveEvent extends RadarEvent {
+  first_pick_date?: string | null;
+  last_pick_date?: string | null;
+  pick_days: number;
+  report_count: number;
+}
+
+export interface DailyPick {
+  id: string;
+  pick_date: string;
+  rank_position: number;
+  event_id?: string | null;
+  title_snapshot: string;
+  source_channels: string[];
+  scan_id?: string | null;
+  created_at?: string | null;
+}
+
+export interface LeaderboardEntry {
+  event_id?: string | null;
+  title: string;
+  pick_days: number;
+  first_pick_date: string;
+  last_pick_date: string;
 }
 
 export interface RadarEventQuery {
@@ -612,6 +655,7 @@ export interface RadarEventQuery {
   event_type?: string;
   region?: string;
   keyword?: string;
+  limit?: number;
 }
 
 export interface RadarEvidence {
@@ -635,17 +679,30 @@ export interface RadarTimelineItem {
   created_at: string;
 }
 
+export interface EventReportSummary {
+  id: string;
+  mode: string;
+  status: string;
+  title: string;
+  created_at: string;
+  completed_at?: string | null;
+  expected_outcome?: string | null;
+  guidance?: string | null;
+  eval_rating?: EvalRating | null;
+}
+
 export interface RadarEventDetail extends RadarEvent {
   evidence: RadarEvidence[];
   timeline: RadarTimelineItem[];
-  reports: Array<{
-    id: string;
-    mode: string;
-    status: string;
-    title: string;
-    created_at: string;
-  }>;
+  pick_stats?: {
+    first_pick_date?: string | null;
+    last_pick_date?: string | null;
+    pick_days: number;
+  };
+  reports: EventReportSummary[];
 }
+
+export type EvalRating = "accurate" | "partial" | "off" | "wrong";
 
 export interface EventReport {
   id: string;
@@ -655,11 +712,44 @@ export interface EventReport {
   title: string;
   market?: string;
   time_horizon?: string;
-  status: "pending" | "running" | "completed" | "incomplete" | "failed";
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "incomplete"
+    | "failed"
+    | "canceled";
   markdown?: string;
   sections_present?: string[];
+  expected_outcome?: string | null;
+  guidance?: string | null;
+  eval_rating?: EvalRating | null;
+  eval_note?: string | null;
+  eval_period_start?: string | null;
+  eval_period_end?: string | null;
+  eval_related_report_id?: string | null;
+  evaluated_at?: string | null;
   created_at: string;
   completed_at?: string | null;
+  canceled_at?: string | null;
+}
+
+export interface ReportEvaluationBody {
+  rating: EvalRating;
+  note?: string;
+  period_start?: string;
+  period_end?: string;
+  related_report_id?: string;
+}
+
+export interface ArchiveQuery {
+  status?: string;
+  novelty?: string;
+  event_type?: string;
+  keyword?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
 }
 
 export const api = {
@@ -1382,6 +1472,7 @@ export const api = {
     if (filters?.event_type) params.set("event_type", filters.event_type);
     if (filters?.region) params.set("region", filters.region);
     if (filters?.keyword) params.set("keyword", filters.keyword);
+    if (filters?.limit) params.set("limit", String(filters.limit));
     const query = params.toString();
     return request<{ items: RadarEvent[] }>(
       `/events/events${query ? `?${query}` : ""}`,
@@ -1427,6 +1518,82 @@ export const api = {
   },
   eventReport: (reportId: string) =>
     request<EventReport>(`/events/reports/${encodeURIComponent(reportId)}`),
+
+  // --- v1.2: archive / daily picks / reviews / report operations ---
+
+  radarArchive: (eventId: string, archived: boolean) =>
+    request<RadarEvent>(
+      `/events/events/${encodeURIComponent(eventId)}/archive`,
+      { method: "POST", body: JSON.stringify({ archived }) },
+    ),
+  radarDiscard: (eventId: string) =>
+    request<{ deleted: string }>(
+      `/events/events/${encodeURIComponent(eventId)}`,
+      { method: "DELETE" },
+    ),
+  radarRecheck: (eventId: string) =>
+    request<ReviewRecord>(
+      `/events/events/${encodeURIComponent(eventId)}/recheck`,
+      { method: "POST" },
+    ),
+  radarArchiveList: (filters?: ArchiveQuery) => {
+    const params = new URLSearchParams();
+    (
+      [
+        "status", "novelty", "event_type", "keyword",
+        "date_from", "date_to",
+      ] as const
+    ).forEach((key) => {
+      const value = filters?.[key];
+      if (value) params.set(key, value);
+    });
+    if (filters?.limit) params.set("limit", String(filters.limit));
+    const query = params.toString();
+    return request<{ items: ArchiveEvent[] }>(
+      `/events/archive${query ? `?${query}` : ""}`,
+    );
+  },
+  radarLeaderboard: (windowDays = 30, limit = 10) =>
+    request<{ items: LeaderboardEntry[] }>(
+      `/events/archive/leaderboard?window_days=${String(windowDays)}&limit=${String(limit)}`,
+    ),
+  radarDailyPicks: (dateFrom?: string, dateTo?: string, limit = 200) => {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    params.set("limit", String(limit));
+    return request<{ items: DailyPick[] }>(
+      `/events/daily-picks?${params.toString()}`,
+    );
+  },
+  radarTfCandidates: (days?: number, limit = 50) => {
+    const params = new URLSearchParams();
+    if (days) params.set("days", String(days));
+    params.set("limit", String(limit));
+    return request<{ items: RadarEvent[] }>(
+      `/events/tf-candidates?${params.toString()}`,
+    );
+  },
+  eventReportCancel: (reportId: string) =>
+    request<EventReport>(
+      `/events/reports/${encodeURIComponent(reportId)}/cancel`,
+      { method: "POST" },
+    ),
+  eventReportDelete: (reportId: string) =>
+    request<{ deleted: string }>(
+      `/events/reports/${encodeURIComponent(reportId)}`,
+      { method: "DELETE" },
+    ),
+  eventReportRetry: (reportId: string) =>
+    request<{ report_id: string; run_id: string; status: string; title: string }>(
+      `/events/reports/${encodeURIComponent(reportId)}/retry`,
+      { method: "POST" },
+    ),
+  eventReportEvaluate: (reportId: string, body: ReportEvaluationBody) =>
+    request<EventReport>(
+      `/events/reports/${encodeURIComponent(reportId)}/evaluation`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
 };
 
 // --- Scheduled research types ---

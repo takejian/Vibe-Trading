@@ -237,7 +237,7 @@
 - **2026-05-13** 🧭 las ejecuciones de swarm ahora fundamentan a los workers con datos de mercado obtenidos e informes persistidos más limpios ([#93](https://github.com/HKUDS/Vibe-Trading/pull/93), [#84](https://github.com/HKUDS/Vibe-Trading/pull/84)).
 - **2026-05-12** 🧾 los backtests ahora emiten `run_card.json` y `run_card.md` junto con los artefactos para ejecuciones de investigación reproducibles.
 - **2026-05-11** 🧭 **Slugs de memoria, contabilidad de swarm y comprobación previa de la CLI**: la memoria persistente ahora preserva los caracteres CJK al generar slugs de archivo, evitando colisiones silenciosas de nombre de archivo para notas en chino/japonés/coreano ([#95](https://github.com/HKUDS/Vibe-Trading/pull/95), gracias @voidborne-d). Los totales de ejecución de swarm ahora prefieren el uso de tokens reportado por el proveedor con el respaldo de estimación existente ([#94](https://github.com/HKUDS/Vibe-Trading/pull/94), gracias @Teerapat-Vatpitak), y la UI de ejecución de la CLI obtuvo una comprobación previa de arranque para problemas comunes de entorno ([#96](https://github.com/HKUDS/Vibe-Trading/pull/96), gracias @ykykj).
-- **2026-05-10** 🧱 **Protecciones de regresión + metadatos de ejecución**: la recuperación de memoria ahora trata los guiones bajos como límites de token, de modo que las memorias guardadas en snake_case como `mcp_wiring_test` coincidan con consultas en lenguaje natural como "mcp wiring" ([#87](https://github.com/HKUDS/Vibe-Trading/pull/87), gracias @hp083625). El servidor MCP tiene una prueba de humo de subproceso que cubre initialize → `tools/list` → `tools/call` para proteger la ruta de bloqueo en la primera llamada ([#86](https://github.com/HKUDS/Vibe-Trading/pull/86)), mientras que se aplicó endurecimiento de bajo riesgo para pruebas sensibles a rutas en Windows, manejo de excepciones best-effort de la API, validación de raíz permitida de `run_dir` en el backtest, y metadatos de proveedor/modelo de SwarmRun ([#88](https://github.com/HKUDS/Vibe-Trading/pull/88), [#90](https://github.com/HKUDS/Vibe-Trading/pull/90), [#91](https://github.com/HKUDS/Vibe-Trading/pull/91), [#92](https://github.com/HKUDS/Vibe-Trading/pull/92), gracias @Teerapat-Vatpitak).
+- **2026-05-10** 🧱 **Protecciones de regresión + metadatos de ejecución**: la recuperación de memoria ahora trata los guiones bajos como límites de token, de modo que las memorias guardadas en snake_case como `mcp_wiring_test` coincidan con consultas en lenguaje natural como "mcp wiring" ([#87](https://github.com/HKUDS/Vibe-Trading/pull/87), gracias @hp083625). El servidor MCP tiene una prueba de humo de subproceso que cubre initialize → `tools/list` → `tools/call` para proteger la ruta de bloqueo en la primera llamada ([#86](https://github.com/HKUDS/Vibe-Trading/pull/86)), mientras que se aplicó endurecimiento de bajo riesgo para pruebas sensibles a rutas en Windows, manejo de excepciones best-effort de la API, validación de raíz permitida de `run_dir` en el backtest, y metadatos de proveedor/modelo de SwarmRun ([#88](https://github.com/HKUDS/Vibe-Trading/pull/88), [#90](https://github.com/HKUDS/Vibe-Trading/pull/90), [#93](https://github.com/HKUDS/Vibe-Trading/pull/93), [#92](https://github.com/HKUDS/Vibe-Trading/pull/92), gracias @Teerapat-Vatpitak).
 - **2026-05-09** 🛡️ **Endurecimiento de rutas de la API + estabilidad del servidor MCP**: las rutas de ejecución/sesión de la API ahora validan los IDs de ruta antes de la búsqueda, rechazando parámetros malformados que contienen saltos de línea y fijando el comportamiento en la suite de regresión de autenticación/seguridad ([#80](https://github.com/HKUDS/Vibe-Trading/pull/80), gracias @SJoon99). El servidor MCP ahora precalienta el registro de herramientas en el hilo principal antes de servir `tools/call`, evitando un bloqueo en la primera llamada en el descubrimiento perezoso de herramientas ([#85](https://github.com/HKUDS/Vibe-Trading/pull/85), gracias @Teerapat-Vatpitak). El proxy de desarrollo de Vite también respeta `VITE_API_URL` para destinos de backend no predeterminados ([#82](https://github.com/HKUDS/Vibe-Trading/pull/82), gracias @voidborne-d).
 - **2026-05-08** 🧾 **Campos de estados financieros de Tushare en filtros**: los backtests diarios de A-share ahora pueden solicitar campos de estados financieros seguros en el tiempo (PIT) mediante `fundamental_fields`, de modo que los motores de señales puedan filtrar por `income_total_revenue`, `income_n_income`, `balancesheet_total_hldr_eqy_exc_min_int`, `fina_indicator_roe` y columnas similares con prefijo de tabla después de sus fechas de anuncio/divulgación ([#76](https://github.com/HKUDS/Vibe-Trading/pull/76), gracias @mrbob-git). Un endurecimiento posterior hace que las solicitudes explícitas de campos de estados financieros fallen rápido si el enriquecimiento de Tushare no puede ejecutarse, en lugar de recurrir silenciosamente a las barras de precio sin procesar ([#77](https://github.com/HKUDS/Vibe-Trading/pull/77)).
 - **2026-05-07** 📈 **Fundamentales de Tushare + triaje comunitario**: se agregó un contrato `TushareFundamentalProvider` seguro en el tiempo (point-in-time) para flujos de trabajo de investigación fundamental, con cobertura de regresión para la ruta de variable de entorno `TUSHARE_TOKEN` del proyecto ([#74](https://github.com/HKUDS/Vibe-Trading/pull/74)). El triaje comunitario también clarificó que Vibe-Trading mantiene la iteración rápida enfocada en un solo idioma de UI por ahora, evita agregar dependencias de búsqueda redundantes mientras `web_search` respaldado por DuckDuckGo ya está incluido, y trata los despliegues alojados no oficiales como lugares no confiables para claves de API o tokens de fuente de datos.
@@ -506,9 +506,9 @@ Más allá del OHLCV, **22 herramientas de datos de solo lectura** alcanzan fund
 Los inventarios detallados se pliegan a continuación para mantener el README principal fácil de escanear. Ábrelos cuando quieras inspeccionar los bloques de construcción disponibles.
 
 <details>
-<summary><b>Biblioteca de Skills Financieras</b> <sub>91 skills en 9 categorías</sub></summary>
+<summary><b>Biblioteca de Skills Financieras</b> <sub>93 skills en 9 categorías</sub></summary>
 
-- 📊 91 skills financieras especializadas organizadas en 9 categorías
+- 📊 93 skills financieras especializadas organizadas en 9 categorías
 - 🌐 Cobertura completa desde mercados tradicionales hasta cripto y DeFi
 - 🔬 Capacidades integrales que abarcan desde el sourcing de datos hasta la investigación cuantitativa
 
@@ -1397,7 +1397,7 @@ Explora en ClawHub: [clawhub.ai/skills/vibe-trading](https://clawhub.ai/skills/v
 <details>
 <summary><b>OpenSpace — self-evolving skills</b></summary>
 
-Los 91 skills de finanzas están publicados en [open-space.cloud](https://open-space.cloud) y evolucionan de forma autónoma mediante el motor de auto-evolución de OpenSpace.
+Los 93 skills de finanzas están publicados en [open-space.cloud](https://open-space.cloud) y evolucionan de forma autónoma mediante el motor de auto-evolución de OpenSpace.
 
 Para usarlo con OpenSpace, añade ambos servidores MCP a la configuración de tu agente:
 
@@ -1419,7 +1419,7 @@ Para usarlo con OpenSpace, añade ambos servidores MCP a la configuración de tu
 }
 ```
 
-OpenSpace descubrirá automáticamente los 91 skills, habilitando auto-fix, auto-improve y compartición comunitaria. Busca skills de Vibe-Trading mediante `search_skills("finance backtest")` en cualquier agente conectado a OpenSpace.
+OpenSpace descubrirá automáticamente los 93 skills, habilitando auto-fix, auto-improve y compartición comunitaria. Busca skills de Vibe-Trading mediante `search_skills("finance backtest")` en cualquier agente conectado a OpenSpace.
 
 </details>
 
@@ -1752,7 +1752,7 @@ Vibe-Trading/
 │   │   ├── agent/                  # Núcleo del agente ReAct
 │   │   │   ├── loop.py             #   compresión de 5 capas + agrupación de herramientas de lectura/escritura
 │   │   │   ├── context.py          #   system prompt + auto-recuperación desde memoria persistente
-│   │   │   ├── skills.py           #   cargador de skills (91 incluidas + creadas por el usuario vía CRUD)
+│   │   │   ├── skills.py           #   cargador de skills (93 incluidas + creadas por el usuario vía CRUD)
 │   │   │   ├── tools.py            #   clase base de herramientas + registro
 │   │   │   ├── memory.py           #   estado ligero del workspace por ejecución
 │   │   │   ├── frontmatter.py      #   parser de frontmatter YAML compartido
@@ -1779,7 +1779,7 @@ Vibe-Trading/
 │   │   ├── api/                    # Módulos de rutas FastAPI
 │   │   │   └── alpha_routes.py     #   /alpha/list, /alpha/{id}, /alpha/bench, flujo SSE
 │   │   │
-│   │   ├── skills/                 # 91 skills financieras en 9 categorías (un SKILL.md cada una)
+│   │   ├── skills/                 # 93 skills financieras en 9 categorías (un SKILL.md cada una)
 │   │   ├── swarm/                  # Motor de ejecución de DAG swarm
 │   │   │   └── presets/            #   30 definiciones YAML de presets swarm
 │   │   ├── session/                # Chat multi-turno + búsqueda de sesiones FTS5

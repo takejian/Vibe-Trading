@@ -1,59 +1,50 @@
-"""Multi-source news collection for the breaking-news radar.
+"""Curated professional-source news collection for the breaking-news radar.
 
-All outbound access reuses the existing, throttled tool implementations —
-this module never opens a socket itself:
+Two editorially-curated sources, each backed by a bundled skill, replace
+the MVP search-engine casting net:
 
-* ``get_stock_news`` (scope=global) — Eastmoney broad finance headlines;
-* ``web_search`` — ddgs multi-engine search over a 10-type keyword matrix,
-  Chinese and/or English depending on scan scope.
+* ``investment-news-collector`` — 财联社深度 (CLS depth) 头条/环球 columns
+  fetched directly from cls.cn with the same request-signing scheme
+  RSSHub uses (no local RSSHub/Node runtime required);
+* ``wallstreetcn-news`` — 华尔街见闻 7x24 全球快讯 (lives) + 全球深读
+  (articles) through the official ``api-one.wallstcn.com`` JSON API.
 
-Each source is failure-isolated: a throttled/empty source records its
-status and the scan continues.
+Both feeds are professional wires with editorial filtering, so the radar
+ingests a small high-grade stream (~80 items per full scan) instead of
+hundreds of search hits; downstream extraction/clustering/verification
+and the Top-5 presentation do the rest. Each source is failure-isolated.
 """
 
 from __future__ import annotations
 
-import json
+import functools
+import hashlib
 import logging
 import re
-from typing import Any
+from datetime import datetime
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-#: Per-language breaking-news query per event category. Kept terse on
-#: purpose: search engines already rank recent items, and the extractor
-#: does the classification/scoring downstream.
-_ZH_QUERIES: dict[str, str] = {
-    "geopolitical": "突发 地缘 冲突 制裁",
-    "monetary_fiscal": "央行 货币政策 财政 最新",
-    "trade": "关税 贸易 出口管制 最新",
-    "public_health": "疫情 突发 公共卫生",
-    "climate_disaster": "厄尔尼诺 极端天气 灾害 最新",
-    "technology": "技术突破 芯片 AI 人工智能 发布",
-    "regulation": "监管 反垄断 禁令 处罚",
-    "politics": "大选 选举 政治 突发",
-    "financial_credit": "违约 破产 债务危机 银行",
-    "commodity_supply": "原油 减产 粮食 供给冲击",
+#: Default editorial head cut per channel (v1.2: four channels x head-N).
+_DEFAULT_HEAD_N = 5
+#: Wire fetch sizes (always >= head-N so the editorially-ranked head exists).
+_FETCH_SIZE = 40
+
+#: URL patterns that are not articles (chart pages, pure quote/calendar tools).
+_NON_ARTICLE_URL_RE = re.compile(r"/charts?/|/quote[s]?/|/calendar/", re.IGNORECASE)
+
+#: CLS depth columns mirroring RSSHub ``/cls/depth/:category``.
+_CLS_DEPTH_CATEGORIES: dict[str, str] = {
+    "1000": "财联社·头条",
+    "1007": "财联社·环球",
 }
 
-_EN_QUERIES: dict[str, str] = {
-    "geopolitical": "breaking geopolitical conflict sanctions",
-    "monetary_fiscal": "central bank rate decision fiscal policy breaking",
-    "trade": "tariff trade war export controls breaking",
-    "public_health": "pandemic outbreak health emergency breaking",
-    "climate_disaster": "el nino extreme weather disaster breaking",
-    "technology": "AI chip breakthrough unveils breaking",
-    "regulation": "antitrust regulator ban probe breaking",
-    "politics": "election political crisis breaking",
-    "financial_credit": "default bankruptcy debt crisis bank breaking",
-    "commodity_supply": "oil OPEC output cut supply disruption grain",
-}
+#: Fixed signing envelope used by cls.cn web API (same values as RSSHub's
+#: lib/routes/cls/utils.ts).
+_CLS_APP_PARAMS = {"appName": "CailianpressWeb", "os": "web", "sv": "8.7.9"}
 
-_MAX_PER_QUERY = 5
-_MAX_TOTAL_CANDIDATES = 200
-
-#: Navigational/quote/encyclopedia pages that are not breaking events.
-#: Conservative on purpose — only drop patterns that never carry news.
+#: Navigational/quote/encyclopedia pages that never carry breaking events.
 _JUNK_TITLE_RE = re.compile(
     r"实时行情|期货行情|今日.*(?:价格|报价|行情)|最新价格|走势图表|历史数据|"
     r"行情$|报价|股吧|百度百科|百科|加群|荐群|荐股|软文|广告|"
@@ -62,120 +53,260 @@ _JUNK_TITLE_RE = re.compile(
 )
 
 
-def is_junk(title: str, snippet: str | None = None) -> bool:
-    """True for quote pages, encyclopedia entries and obvious ads."""
+def is_junk(title: str, snippet: str | None = None,
+            url: str | None = None) -> None | bool:
+    """True for chart/quote pages, encyclopedia entries and obvious ads."""
+    if url and _NON_ARTICLE_URL_RE.search(url):
+        return True
     head = title or ""
     if _JUNK_TITLE_RE.search(head):
         return True
     blob = f"{head} {snippet or ''}"
-    if ("加群" in blob or "荐股" in blob or "免费领取" in blob) and             "风险提示" in blob:
+    if ("加群" in blob or "荐股" in blob or "免费领取" in blob) and \
+            "风险提示" in blob:
         return True
     return False
 
 
-def _run_tool(tool: Any, **kwargs: Any) -> dict[str, Any]:
+def feed_head_n() -> int:
+    """Per-channel editorial head count (``VIBE_EVENT_FEED_HEAD_N``)."""
     try:
-        raw = tool.execute(**kwargs)
-        return json.loads(raw)
-    except Exception as exc:  # tool failure is a source status, not a crash
-        logger.warning("radar source tool failed: %s", exc)
-        return {"status": "error", "error": str(exc)}
+        from src.config.accessor import get_env_config
+
+        return int(get_env_config().event_radar.vibe_event_feed_head_n)
+    except Exception:  # config unavailable (offline unit tests)
+        return _DEFAULT_HEAD_N
+
+
+# ---------------------------------------------------------------------------
+# HTTP helper
+# ---------------------------------------------------------------------------
+
+def _http_get_json(url: str, *, params: dict[str, str] | None = None,
+                   headers: dict[str, str] | None = None,
+                   timeout: int = 15) -> dict[str, Any] | None:
+    """GET JSON via the project-standard requests session; None on failure."""
+    import requests
+
+    hdrs = {"User-Agent": "Mozilla/5.0 (vibe-trading event radar)"}
+    if headers:
+        hdrs.update(headers)
+    try:
+        resp = requests.get(url, params=params, headers=hdrs, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:  # source failure is a status, not a scan crash
+        logger.warning("radar source GET failed %s: %s", url, exc)
+        return None
 
 
 def _clean_text(value: Any) -> str:
-    """Strip search highlight tags (<em>…) left in headlines/snippets."""
-    return re.sub(r"</?em>", "", str(value or "")).strip()
+    """Strip HTML tags and collapse whitespace in feed text."""
+    text = re.sub(r"<[^>]+>", "", str(value or ""))
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def _normalize_articles(payload: dict[str, Any], source_name: str) -> list[dict[str, Any]]:
-    # StockNewsTool nests its payload under {"ok", "data": {"articles": [...]}}.
-    data = payload.get("data")
-    if isinstance(data, dict):
-        payload = data
-    articles = payload.get("articles")
-    if not isinstance(articles, list):
-        results = payload.get("results")
-        if isinstance(results, list):
-            articles = results
-        else:
-            return []
+def _epoch_to_str(ts: Any) -> str | None:
+    try:
+        return datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 财联社深度 (investment-news-collector primary source)
+# ---------------------------------------------------------------------------
+
+def _cls_signed_params(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Replicate RSSHub's cls.cn signing: sort params, SHA1 then MD5."""
+    merged = {**_CLS_APP_PARAMS, **(extra or {})}
+    encoded = "&".join(f"{k}={v}" for k, v in sorted(merged.items()))
+    sha1 = hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+    merged["sign"] = hashlib.md5(sha1.encode("utf-8")).hexdigest()
+    return merged
+
+
+def _normalize_cls_depth(payload: dict[str, Any], source_name: str) -> list[dict[str, Any]]:
+    data = payload.get("data") or {}
+    items = [*(data.get("top_article") or []), *(data.get("depth_list") or [])]
     out: list[dict[str, Any]] = []
-    for item in articles:
+    seen: set[str] = set()
+    for item in items:
         if not isinstance(item, dict):
             continue
-        url = item.get("url") or item.get("link") or ""
-        title = _clean_text(item.get("title"))
-        if not url or not title:
+        item_id = item.get("id")
+        title = _clean_text(item.get("title") or item.get("brief"))
+        if item_id is None or not title or item_id in seen:
             continue
+        seen.add(item_id)
         out.append({
-            "url": url,
+            "url": f"https://www.cls.cn/detail/{item_id}",
             "title": title,
-            "snippet": _clean_text(item.get("snippet") or item.get("summary"))[:280],
+            "snippet": _clean_text(item.get("brief"))[:280],
             "source_name": item.get("source") or source_name,
-            "published_at": item.get("published") or item.get("published_at") or item.get("date"),
-            "language": item.get("language", ""),
-            "origin": source_name,
+            "published_at": _epoch_to_str(item.get("ctime")),
+            "language": "zh",
+            "origin": "investment-news-collector",
         })
     return out
 
 
-def collect(scope: str = "all") -> dict[str, Any]:
-    """Collect raw candidates. Returns ``{sources, candidates}``.
+def _cls_channel(
+    category: str, label: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Fetch one full 财联社深度 column (head-N cut happens in collect())."""
+    params = _cls_signed_params()
+    payload = _http_get_json(
+        f"https://www.cls.cn/v3/depth/home/assembled/{category}",
+        params=params,
+        headers={"Referer": f"https://www.cls.cn/depth?id={category}"},
+    )
+    if payload is None:
+        return {"name": label, "status": "error", "count": 0}, []
+    articles = _normalize_cls_depth(payload, label)
+    return (
+        {"name": label, "status": "ok", "count": len(articles)},
+        articles,
+    )
 
-    ``scope`` is ``china`` (Chinese queries + Eastmoney), ``global``
-    (English queries only) or ``all`` (both).
+
+# ---------------------------------------------------------------------------
+# 华尔街见闻 (wallstreetcn-news)
+# ---------------------------------------------------------------------------
+
+def _normalize_wsc_lives(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items = (payload.get("data") or {}).get("items") or []
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id")
+        title = _clean_text(item.get("highlight_title") or item.get("content_text"))
+        uri = item.get("uri") or (
+            f"https://wallstreetcn.com/livenews/{item_id}" if item_id else ""
+        )
+        if not uri or not title:
+            continue
+        out.append({
+            "url": uri,
+            "title": title[:120],
+            "snippet": _clean_text(item.get("content_text"))[:280],
+            "source_name": "华尔街见闻·7x24",
+            "published_at": _epoch_to_str(item.get("display_time")),
+            "language": "zh",
+            "origin": "wallstreetcn-news",
+        })
+    return out
+
+
+def _normalize_wsc_articles(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    # The information-flow endpoint wraps each article in {resource, …}.
+    raw_items = (payload.get("data") or {}).get("items") or []
+    items = [
+        it.get("resource") if isinstance(it.get("resource"), dict) else it
+        for it in raw_items if isinstance(it, dict)
+    ]
+    out: list[dict[str, Any]] = []
+    for item in items:
+        item_id = item.get("id")
+        title = _clean_text(item.get("title"))
+        if item_id is None or not title:
+            continue
+        out.append({
+            "url": item.get("uri") or f"https://wallstreetcn.com/articles/{item_id}",
+            "title": title,
+            "snippet": _clean_text(item.get("content_short"))[:280],
+            "source_name": "华尔街见闻",
+            "published_at": _epoch_to_str(item.get("display_time")),
+            "language": "zh",
+            "origin": "wallstreetcn-news",
+        })
+    return out
+
+
+def _wsc_lives_channel() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Fetch the full 7x24 全球快讯 channel (head-N cut happens in collect())."""
+    payload = _http_get_json(
+        "https://api-one.wallstcn.com/apiv1/content/lives",
+        params={"channel": "global-channel", "limit": str(_FETCH_SIZE)},
+    )
+    if payload is None:
+        return {"name": "华尔街见闻·7x24", "status": "error", "count": 0}, []
+    articles = _normalize_wsc_lives(payload)
+    return (
+        {"name": "华尔街见闻·7x24", "status": "ok", "count": len(articles)},
+        articles,
+    )
+
+
+def _wsc_articles_channel() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Fetch the full 全球深读 channel (head-N cut happens in collect())."""
+    payload = _http_get_json(
+        "https://api-one.wallstcn.com/apiv1/content/information-flow",
+        params={"channel": "global", "accept": "article",
+                "limit": str(_FETCH_SIZE)},
+    )
+    if payload is None:
+        return {"name": "华尔街见闻·全球", "status": "error", "count": 0}, []
+    articles = _normalize_wsc_articles(payload)
+    return (
+        {"name": "华尔街见闻·全球", "status": "ok", "count": len(articles)},
+        articles,
+    )
+
+
+# ---------------------------------------------------------------------------
+# collect()
+# ---------------------------------------------------------------------------
+
+#: One zero-arg callable per channel → (source status, raw articles).
+#: ``collect()`` is the single place that applies the editorial head-N cut.
+ChannelFetcher = Callable[[], tuple[dict[str, Any], list[dict[str, Any]]]]
+
+_CHINA_CHANNELS: tuple[ChannelFetcher, ...] = tuple(
+    functools.partial(_cls_channel, category, label)
+    for category, label in _CLS_DEPTH_CATEGORIES.items()
+)
+_GLOBAL_CHANNELS: tuple[ChannelFetcher, ...] = (
+    _wsc_lives_channel,
+    _wsc_articles_channel,
+)
+
+
+def collect(scope: str = "all", head_n: int | None = None) -> dict[str, Any]:
+    """Collect curated candidates. Returns ``{sources, candidates}``.
+
+    ``china`` pulls the two 财联社深度 columns; ``global`` pulls the two
+    华尔街见闻 channels; ``all`` pulls all four. Each channel contributes
+    only its editorially-ranked head-N items (default 5 → at most 20
+    candidates per scan). URL-dedup and the junk/chart filter remove leftovers.
     """
-    # Local imports: tool construction is cheap but keeps the package
-    # importable even if optional tool deps are missing.
-    from src.tools.stock_news_tool import StockNewsTool
-    from src.tools.web_search_tool import WebSearchTool
+    if head_n is None:
+        head_n = feed_head_n()
+    channels: tuple[ChannelFetcher, ...] = ()
+    if scope in ("china", "all"):
+        channels += _CHINA_CHANNELS
+    if scope in ("global", "all"):
+        channels += _GLOBAL_CHANNELS
 
     sources: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
 
-    def _absorb(articles: list[dict[str, Any]]) -> None:
+    for fetch in channels:
+        status, articles = fetch()
+        articles = articles[:head_n]
+        status = {**status, "count": len(articles)}
+        sources.append(status)
         for article in articles:
             url = article["url"]
             if url in seen_urls or is_junk(article["title"],
-                                           article.get("snippet")):
+                                           article.get("snippet"), url):
                 continue
             seen_urls.add(url)
             candidates.append(article)
 
-    # --- Eastmoney broad headlines (china/all only) ---
-    if scope in ("china", "all"):
-        news_tool = StockNewsTool()
-        payload = _run_tool(news_tool, scope="global", limit=30)
-        articles = _normalize_articles(payload, "eastmoney")
-        sources.append({
-            "name": "eastmoney", "status": payload.get("status", "ok"),
-            "count": len(articles),
-        })
-        _absorb(articles)
-
-    # --- Web search matrix ---
-    search_tool = WebSearchTool()
-    matrices: list[tuple[str, dict[str, str], str]] = []
-    if scope in ("china", "all"):
-        matrices.append(("zh", _ZH_QUERIES, "ddgs"))
-    if scope in ("global", "all"):
-        matrices.append(("en", _EN_QUERIES, "ddgs"))
-
-    for language, matrix, source_name in matrices:
-        for event_type, query in matrix.items():
-            if len(candidates) >= _MAX_TOTAL_CANDIDATES:
-                break
-            payload = _run_tool(search_tool, query=query, max_results=_MAX_PER_QUERY)
-            articles = _normalize_articles(payload, source_name)
-            for article in articles:
-                article["language"] = article.get("language") or language
-                article["query_type"] = event_type
-            sources.append({
-                "name": f"{source_name}:{language}:{event_type}",
-                "status": payload.get("status", "ok"),
-                "count": len(articles),
-            })
-            _absorb(articles)
-
-    return {"sources": sources, "candidates": candidates[:_MAX_TOTAL_CANDIDATES]}
+    return {
+        "sources": sources,
+        "candidates": candidates,
+    }

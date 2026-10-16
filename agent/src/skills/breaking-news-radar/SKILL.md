@@ -17,8 +17,11 @@ things that map to long-horizon investment opportunities).
 1. **Dedup first.** Before declaring any event, call `event_lookup` with the
    main entities and event type. If the event already exists, output a
    `merge` action carrying its `event_id`; never create a duplicate.
-2. **Collect broadly.** Use `get_stock_news` (scope=global) and `web_search`
-   (Chinese + English queries), then `read_url` for high-value primaries.
+2. **Collect from professional wires.** The radar ingests curated feeds
+   only — `investment-news-collector` (财联社深度 头条/环球) and
+   `wallstreetcn-news` (华尔街见闻 7x24 快讯 + 全球深读), daily 04:00
+   Asia/Shanghai or via `POST /events/scan`; use `read_url` for
+   high-value primaries when deeper context is needed.
 3. **Verify before trusting.** Apply the source-tier gate below; a single
    source is never "confirmed".
 4. **Classify novelty.** Default to continuation/escalation; only call

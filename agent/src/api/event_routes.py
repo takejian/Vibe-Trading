@@ -46,6 +46,18 @@ class CustomAnalyzeBody(BaseModel):
     mode: str = Field(default="retrospective", pattern="^retrospective$")
 
 
+class ArchiveBody(BaseModel):
+    archived: bool = True
+
+
+class EvaluationBody(BaseModel):
+    rating: str = Field(pattern="^(accurate|partial|off|wrong)$")
+    note: str | None = None
+    period_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    period_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    related_report_id: str | None = None
+
+
 def _handle_service_errors(exc: Exception) -> HTTPException:
     if isinstance(exc, service.ScanInProgress):
         return HTTPException(status_code=409, detail=str(exc))
@@ -73,6 +85,45 @@ def register_event_routes(app: FastAPI) -> None:
     @app.get("/events/scan-runs", dependencies=[Depends(require_auth)])
     def list_scan_runs(limit: int = Query(default=20, ge=1, le=100)) -> list[dict[str, Any]]:
         return service.list_scan_runs(limit=limit)
+
+    # -- Daily picks / archive / Task Force candidates (v1.2) ----------
+
+    @app.get("/events/daily-picks", dependencies=[Depends(require_auth)])
+    def list_daily_picks(
+        date_from: str | None = Query(default=None),
+        date_to: str | None = Query(default=None),
+        limit: int = Query(default=200, ge=1, le=1000),
+    ) -> dict[str, Any]:
+        return {"items": service.daily_picks(date_from, date_to, limit)}
+
+    @app.get("/events/tf-candidates", dependencies=[Depends(require_auth)])
+    def list_tf_candidates(
+        days: int | None = Query(default=None, ge=1, le=365),
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> dict[str, Any]:
+        return {"items": service.tf_candidates(days=days, limit=limit)}
+
+    @app.get("/events/archive/leaderboard", dependencies=[Depends(require_auth)])
+    def archive_leaderboard(
+        window_days: int = Query(default=30, ge=1, le=365),
+        limit: int = Query(default=10, ge=1, le=100),
+    ) -> dict[str, Any]:
+        return {"items": service.leaderboard(window_days, limit)}
+
+    @app.get("/events/archive", dependencies=[Depends(require_auth)])
+    def list_archive(
+        status: str | None = Query(default=None),
+        novelty: str | None = Query(default=None),
+        event_type: str | None = Query(default=None),
+        keyword: str | None = Query(default=None),
+        date_from: str | None = Query(default=None),
+        date_to: str | None = Query(default=None),
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> dict[str, Any]:
+        return service.list_archive(
+            status=status, novelty=novelty, event_type=event_type,
+            keyword=keyword, date_from=date_from, date_to=date_to, limit=limit,
+        )
 
     # -- Events ---------------------------------------------------------
 
@@ -118,6 +169,31 @@ def register_event_routes(app: FastAPI) -> None:
         except Exception as exc:
             raise _handle_service_errors(exc) from exc
 
+    @app.post("/events/events/{event_id}/archive",
+              dependencies=[Depends(require_auth)])
+    def archive_event(event_id: str, body: ArchiveBody) -> dict[str, Any]:
+        try:
+            return service.archive_event(event_id, body.archived)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.delete("/events/events/{event_id}",
+                dependencies=[Depends(require_auth)])
+    def discard_event(event_id: str) -> dict[str, Any]:
+        try:
+            service.discard_event(event_id)
+            return {"deleted": event_id}
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.post("/events/events/{event_id}/recheck",
+              dependencies=[Depends(require_auth)])
+    def recheck_event(event_id: str) -> dict[str, Any]:
+        try:
+            return service.manual_recheck(event_id)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
     # -- Custom (historical retrospective) ------------------------------
 
     @app.post("/events/analyze", dependencies=[Depends(require_auth)])
@@ -148,5 +224,38 @@ def register_event_routes(app: FastAPI) -> None:
     def get_report(report_id: str) -> dict[str, Any]:
         try:
             return service.get_report(_get_swarm_runtime(), report_id)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.post("/events/reports/{report_id}/cancel",
+              dependencies=[Depends(require_auth)])
+    def cancel_report(report_id: str) -> dict[str, Any]:
+        try:
+            return service.cancel_report(_get_swarm_runtime(), report_id)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.delete("/events/reports/{report_id}",
+                dependencies=[Depends(require_auth)])
+    def delete_report(report_id: str) -> dict[str, Any]:
+        try:
+            service.delete_report(report_id)
+            return {"deleted": report_id}
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.post("/events/reports/{report_id}/retry",
+              dependencies=[Depends(require_auth)])
+    def retry_report(report_id: str) -> dict[str, Any]:
+        try:
+            return service.retry_report(_get_swarm_runtime(), report_id)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.put("/events/reports/{report_id}/evaluation",
+             dependencies=[Depends(require_auth)])
+    def evaluate_report(report_id: str, body: EvaluationBody) -> dict[str, Any]:
+        try:
+            return service.evaluate_report(report_id, body.model_dump())
         except Exception as exc:
             raise _handle_service_errors(exc) from exc

@@ -34,7 +34,7 @@ agents:
       - **早期信号（retrospective 必读）**：每个阶段当时公开可知、但容易被忽略的信号
       Do not write investment conclusions; later roles own impact and strategy.
     tools: [bash, read_file, write_file, load_skill, get_stock_news, web_search, read_url, event_lookup]
-    skills: [breaking-news-radar, geopolitical-risk, global-macro]
+    skills: [breaking-news-radar, investment-news-collector, wallstreetcn-news, geopolitical-risk, global-macro]
     max_iterations: 50
     timeout_seconds: 1800
     max_retries: 1
@@ -140,6 +140,13 @@ agents:
       6. `## 可复用早期信号 checklist`
       7. `## 若重演应对预案`
       Do not omit any section. Do not fabricate data; statistics may only come from upstream tools.
+
+      ## Machine-readable summary (REQUIRED — append at the very END of the report)
+      报告最后另起一段，输出一个 HTML 注释块（在 Markdown 中不可见、供系统解析列表摘要），expected_outcome 为一句话最可能的预期结果，guidance 为一句话可执行的指导建议，均为中文、各不超过 80 字：
+      <!-- EVENT-REPORT-META
+      expected_outcome: 一句话预期结果
+      guidance: 一句话指导建议
+      -->
     tools: [bash, read_file, write_file, load_skill, get_market_data, backtest, read_url]
     skills: [asset-allocation, strategy-generate]
     max_iterations: 50
