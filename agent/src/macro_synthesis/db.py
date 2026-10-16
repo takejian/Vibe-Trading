@@ -15,6 +15,7 @@ import duckdb
 
 from src.config.paths import get_market_db_path
 
+from .allocation_engine import AllocationDetail
 from .models import (
     ASSET_KEYS,
     CYCLE_KEYS,
@@ -92,6 +93,24 @@ CREATE TABLE IF NOT EXISTS macro_synthesis_review (
     reviewer VARCHAR,
     create_time TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
+
+CREATE TABLE IF NOT EXISTS macro_synthesis_allocation_detail (
+    report_id BIGINT NOT NULL,
+    category VARCHAR NOT NULL,
+    asset_group VARCHAR NOT NULL,
+    rating INTEGER NOT NULL,
+    raw_score DOUBLE NOT NULL,
+    weight_mid DOUBLE NOT NULL,
+    weight_low DOUBLE NOT NULL,
+    weight_high DOUBLE NOT NULL,
+    vehicle VARCHAR NOT NULL,
+    rationale VARCHAR NOT NULL DEFAULT '',
+    trigger VARCHAR NOT NULL DEFAULT '',
+    PRIMARY KEY (report_id, category)
+);
+
+ALTER TABLE macro_synthesis_report ADD COLUMN IF NOT EXISTS risk_budget DOUBLE;
+ALTER TABLE macro_synthesis_report ADD COLUMN IF NOT EXISTS posture VARCHAR;
 """
 
 
@@ -156,6 +175,9 @@ class MacroSynthesisRepository:
         dimensions: list[DimensionSignal],
         claims: list[SynthesisClaim],
         reviews: list[SynthesisReview],
+        allocation_details: list[AllocationDetail],
+        risk_budget: Optional[float],
+        posture: Optional[str],
     ) -> SynthesisReport:
         coverage_payload = json.loads(row[11])
         teams = [TeamCoverage(**item) for item in coverage_payload.get("teams", [])]
@@ -176,6 +198,9 @@ class MacroSynthesisRepository:
             dimensions=dimensions,
             claims=claims,
             reviews=reviews,
+            allocation_details=allocation_details,
+            risk_budget=risk_budget,
+            posture=posture or "",
             status=row[12],
             create_time=_iso(row[14]),
         )
@@ -251,12 +276,59 @@ class MacroSynthesisRepository:
             for r in rows
         ]
 
+    def _load_allocation_details(self, report_id: int) -> list[AllocationDetail]:
+        rows = self._conn.execute(
+            "SELECT category, asset_group, rating, raw_score, weight_mid, "
+            "weight_low, weight_high, vehicle, rationale, trigger "
+            "FROM macro_synthesis_allocation_detail WHERE report_id = ? "
+            "ORDER BY CASE category "
+            "WHEN 'cn_large' THEN 1 WHEN 'cn_growth' THEN 2 WHEN 'cn_dividend' THEN 3 "
+            "WHEN 'hk_equity' THEN 4 WHEN 'global_equity' THEN 5 "
+            "WHEN 'rate_bond' THEN 6 WHEN 'credit_bond' THEN 7 "
+            "WHEN 'precious_metal' THEN 8 WHEN 'industrial_metal' THEN 9 "
+            "WHEN 'energy' THEN 10 WHEN 'agriculture' THEN 11 "
+            "WHEN 'property_chain' THEN 12 ELSE 13 END",
+            [report_id],
+        ).fetchall()
+        return [
+            AllocationDetail(
+                category=r[0],
+                asset_group=r[1],
+                rating=r[2],
+                raw_score=r[3],
+                weight_mid=r[4],
+                weight_low=r[5],
+                weight_high=r[6],
+                vehicle=r[7],
+                rationale=r[8] or "",
+                trigger=r[9] or "",
+            )
+            for r in rows
+        ]
+
     def _row_to_report(self, row: tuple) -> SynthesisReport:
+        details = self._load_allocation_details(row[0])
+        risk_budget = row[15] if len(row) > 15 else None
+        posture = row[16] if len(row) > 16 else None
+        if not details:
+            # 旧报告：用已持久化的周期概率/维度/MCS 现算（纯引擎，无 LLM）。
+            from .allocation_engine import build_allocation_plan
+
+            dimensions = self._load_dimensions(row[0])
+            plan = build_allocation_plan(
+                json.loads(row[6]), dimensions, float(row[4])
+            )
+            details = plan.details
+            risk_budget = risk_budget if risk_budget is not None else plan.risk_budget
+            posture = posture or plan.posture
         report = self._hydrate(
             row,
             self._load_dimensions(row[0]),
             self._load_claims(row[0]),
             self._load_reviews(row[0]),
+            details,
+            risk_budget,
+            posture,
         )
         from dataclasses import replace as _replace
         from .periods import period_label
@@ -312,8 +384,9 @@ class MacroSynthesisRepository:
             conn.execute(
                 "INSERT INTO macro_synthesis_report "
                 "(economy, period_type, period, mcs, mcs_delta, cycle_probs, allocation, "
-                "summary, action_advice, risk_triggers, coverage, status, claim_count) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "summary, action_advice, risk_triggers, coverage, status, claim_count, "
+                "risk_budget, posture) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     report.economy,
                     report.period_type,
@@ -328,6 +401,8 @@ class MacroSynthesisRepository:
                     _dumps(coverage_payload),
                     report.status,
                     report.claim_count,
+                    report.risk_budget,
+                    report.posture or None,
                 ],
             )
             report_id = int(conn.execute(
@@ -369,6 +444,26 @@ class MacroSynthesisRepository:
                         claim.window_end,
                         claim.verify_source,
                         claim.status,
+                    ],
+                )
+            for detail in report.allocation_details:
+                conn.execute(
+                    "INSERT INTO macro_synthesis_allocation_detail "
+                    "(report_id, category, asset_group, rating, raw_score, weight_mid, "
+                    "weight_low, weight_high, vehicle, rationale, trigger) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        report_id,
+                        detail.category,
+                        detail.asset_group,
+                        detail.rating,
+                        detail.raw_score,
+                        detail.weight_mid,
+                        detail.weight_low,
+                        detail.weight_high,
+                        detail.vehicle,
+                        detail.rationale,
+                        detail.trigger,
                     ],
                 )
             conn.execute("COMMIT")
@@ -433,3 +528,47 @@ class MacroSynthesisRepository:
 
         return _replace(review, id=review_id)
 
+
+    def replace_allocation_details(
+        self,
+        report_id: int,
+        details: list[AllocationDetail],
+        risk_budget: float,
+        posture: str,
+    ) -> None:
+        """为旧报告回填细分品类配置（幂等替换），并更新组合形态列。"""
+        conn = self._conn
+        try:
+            conn.execute("BEGIN")
+            conn.execute(
+                "DELETE FROM macro_synthesis_allocation_detail WHERE report_id = ?",
+                [report_id],
+            )
+            for detail in details:
+                conn.execute(
+                    "INSERT INTO macro_synthesis_allocation_detail "
+                    "(report_id, category, asset_group, rating, raw_score, weight_mid, "
+                    "weight_low, weight_high, vehicle, rationale, trigger) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        report_id,
+                        detail.category,
+                        detail.asset_group,
+                        detail.rating,
+                        detail.raw_score,
+                        detail.weight_mid,
+                        detail.weight_low,
+                        detail.weight_high,
+                        detail.vehicle,
+                        detail.rationale,
+                        detail.trigger,
+                    ],
+                )
+            conn.execute(
+                "UPDATE macro_synthesis_report SET risk_budget = ?, posture = ? WHERE id = ?",
+                [risk_budget, posture, report_id],
+            )
+            conn.execute("COMMIT")
+        except Exception as exc:
+            conn.execute("ROLLBACK")
+            raise SynthesisDBError(f"细分配置回填失败：{exc}") from exc

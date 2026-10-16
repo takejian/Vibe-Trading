@@ -1870,7 +1870,8 @@
       "cycle": "周期判定",
       "team": "智能体团队",
       "role": "宏观角色",
-      "board": "指标看板"
+      "board": "指标看板",
+      "japan": "日本镜鉴"
     },
     "teamTheme": {
       "strategy": "宏观策略",
@@ -2035,7 +2036,7 @@
         "adviceTitle": "操作建议",
         "riskTitle": "风险触发器",
         "claimsTitle": "可验证命题（{{n}}）",
-        "claimsHint": "验证窗口到期后由 AI 比对实际数据复盘（后续阶段上线）。",
+        "claimsHint": "验证窗口到期后系统自动取实际数据判定，并支持 AI 一键复盘。",
         "probability": "概率",
         "window": "验证窗口",
         "claimStatus": {
@@ -2065,7 +2066,37 @@
         "aiReviewer": "AI 复盘",
         "manualReviewer": "人工",
         "reviewBlocked": "暂无可判定命题，无法生成 AI 复盘。",
-        "autoVerified": "已自动刷新到期命题的判定。"
+        "autoVerified": "已自动刷新到期命题的判定。",
+        "planTitle": "细分品类操作方案（量化引擎）",
+        "riskBudget": "风险预算",
+        "riskBudgetHint": "风险资产（股票/商品/地产链）总仓位上限，由 MCS 决定；其余为债券与现金。",
+        "posture": {
+          "offensive": "进攻型",
+          "balanced": "平衡型",
+          "defensive": "防御型"
+        },
+        "assetGroup": {
+          "equity": "股票",
+          "bond": "债券",
+          "commodity": "大宗商品",
+          "property": "地产链/REITs",
+          "cash": "现金"
+        },
+        "assetCat": {
+          "cn_large": "A股大盘",
+          "cn_growth": "A股成长",
+          "cn_dividend": "高股息红利",
+          "hk_equity": "港股",
+          "global_equity": "海外股票",
+          "rate_bond": "利率债（长久期）",
+          "credit_bond": "信用债",
+          "precious_metal": "贵金属（黄金）",
+          "industrial_metal": "工业金属（铜铝）",
+          "energy": "原油/能源",
+          "agriculture": "农产品",
+          "property_chain": "地产链/REITs",
+          "cash": "现金/货币基金"
+        }
       }
     },
     "evalHistory": {

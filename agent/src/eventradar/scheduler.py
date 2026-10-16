@@ -55,8 +55,12 @@ def next_run_after(now: datetime, hour: int, minute: int) -> datetime:
 async def _daily_loop(app: Any) -> None:
     from src.config.accessor import get_env_config
 
-    cfg = get_env_config().event_radar
-    parsed = parse_daily_at(cfg.vibe_event_daily_scan_at)
+    try:
+        cfg = get_env_config().event_radar
+        parsed = parse_daily_at(cfg.vibe_event_daily_scan_at)
+    except Exception:  # stubbed/missing config (tests) -> loop stays dormant
+        logger.info("event radar daily scan disabled: config unavailable")
+        return
     if not cfg.vibe_event_daily_scan_enabled or parsed is None:
         logger.info(
             "event radar daily scan disabled (enabled=%s, anchor=%r)",
@@ -93,8 +97,12 @@ async def _review_loop(app: Any) -> None:
     from src.config.accessor import get_env_config
     from src.eventradar import tracking
 
-    cfg = get_env_config().event_radar
-    parsed = parse_daily_at(cfg.vibe_event_review_at)
+    try:
+        cfg = get_env_config().event_radar
+        parsed = parse_daily_at(cfg.vibe_event_review_at)
+    except Exception:  # stubbed/missing config (tests) -> loop stays dormant
+        logger.info("event radar review loop disabled: config unavailable")
+        return
     if not cfg.vibe_event_review_enabled or parsed is None:
         logger.info(
             "event radar review loop disabled (enabled=%s, anchor=%r)",

@@ -1870,7 +1870,8 @@
       "cycle": "Determinação do ciclo",
       "team": "Equipes de agentes",
       "role": "Papéis macro",
-      "board": "Painel de indicadores"
+      "board": "Painel de indicadores",
+      "japan": "Espelho do Japão"
     },
     "teamTheme": {
       "strategy": "Estratégia macro",
@@ -2065,7 +2066,37 @@
         "aiReviewer": "AI review",
         "manualReviewer": "Manual",
         "reviewBlocked": "No verifiable claims resolved yet; AI review unavailable.",
-        "autoVerified": "Auto-refreshed verification of due claims."
+        "autoVerified": "Auto-refreshed verification of due claims.",
+        "planTitle": "Asset-class action plan (quant engine)",
+        "riskBudget": "Risk budget",
+        "riskBudgetHint": "Target weight of risk assets (equities/commodities/property), set by MCS; the rest is bonds and cash.",
+        "posture": {
+          "offensive": "Offensive",
+          "balanced": "Balanced",
+          "defensive": "Defensive"
+        },
+        "assetGroup": {
+          "equity": "Equity",
+          "bond": "Fixed income",
+          "commodity": "Commodities",
+          "property": "Property / REITs",
+          "cash": "Cash"
+        },
+        "assetCat": {
+          "cn_large": "China large-cap",
+          "cn_growth": "China growth",
+          "cn_dividend": "Dividend / high yield",
+          "hk_equity": "HK equities",
+          "global_equity": "Global equities",
+          "rate_bond": "Rate bonds (long duration)",
+          "credit_bond": "Credit bonds",
+          "precious_metal": "Precious metals (gold)",
+          "industrial_metal": "Industrial metals (Cu/Al)",
+          "energy": "Crude / energy",
+          "agriculture": "Agriculture",
+          "property_chain": "Property chain / REITs",
+          "cash": "Cash / MMF"
+        }
       }
     },
     "evalHistory": {

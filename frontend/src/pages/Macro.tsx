@@ -6,6 +6,7 @@ import { MacroHistoryTimeline } from "@/components/macro/MacroHistoryTimeline";
 import { MacroTeamTab } from "@/components/macro/MacroTeamTab";
 import { MacroRoleTab } from "@/components/macro/MacroRoleTab";
 import { MacroBoardTab } from "@/components/macro/MacroBoardTab";
+import { JapanMirrorTab } from "@/components/macro/JapanMirrorTab";
 import { OrchestrationReserved } from "@/components/macro/OrchestrationReserved";
 import { PromptEditDialog } from "@/components/macro/PromptEditDialog";
 
@@ -20,7 +21,7 @@ const PROMPT_NAME_KEYS: Record<string, string> = {
   c: "macro.prompts.cName",
 };
 
-type MacroTabId = "cycle" | "team" | "role" | "board";
+type MacroTabId = "cycle" | "team" | "role" | "board" | "japan";
 
 export function Macro() {
   const { t } = useTranslation();
@@ -92,6 +93,7 @@ export function Macro() {
         {tabButton("team", "macro.tabs.team", "macro-tab-team")}
         {tabButton("role", "macro.tabs.role", "macro-tab-role")}
         {tabButton("board", "macro.tabs.board", "macro-tab-board")}
+        {tabButton("japan", "macro.tabs.japan", "macro-tab-japan")}
       </nav>
 
       <div
@@ -226,6 +228,17 @@ export function Macro() {
           className="mt-6"
         >
           <MacroBoardTab />
+        </div>
+      )}
+
+      {mountedTabs.includes("japan") && (
+        <div
+          hidden={activeTab !== "japan"}
+          role="tabpanel"
+          data-testid="macro-panel-japan"
+          className="mt-6"
+        >
+          <JapanMirrorTab />
         </div>
       )}
 

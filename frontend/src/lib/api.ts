@@ -120,6 +120,19 @@ export interface SynthesisReview {
   create_time?: string | null;
 }
 
+export interface SynthesisAllocationDetail {
+  category: string;
+  asset_group: "equity" | "bond" | "commodity" | "property" | "cash";
+  rating: number; // -2..+2
+  raw_score: number;
+  weight_mid: number;
+  weight_low: number;
+  weight_high: number;
+  vehicle: string;
+  rationale: string;
+  trigger: string;
+}
+
 export interface SynthesisReport {
   id: number;
   economy: string;
@@ -130,6 +143,9 @@ export interface SynthesisReport {
   mcs_delta: number | null;
   cycle_probs: Record<string, number>;
   allocation: Record<string, number>;
+  allocation_details?: SynthesisAllocationDetail[];
+  risk_budget?: number | null;
+  posture?: string | null;
   summary: string;
   action_advice: string;
   risk_triggers: string[];
@@ -1198,6 +1214,11 @@ export const api = {
   getSynthesisReport: (id: number) =>
     request<{ status: string; report: SynthesisReport }>(
       `/api/macro/synthesis/reports/${id}`,
+    ),
+  backfillSynthesisAllocation: (id: number) =>
+    request<{ status: string; report: SynthesisReport }>(
+      `/api/macro/synthesis/reports/${id}/allocation/backfill`,
+      { method: "POST" },
     ),
   verifySynthesisReport: (id: number) =>
     request<{ status: string; report: SynthesisReport }>(

@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS radar_event (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_radar_event_cluster ON radar_event(cluster_key);
 CREATE INDEX IF NOT EXISTS idx_radar_event_status ON radar_event(verify_status, last_update_at);
 CREATE INDEX IF NOT EXISTS idx_radar_event_type ON radar_event(event_type, first_seen_at);
-CREATE INDEX IF NOT EXISTS idx_radar_event_archived ON radar_event(archived, verify_status, last_update_at);
+-- idx_radar_event_archived is created in initialize_schema() AFTER the
+-- idempotent column migration (old warehouses lack ``archived``).
 
 CREATE TABLE IF NOT EXISTS radar_evidence (
     id                VARCHAR PRIMARY KEY,
@@ -224,6 +225,10 @@ def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
             conn.execute(ddl)
     _migrate_columns(conn, "radar_event", _EVENT_MIGRATION_COLUMNS)
     _migrate_columns(conn, "event_report", _REPORT_MIGRATION_COLUMNS)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_radar_event_archived "
+        "ON radar_event(archived, verify_status, last_update_at)"
+    )
     # One-time v1.2 cleanup: pre-archive radar events are transient data.
     if _meta_get(conn, "v12_migrated") is None:
         conn.execute(

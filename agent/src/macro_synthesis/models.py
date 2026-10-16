@@ -220,6 +220,9 @@ class SynthesisReport:
     dimensions: list[DimensionSignal]
     claims: list[SynthesisClaim]
     reviews: list[SynthesisReview] = field(default_factory=list)
+    allocation_details: list[Any] = field(default_factory=list)
+    risk_budget: Optional[float] = None
+    posture: str = ""
     status: str = "completed"
     id: Optional[int] = None
     create_time: Optional[str] = None
@@ -253,6 +256,9 @@ class SynthesisReport:
             "dimensions": [dimension.to_dict() for dimension in self.dimensions],
             "claims": [claim.to_dict() for claim in self.claims],
             "reviews": [review.to_dict() for review in self.reviews],
+            "allocation_details": [detail.to_dict() for detail in self.allocation_details],
+            "risk_budget": self.risk_budget,
+            "posture": self.posture or None,
             "status": self.status,
             "claim_count": self.claim_count,
             "create_time": self.create_time,

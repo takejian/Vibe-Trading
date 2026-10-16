@@ -21,7 +21,6 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
-from src.config.accessor import get_env_config
 from src.eventradar import db as edb
 from src.eventradar import dedup, scoring, service
 from src.eventradar import sources as sources_mod
@@ -157,7 +156,7 @@ def recheck_event(
             related = _related_candidates(event, candidates)
             added = service._insert_evidence_rows(conn, event_id, related, None)
 
-            cfg = get_env_config().event_radar
+            cfg = service._cfg()
             total, independent, best_tier = service._evidence_metrics(
                 conn, event_id
             )

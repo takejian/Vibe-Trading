@@ -146,6 +146,23 @@ def register_macro_synthesis_routes(app: FastAPI) -> None:
         return {"status": "ok", "report": report.to_dict()}
 
     @app.post(
+        "/api/macro/synthesis/reports/{report_id}/allocation/backfill",
+        dependencies=[Depends(require_auth)],
+    )
+    def backfill_synthesis_allocation(
+        report_id: int,
+        service: MacroSynthesisService = Depends(get_synthesis_service),
+    ):
+        try:
+            report = service.backfill_allocation(report_id)
+        except SynthesisServiceError as exc:
+            return JSONResponse(
+                status_code=getattr(exc, "status_code", 400),
+                content=_error_response(exc),
+            )
+        return {"status": "ok", "report": report.to_dict()}
+
+    @app.post(
         "/api/macro/synthesis/reports/{report_id}/verify",
         dependencies=[Depends(require_auth)],
     )

@@ -15,7 +15,8 @@ from typing import Optional
 
 from src.config.accessor import get_env_config
 
-from . import coverage, periods, verifiers
+from . import allocation_engine, coverage, periods, verifiers
+from .allocation_engine import build_allocation_plan, derive_asset_class_ratings
 from .db import MacroSynthesisRepository, SynthesisDBError
 from .models import (
     ASSET_KEYS,
@@ -103,7 +104,13 @@ recovery 复苏（增长向上、通胀温和）、overheat 过热（增长强�
 stagflation 滞胀（增长弱、通胀高）、recession 衰退（增长弱、通胀低）。
 
 【资产建议 allocation】equity 股票 / bond 债券 / commodity 商品 / cash 现金，
-各给 -2 强低配 … 0 标配 … +2 强超配。
+各给 -2 强低配 … 0 标配 … +2 强超配（系统会以周期概率与五维信号重算覆盖此值，你只需给出判断）。
+另可选项 asset_notes：为下列品类各补一句配置理由 rationale（<=60字）与一个加减仓触发条件 trigger（<=60字），
+系统只采纳文字、不采纳任何数字。品类键：cn_large A股大盘、cn_growth A股成长、cn_dividend 高股息红利、
+hk_equity 港股、global_equity 海外股票、rate_bond 利率债、credit_bond 信用债、
+precious_metal 贵金属、industrial_metal 工业金属、energy 原油能源、agriculture 农产品、
+property_chain 地产链/REITs、cash 现金。格式：
+"asset_notes": {"precious_metal": {"rationale": "实际利率见顶+央行购金", "trigger": "10Y美债实际利率升破2.2%转中性"}}
 
 【风险触发器 risk_triggers】2~4 条可客观跟踪的条件，写明指标、阈值与后果。
 
@@ -345,6 +352,27 @@ def _compute_mcs(dimensions: list[DimensionSignal]) -> float:
     return round(50 + raw * 25 * confidence_factor, 1)
 
 
+def _parse_asset_notes(payload: dict) -> dict[str, dict[str, str]]:
+    """软解析可选 asset_notes；非法结构整体忽略，绝不影响主流程。"""
+    raw = payload.get("asset_notes")
+    if not isinstance(raw, dict):
+        return {}
+    allowed = set(allocation_engine.ALLOCATION_CATEGORIES)
+    notes: dict[str, dict[str, str]] = {}
+    for key, value in raw.items():
+        if key not in allowed or not isinstance(value, dict):
+            continue
+        rationale = value.get("rationale", "")
+        trigger = value.get("trigger", "")
+        if not isinstance(rationale, str) and not isinstance(trigger, str):
+            continue
+        notes[key] = {
+            "rationale": rationale if isinstance(rationale, str) else "",
+            "trigger": trigger if isinstance(trigger, str) else "",
+        }
+    return notes
+
+
 # -- 服务 ------------------------------------------------------------------
 
 
@@ -439,6 +467,11 @@ class MacroSynthesisService:
 
             dimensions = _build_dimensions(payload, teams)
             mcs = _compute_mcs(dimensions)
+            cycle_probs = _normalize_cycle_probs(payload)
+
+            plan = build_allocation_plan(
+                cycle_probs, dimensions, mcs, notes=_parse_asset_notes(payload)
+            )
 
             previous = repo.list_reports(economy, limit=1)
             mcs_delta = (
@@ -452,16 +485,18 @@ class MacroSynthesisService:
                 period_label=label,
                 mcs=mcs,
                 mcs_delta=mcs_delta,
-                cycle_probs=_normalize_cycle_probs(payload),
-                allocation={
-                    key: int(payload["allocation"][key]) for key in ASSET_KEYS
-                },
+                cycle_probs=cycle_probs,
+                # 四大类评级以引擎结果为准，LLM 评级仅作对照，不落库。
+                allocation=derive_asset_class_ratings(plan),
                 summary=payload["summary"].strip(),
                 action_advice=payload["action_advice"].strip(),
                 risk_triggers=[item.strip() for item in payload["risk_triggers"]],
                 teams=teams,
                 dimensions=dimensions,
                 claims=_build_claims(payload),
+                allocation_details=plan.details,
+                risk_budget=round(plan.risk_budget, 3),
+                posture=plan.posture,
             )
             try:
                 stored = repo.insert_report(report)
@@ -511,6 +546,26 @@ class MacroSynthesisService:
             raise SynthesisFailedError(f"模型调用失败：{exc}") from exc
         content = getattr(response, "content", None)
         return content if isinstance(content, str) else ""
+
+    # -- 细分品类配置回填 -------------------------------------------------
+
+    def backfill_allocation(self, report_id: int) -> SynthesisReport:
+        """为旧报告用确定性引擎补算并持久化 13 品类操作方案（不调用 LLM）。"""
+        repo = self._get_repo()
+        report = repo.get_report_by_id(report_id)
+        if report is None:
+            raise SynthesisServiceError("汇总报告不存在。")
+        plan = build_allocation_plan(
+            report.cycle_probs, report.dimensions, report.mcs
+        )
+        repo.replace_allocation_details(
+            report_id,
+            plan.details,
+            risk_budget=plan.risk_budget,
+            posture=plan.posture,
+        )
+        refreshed = repo.get_report_by_id(report_id)
+        return refreshed
 
     # -- 二期：判定与复盘 -------------------------------------------------
 

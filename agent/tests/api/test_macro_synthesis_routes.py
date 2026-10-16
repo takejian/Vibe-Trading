@@ -247,3 +247,45 @@ def test_verify_missing_then_hit_and_ai_review(harness) -> None:
 def test_review_unknown_report(harness) -> None:
     res = harness.client.post("/api/macro/synthesis/reports/99999/review")
     assert res.status_code == 400
+
+
+def test_backfill_allocation_for_legacy_report(harness) -> None:
+    harness.set_llm(_payload_json())
+    body = {"economy": "中国", "period_type": "month", "period": "2026-10"}
+    created = harness.client.post("/api/macro/synthesis/reports", json=body)
+    assert created.status_code == 200
+    report_id = created.json()["report"]["id"]
+    assert len(created.json()["report"]["allocation_details"]) == 13
+
+    # 模拟二期之前的旧报告：删明细、清形态列
+    conn = harness.repo._conn
+    conn.execute(
+        "DELETE FROM macro_synthesis_allocation_detail WHERE report_id = ?",
+        [report_id],
+    )
+    conn.execute(
+        "UPDATE macro_synthesis_report SET risk_budget = NULL, posture = NULL WHERE id = ?",
+        [report_id],
+    )
+
+    # GET 旧报告：hydrate 现算，接口仍可用
+    lazy = harness.client.get(f"/api/macro/synthesis/reports/{report_id}")
+    assert lazy.status_code == 200
+    assert len(lazy.json()["report"]["allocation_details"]) == 13
+
+    # 一键回填并持久化
+    res = harness.client.post(
+        f"/api/macro/synthesis/reports/{report_id}/allocation/backfill"
+    )
+    assert res.status_code == 200
+    payload = res.json()["report"]
+    assert len(payload["allocation_details"]) == 13
+    assert payload["posture"] in ("offensive", "balanced", "defensive")
+    assert 0.15 <= payload["risk_budget"] <= 0.85
+    total = sum(d["weight_mid"] for d in payload["allocation_details"])
+    assert abs(total - 1.0) < 1e-6
+
+    missing = harness.client.post(
+        "/api/macro/synthesis/reports/99999/allocation/backfill"
+    )
+    assert missing.status_code == 400

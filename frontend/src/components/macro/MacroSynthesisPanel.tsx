@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { MacroAllocationPlan } from "@/components/macro/MacroAllocationPlan";
 import {
   api,
   ApiError,
@@ -479,6 +480,15 @@ export function MacroSynthesisPanel({ economy }: Props) {
               })}
             </div>
           </div>
+
+          {/* 细分品类操作方案 */}
+          {(report.allocation_details?.length ?? 0) > 0 && (
+            <MacroAllocationPlan
+              details={report.allocation_details ?? []}
+              posture={report.posture ?? null}
+              riskBudget={report.risk_budget ?? null}
+            />
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-border/50 bg-background/50 p-3">
