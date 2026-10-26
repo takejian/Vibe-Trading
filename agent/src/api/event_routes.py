@@ -86,6 +86,30 @@ def register_event_routes(app: FastAPI) -> None:
     def list_scan_runs(limit: int = Query(default=20, ge=1, le=100)) -> list[dict[str, Any]]:
         return service.list_scan_runs(limit=limit)
 
+    # -- Daily report (investment-news-collector 6-section markdown) ----
+
+    @app.post("/events/daily-report/generate", dependencies=[Depends(require_auth)])
+    def generate_daily_report(body: ScanBody) -> dict[str, Any]:
+        try:
+            return service.generate_daily_report(body.scope)
+        except Exception as exc:
+            raise _handle_service_errors(exc) from exc
+
+    @app.get("/events/daily-report", dependencies=[Depends(require_auth)])
+    def get_daily_report(
+        date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    ) -> dict[str, Any]:
+        report = service.get_daily_report(date)
+        if report is None:
+            raise HTTPException(status_code=404, detail="日报不存在")
+        return report
+
+    @app.get("/events/daily-reports", dependencies=[Depends(require_auth)])
+    def list_daily_reports(
+        limit: int = Query(default=30, ge=1, le=365),
+    ) -> dict[str, Any]:
+        return {"items": service.list_daily_reports(limit=limit)}
+
     # -- Daily picks / archive / Task Force candidates (v1.2) ----------
 
     @app.get("/events/daily-picks", dependencies=[Depends(require_auth)])

@@ -755,6 +755,13 @@ class EventRadarConfig(_EnvBase):
     vibe_event_tf_fresh_days: int = Field(
         alias="VIBE_EVENT_TF_FRESH_DAYS", default=7, ge=1, le=365
     )
+    vibe_event_daily_report_enabled: EnvBool = Field(
+        alias="VIBE_EVENT_DAILY_REPORT_ENABLED", default=True
+    )
+    vibe_event_daily_report_at: str = Field(
+        alias="VIBE_EVENT_DAILY_REPORT_AT", default="08:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+    )
 
 
 # ---------------------------------------------------------------------------

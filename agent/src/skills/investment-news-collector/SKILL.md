@@ -1,29 +1,48 @@
 ---
 name: investment-news-collector
-description: "Zero-token investment-news collection pipeline (SkillHub community skill, adapted): 财联社深度 + 华尔街见闻 dual-source ingest, title-first event scoring, size/time factors, three-tier signals, Top-5 daily briefing without any LLM API cost."
+description: "零Token投资资讯采集管线（SkillHub 社区 skill v2.7.2 适配版）：财联社深度 + 华尔街见闻双源直连，6步管线（去重→领域过滤→标题优先事件评分→话题聚类→正文规则摘要→日报生成），输出6板块结构化财经科技日报。纯Python规则引擎，无需API Key。"
 category: tool
+version: 2.7.2
 ---
+
 # Investment News Collector
 
-源自 SkillHub 社区 skill（v2.4.0）的零 Token 财经资讯采集管线，已内置到
-事件雷达后端（`src/eventradar/sources.py`）：专业双源直连，无需本地
-RSSHub。
+源自 SkillHub 社区 skill `@user_f0974107/investment-news-collector-xdj`（v2.7.2）的零 Token
+财经资讯采集管线，已内置到事件雷达后端。本系统直接通过
+`src/eventradar/sources.py` 直连财联社与华尔街见闻官方 API（无需本地 RSSHub）。
+
+## 亮点
+
+- **零成本运行**：纯 Python 规则引擎，无需调用任何大模型 API，无 Token 消耗
+- **6 步智能管线**：双源采集 → MD5 去重 → 领域过滤 → 标题优先事件评分 → 话题聚类去重 → 正文规则摘要
+- **投资信号识别**：10 类事件类型（含风险预警/政策监管），自动标注 🔥/👀/📊 三档信号
+- **动态公司配置**：`config/companies.yaml` 可编辑，Tier1/Tier2 分档，无需改代码
+- **结构化日报**：6 板块 Markdown，包含价值分布、Top5、信号雷达、Our Take、Thesis Tracker、完整资讯列表
+- **双源冗余**：财联社深度（主）+ 华尔街见闻（备），单一源挂了不中断
 
 ## 数据源（双源冗余，单源失败不中断）
 
 | 源 | 接口 | 覆盖 |
 | --- | --- | --- |
-| 财联社深度（主） | `GET https://www.cls.cn/v3/depth/home/assembled/{1000|1007}` | A 股头条、环球宏观；cls.cn 签名：参数排序后 `MD5(SHA1(querystring))` |
+| 财联社深度（主） | `GET https://www.cls.cn/v3/depth/home/assembled/{1000\|1007}` | A 股头条、环球宏观；cls.cn 签名：参数排序后 `MD5(SHA1(querystring))` |
 | 华尔街见闻（备） | `GET https://api-one.wallstcn.com/apiv1/content/{lives,articles}` | 7x24 全球快讯 + 全球深读 |
 
-两源域名均为事件雷达 T2 级信源；同一事件被两源独立报道即可通过
-自动证实门。
+两源域名均为事件雷达 T2 级信源；同一事件被两源独立报道即可通过自动证实门。
 
 ## 六步管线
 
 ```
-双源采集 → URL/指纹去重 → 领域垃圾过滤 → 标题优先事件评分
-→ 话题聚类（雷达 SimHash + Jaccard）→ 结构化入库（证据链 + 信源分级）
+双源采集（财联社深度 + 华尔街见闻）
+    ↓
+MD5 去重 → 关键词领域过滤（含强排除模式）
+    ↓
+标题优先事件分类（10 类）+ 公司 YAML 加分 + 金额规模因子 + 时效衰减
+    ↓
+话题聚类去重（Containment Coefficient，阈值 0.12 + 前缀快速路径）
+    ↓
+正文抓取 + 规则摘要（财联社 div.detail-content / 华尔街见闻官方 JSON API，失败降级 RSS 摘要）
+    ↓
+生成日报（6 板块 Markdown）→ 入库 radar_daily_report
 ```
 
 ## 标题优先事件评分（10 类）
@@ -42,15 +61,57 @@ RSSHub。
 最终分 = (10 + 事件类型分 + 公司加分 + 创新加分) × 金额规模因子 × 时效衰减
 ```
 
-- 金额规模：≥100 亿/10 亿美元 ×1.30；≥10 亿/1 亿 ×1.15；含百分比 ×1.10
+- 金额规模：≥100 亿/10 亿美元 ×1.30；≥10 亿/1 亿 ×1.15；含百分比 ×1.10；含一般数字 ×1.05
 - 时效：<6h ×1.00；6–12h ×0.95；12–24h ×0.85；>24h ×0.70
-- 信号档：🔴 头条 ≥42｜🟠 重要 ≥32｜🟡 关注 ≥22｜⚪ 常规 <22
+- 信号档：🔥 强烈信号（权重≥22，且必须标题命中）｜👀 跟踪观察（权重≥10）｜📊 数据参考
+- 价值档：🔴 头条 ≥42｜🟠 重要 ≥32｜🟡 关注 ≥22｜⚪ 常规 <22
+
+> 强烈信号必须由**标题命中**事件关键词（IPO/并购/风险预警），正文命中最多给"跟踪观察"。
+
+## 核心公司分档（config/companies.yaml）
+
+- **Tier1（+8分）** — AI 算力核心 + 存储龙头：英伟达、OpenAI、台积电、三星、SK 海力士、美光、SpaceX 等
+- **Tier2（+5分）** — 科技巨头：特斯拉、腾讯、阿里、Meta、Google、微软、博通、AMD 等
+
+## 领域过滤（三道关）
+
+1. **强排除模式**（`EXCLUDE_PATTERNS`）：社会/治安、体育、纯宏观、娱乐八卦、传统行业
+2. **低价值聚合帖**（`COLUMN_POST_FILTER_KW`）：今夜看点、早报、公告精选等直接剔除
+3. **核心科技关键词白名单**（`CORE_TECH_KEYWORDS`）：需命中至少一个科技/行业/公司实体词
+
+> 铁律：排除表只收「领域专属」的词（非农/PMI 会与科技共现，不收）；白名单不收「通用资本词」（ipo/融资/估值任何财经新闻都有）。
+
+## 输出格式（6 板块 Markdown 日报）
+
+```
+# 💰 财经科技资讯日报
+
+**日期**: YYYY-MM-DD
+**生成时间**: YYYY-MM-DD HH:MM:SS
+**新闻数量**: N 条
+
+## 📊 今日概览
+**价值分布**: 🔴 X条 | 🟠 Y条 | 🟡 Z条
+**投资信号**: 🔥 强烈信号 X条 | 👀 跟踪观察 Y条 | 📊 数据参考 Z条
+
+## 🎯 今日高价值事件 Top 5
+| # | 事件 | 信号 |
+
+## 💰 投资信号雷达
+| 信号 | 标题 | 价值 | 来源 |
+
+## 💡 Our Take（按事件类型分组的全局信号总结）
+
+## 📌 Thesis Tracker（持续追踪的投资命题）
+
+## 📋 完整资讯列表（含摘要、标签、链接）
+```
 
 ## 在本系统中的使用
 
-1. 雷达默认每日 04:00（Asia/Shanghai，`VIBE_EVENT_DAILY_SCAN_AT`）自动
-   全量扫描；也可 `POST /events/scan {"scope":"all"}` 手动触发。
-2. 判定事件前**必须**先调 `event_lookup` 判重，已存在则走 merge。
-3. 雷达默认只展示**最重要的 5 条**（证实状态 → 新范式 → 置信度 →
-   信源数 → 时效）；宏观研判与持仓影响交给 `breaking-news-radar`
-   的核验/范式框架，不要直接转述未证实快讯。
+1. 雷达默认每日 **08:00**（Asia/Shanghai，`VIBE_EVENT_DAILY_REPORT_AT`）自动生成日报；
+   也可 `POST /events/daily-report/generate` 手动触发。
+2. 日报通过 `GET /events/daily-report` 获取最新一份，`GET /events/daily-report/{date}`
+   获取指定日期。
+3. 前端"事件分析 → 突发雷达 → 日报"tab 结构化展示日报内容。
+4. 宏观研判与持仓影响交给 `breaking-news-radar` 的核验/范式框架，不要直接转述未证实快讯。

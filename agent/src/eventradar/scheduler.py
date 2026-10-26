@@ -135,8 +135,47 @@ async def _review_loop(app: Any) -> None:
             logger.warning("event radar review tick failed", exc_info=True)
 
 
+async def _daily_report_loop(app: Any) -> None:
+    """Daily investment-news-collector report (default 08:00 Asia/Shanghai)."""
+    from src.config.accessor import get_env_config
+
+    try:
+        cfg = get_env_config().event_radar
+        parsed = parse_daily_at(cfg.vibe_event_daily_report_at)
+    except Exception:
+        logger.info("event radar daily report disabled: config unavailable")
+        return
+    if not cfg.vibe_event_daily_report_enabled or parsed is None:
+        logger.info(
+            "event radar daily report disabled (enabled=%s, anchor=%r)",
+            cfg.vibe_event_daily_report_enabled, cfg.vibe_event_daily_report_at,
+        )
+        return
+    hour, minute = parsed
+    next_due = next_run_after(datetime.now(SHANGHAI_TZ), hour, minute)
+    logger.info("event radar daily report scheduled at %s",
+                next_due.strftime("%Y-%m-%d %H:%M %Z"))
+    while True:
+        await asyncio.sleep(TICK_SECONDS)
+        try:
+            now = datetime.now(SHANGHAI_TZ)
+            if now < next_due:
+                continue
+            try:
+                await asyncio.to_thread(service.generate_daily_report, "all")
+                logger.info("event radar daily report generated")
+            except Exception:
+                logger.warning("event radar daily report generation failed",
+                               exc_info=True)
+            next_due = next_run_after(now, hour, minute)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            logger.warning("event radar daily report tick failed", exc_info=True)
+
+
 def start_event_radar_scheduler(app: Any) -> None:
-    """Create scan + review tasks (idempotent — one set per app)."""
+    """Create scan + review + daily-report tasks (idempotent — one set per app)."""
     scan_task = getattr(app.state, "event_radar_scheduler_task", None)
     if scan_task is None or scan_task.done():
         app.state.event_radar_scheduler_task = asyncio.create_task(
@@ -147,10 +186,18 @@ def start_event_radar_scheduler(app: Any) -> None:
         app.state.event_radar_review_task = asyncio.create_task(
             _review_loop(app)
         )
+    report_task = getattr(app.state, "event_radar_report_task", None)
+    if report_task is None or report_task.done():
+        app.state.event_radar_report_task = asyncio.create_task(
+            _daily_report_loop(app)
+        )
 
 
 async def stop_event_radar_scheduler(app: Any) -> None:
-    for attr in ("event_radar_scheduler_task", "event_radar_review_task"):
+    for attr in (
+        "event_radar_scheduler_task", "event_radar_review_task",
+        "event_radar_report_task",
+    ):
         task = getattr(app.state, attr, None)
         if task is None:
             continue

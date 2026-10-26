@@ -15,6 +15,7 @@ import {
   GitCompare,
   History,
   Loader2,
+  Newspaper,
   Radar,
   RefreshCw,
   RotateCcw,
@@ -30,6 +31,7 @@ import {
   api,
   type ArchiveEvent,
   type DailyPick,
+  type DailyReport,
   type EvalRating,
   type EventReport,
   type LeaderboardEntry,
@@ -42,7 +44,7 @@ import {
 import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { cn } from "@/lib/utils";
 
-type MainTab = "radar" | "archive" | "taskforce";
+type MainTab = "radar" | "daily" | "archive" | "taskforce";
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   unverified: { label: "未证实", cls: "bg-zinc-500/15 text-zinc-500" },
@@ -152,6 +154,7 @@ export function EventAnalysis() {
         {(
           [
             { key: "radar", label: "突发雷达", icon: Radar },
+            { key: "daily", label: "日报", icon: Newspaper },
             { key: "archive", label: "事件档案", icon: Archive },
             { key: "taskforce", label: "Task Force 分析", icon: Users },
           ] as const
@@ -173,6 +176,8 @@ export function EventAnalysis() {
 
       {mainTab === "radar" ? (
         <RadarTab onGoTaskForce={() => setMainTab("taskforce")} />
+      ) : mainTab === "daily" ? (
+        <DailyReportTab />
       ) : mainTab === "archive" ? (
         <ArchiveTab onGoTaskForce={() => setMainTab("taskforce")} />
       ) : (
@@ -483,6 +488,142 @@ function ReviewBlock({ label, review }: { label: string; review: ReviewRecord | 
         <div className="mt-1 text-[11px] text-muted-foreground">{fmtDateTime(review.checked_at)}</div>
       )}
       {review.reason && <div className="mt-1 leading-relaxed">{review.reason}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: daily report (investment-news-collector 6-section markdown)
+// ---------------------------------------------------------------------------
+
+function DailyReportTab() {
+  const [report, setReport] = useState<DailyReport | null>(null);
+  const [history, setHistory] = useState<DailyReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const [scope, setScope] = useState<RadarScope>("all");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [rep, hist] = await Promise.all([
+        api.dailyReport().catch(() => null),
+        api.dailyReports(14).catch(() => ({ items: [] })),
+      ]);
+      setReport(rep);
+      setHistory(hist.items);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const generate = async () => {
+    setGenerating(true);
+    setError("");
+    try {
+      const rep = await api.dailyReportGenerate(scope);
+      setReport(rep);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "生成失败");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={scope}
+          onChange={(e) => setScope(e.target.value as RadarScope)}
+          className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+        >
+          <option value="all">中国 + 全球</option>
+          <option value="china">仅中国</option>
+          <option value="global">仅全球</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => void generate()}
+          disabled={generating}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {generating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          生成今日日报
+        </button>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-sm hover:bg-muted/60"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          刷新
+        </button>
+        {report && (
+          <span className="text-xs text-muted-foreground">
+            日期：{report.report_date} · {report.news_count} 条 · 生成于 {fmtDateTime(report.generated_at)}
+          </span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">
+          信源：财联社深度 · 华尔街见闻｜每日 08:00 自动生成 · 零 Token 规则引擎
+        </span>
+      </div>
+
+      {history.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">历史日报：</span>
+          {history.slice(0, 14).map((h) => (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() => void api.dailyReport(h.report_date).then(setReport)}
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-xs",
+                report?.report_date === h.report_date
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border hover:bg-muted/60",
+              )}
+            >
+              {h.report_date}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-3 rounded-md border border-red-500/40 bg-red-500/10 p-2.5 text-sm text-red-500">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex h-40 items-center justify-center text-muted-foreground">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 加载中…
+        </div>
+      ) : report ? (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="prose prose-sm max-w-none dark:prose-invert">
+            <MarkdownContent content={report.markdown} />
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          暂无日报。点击「生成今日日报」开始采集，或等待每日 08:00 自动生成。
+        </div>
+      )}
     </div>
   );
 }

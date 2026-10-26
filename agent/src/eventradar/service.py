@@ -969,3 +969,58 @@ def evaluate_report(report_id: str, evaluation: dict[str, Any]) -> dict[str, Any
         return edb.get_report(conn, report_id)  # type: ignore[return-value]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Daily report (investment-news-collector 6-section markdown)
+# ---------------------------------------------------------------------------
+
+def generate_daily_report(scope: str = "all") -> dict[str, Any]:
+    """Run the daily-report pipeline and persist the Markdown report.
+
+    One report per calendar date (Asia/Shanghai); re-running on the same
+    day overwrites the previous one. Returns the stored report row.
+    """
+    if scope not in VALID_SCOPES:
+        raise EventRadarError(f"非法扫描范围：{scope}")
+    from src.eventradar import daily_report
+
+    today = datetime.now(SHANGHAI_TZ).date()
+    result = daily_report.build_daily_report(scope)
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        rid = edb.upsert_daily_report(
+            conn,
+            report_date=today,
+            scope=scope,
+            markdown=result["markdown"],
+            news_count=result["news_count"],
+            source_status=None,
+        )
+        row = edb.get_daily_report(conn, today)
+        logger.info("日报已生成: %s (%d 条, id=%s)", today, result["news_count"], rid)
+        return row  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def get_daily_report(report_date: str | None = None) -> dict[str, Any] | None:
+    """Get the report for a given date (YYYY-MM-DD), or the latest if omitted."""
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        if report_date:
+            return edb.get_daily_report(conn, report_date)
+        return edb.get_latest_daily_report(conn)
+    finally:
+        conn.close()
+
+
+def list_daily_reports(limit: int = 30) -> list[dict[str, Any]]:
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        return edb.list_daily_reports(conn, limit=limit)
+    finally:
+        conn.close()

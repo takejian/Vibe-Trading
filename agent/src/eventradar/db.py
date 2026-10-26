@@ -141,6 +141,18 @@ CREATE TABLE IF NOT EXISTS event_report (
 CREATE INDEX IF NOT EXISTS idx_event_report_event ON event_report(event_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_report_run ON event_report(run_id);
 
+-- v1.3: investment-news-collector 日报（6 板块 Markdown）
+CREATE TABLE IF NOT EXISTS radar_daily_report (
+    id                VARCHAR PRIMARY KEY,
+    report_date       DATE NOT NULL UNIQUE,
+    scope             VARCHAR NOT NULL,
+    markdown          VARCHAR NOT NULL,
+    news_count        INTEGER DEFAULT 0,
+    source_status     VARCHAR,
+    generated_at      TIMESTAMP NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_daily_report_date ON radar_daily_report(report_date);
+
 -- One-row-per-key migration ledger.
 CREATE TABLE IF NOT EXISTS radar_schema_meta (
     key               VARCHAR PRIMARY KEY,
@@ -1000,3 +1012,79 @@ def pick_leaderboard(
         }
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Daily report (investment-news-collector 6-section markdown)
+# ---------------------------------------------------------------------------
+
+_DAILY_REPORT_COLUMNS = (
+    "id, report_date, scope, markdown, news_count, source_status, generated_at"
+)
+
+
+def _daily_report_row(row: Sequence[Any]) -> dict[str, Any]:
+    return {
+        "id": row[0],
+        "report_date": str(row[1]),
+        "scope": row[2],
+        "markdown": row[3],
+        "news_count": int(row[4]) if row[4] is not None else 0,
+        "source_status": _loads(row[5]) if row[5] else None,
+        "generated_at": row[6].isoformat() if row[6] else None,
+    }
+
+
+def upsert_daily_report(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    report_date: Any,
+    scope: str,
+    markdown: str,
+    news_count: int,
+    source_status: Sequence[Any] | None = None,
+) -> str:
+    """Insert or replace today's report (one report per date). Returns id."""
+    existing = conn.execute(
+        "SELECT id FROM radar_daily_report WHERE report_date = ?", [report_date]
+    ).fetchone()
+    rid = str(existing[0]) if existing else str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO radar_daily_report (id, report_date, scope, markdown, "
+        "news_count, source_status, generated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT (report_date) DO UPDATE SET "
+        "id = excluded.id, scope = excluded.scope, markdown = excluded.markdown, "
+        "news_count = excluded.news_count, source_status = excluded.source_status, "
+        "generated_at = excluded.generated_at",
+        [rid, report_date, scope, markdown, news_count,
+         _dumps(list(source_status)) if source_status else None, _now()],
+    )
+    return rid
+
+
+def get_daily_report(
+    conn: duckdb.DuckDBPyConnection, report_date: Any,
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        f"SELECT {_DAILY_REPORT_COLUMNS} FROM radar_daily_report "
+        "WHERE report_date = ?", [report_date],
+    ).fetchone()
+    return _daily_report_row(row) if row else None
+
+
+def get_latest_daily_report(conn: duckdb.DuckDBPyConnection) -> dict[str, Any] | None:
+    row = conn.execute(
+        f"SELECT {_DAILY_REPORT_COLUMNS} FROM radar_daily_report "
+        "ORDER BY report_date DESC LIMIT 1",
+    ).fetchone()
+    return _daily_report_row(row) if row else None
+
+
+def list_daily_reports(
+    conn: duckdb.DuckDBPyConnection, *, limit: int = 30,
+) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        f"SELECT {_DAILY_REPORT_COLUMNS} FROM radar_daily_report "
+        "ORDER BY report_date DESC LIMIT ?", [limit],
+    ).fetchall()
+    return [_daily_report_row(r) for r in rows]

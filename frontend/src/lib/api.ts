@@ -657,6 +657,16 @@ export interface DailyPick {
   created_at?: string | null;
 }
 
+export interface DailyReport {
+  id: string;
+  report_date: string;
+  scope: string;
+  markdown: string;
+  news_count: number;
+  source_status?: unknown;
+  generated_at: string;
+}
+
 export interface LeaderboardEntry {
   event_id?: string | null;
   title: string;
@@ -1587,6 +1597,19 @@ export const api = {
       `/events/daily-picks?${params.toString()}`,
     );
   },
+  dailyReportGenerate: (scope: RadarScope = "all") =>
+    request<DailyReport>("/events/daily-report/generate", {
+      method: "POST",
+      body: JSON.stringify({ scope }),
+    }),
+  dailyReport: (date?: string) => {
+    const q = date ? `?date=${encodeURIComponent(date)}` : "";
+    return request<DailyReport>(`/events/daily-report${q}`);
+  },
+  dailyReports: (limit = 30) =>
+    request<{ items: DailyReport[] }>(
+      `/events/daily-reports?limit=${String(limit)}`,
+    ),
   radarTfCandidates: (days?: number, limit = 50) => {
     const params = new URLSearchParams();
     if (days) params.set("days", String(days));
