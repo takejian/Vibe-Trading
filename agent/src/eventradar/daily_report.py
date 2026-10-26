@@ -577,6 +577,14 @@ SIGNAL_LABELS = {"strong_signal": "强烈信号", "watch": "跟踪观察", "data
 VALUE_ORDER = {"🔴": 0, "🟠": 1, "🟡": 2, "⚪": 3}
 
 
+def select_top5(news_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rank by value tier then score; deprioritize column/editorial posts."""
+    ranked = sorted(news_list, key=lambda x: (VALUE_ORDER.get(x["value_tier"], 99), -x["score"]))
+    top5 = ([n for n in ranked if not is_column_post(n["title"])]
+            + [n for n in ranked if is_column_post(n["title"])])[:5]
+    return top5
+
+
 def generate_report(news_list: list[dict[str, Any]]) -> str:
     today = datetime.now(SHANGHAI_TZ).strftime("%Y-%m-%d")
     now = datetime.now(SHANGHAI_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -615,9 +623,7 @@ def generate_report(news_list: list[dict[str, Any]]) -> str:
     lines.append("")
 
     # 板块 2: Top 5
-    ranked = sorted(news_list, key=lambda x: (VALUE_ORDER.get(x["value_tier"], 99), -x["score"]))
-    top5 = ([n for n in ranked if not is_column_post(n["title"])]
-            + [n for n in ranked if is_column_post(n["title"])])[:5]
+    top5 = select_top5(news_list)
     if top5:
         lines.append("## 🎯 今日高价值事件 Top 5")
         lines.append("")
@@ -728,14 +734,17 @@ def build_daily_report(scope: str = "all") -> dict[str, Any]:
                         f"今日无符合条件的科技财经资讯。",
             "news_count": 0,
             "generated_at": now,
+            "top5": [],
         }
 
     scored = score_and_classify(filtered)
     deduped_topics = topic_dedup(scored)
     enriched = enrich_summaries(deduped_topics)
     markdown = generate_report(enriched)
+    top5 = select_top5(enriched)
     return {
         "markdown": markdown,
         "news_count": len(enriched),
         "generated_at": datetime.now(SHANGHAI_TZ),
+        "top5": top5,
     }

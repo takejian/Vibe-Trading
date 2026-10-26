@@ -1606,6 +1606,10 @@ export const api = {
     const q = date ? `?date=${encodeURIComponent(date)}` : "";
     return request<DailyReport>(`/events/daily-report${q}`);
   },
+  dailyReportTop5: (date?: string) => {
+    const q = date ? `?date=${encodeURIComponent(date)}` : "";
+    return request<{ items: RadarEvent[] }>(`/events/daily-report/top5${q}`);
+  },
   dailyReports: (limit = 30) =>
     request<{ items: DailyReport[] }>(
       `/events/daily-reports?limit=${String(limit)}`,

@@ -110,6 +110,12 @@ def register_event_routes(app: FastAPI) -> None:
     ) -> dict[str, Any]:
         return {"items": service.list_daily_reports(limit=limit)}
 
+    @app.get("/events/daily-report/top5", dependencies=[Depends(require_auth)])
+    def get_daily_report_top5(
+        date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    ) -> dict[str, Any]:
+        return {"items": service.get_daily_report_top5(date)}
+
     # -- Daily picks / archive / Task Force candidates (v1.2) ----------
 
     @app.get("/events/daily-picks", dependencies=[Depends(require_auth)])

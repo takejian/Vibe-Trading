@@ -1042,7 +1042,7 @@ def upsert_daily_report(
     scope: str,
     markdown: str,
     news_count: int,
-    source_status: Sequence[Any] | None = None,
+    source_status: Any = None,
 ) -> str:
     """Insert or replace today's report (one report per date). Returns id."""
     existing = conn.execute(
@@ -1057,7 +1057,7 @@ def upsert_daily_report(
         "news_count = excluded.news_count, source_status = excluded.source_status, "
         "generated_at = excluded.generated_at",
         [rid, report_date, scope, markdown, news_count,
-         _dumps(list(source_status)) if source_status else None, _now()],
+         _dumps(source_status) if source_status else None, _now()],
     )
     return rid
 

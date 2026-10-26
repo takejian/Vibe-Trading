@@ -9,6 +9,7 @@ callback bus.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import uuid
@@ -975,11 +976,139 @@ def evaluate_report(report_id: str, evaluation: dict[str, Any]) -> dict[str, Any
 # Daily report (investment-news-collector 6-section markdown)
 # ---------------------------------------------------------------------------
 
+# Map skill event labels (Chinese) to radar event_type codes.
+_SKILL_EVENT_TYPE_MAP: dict[str, str] = {
+    "IPO/上市": "regulation",
+    "并购重组": "regulation",
+    "风险预警": "regulation",
+    "融资估值": "technology",
+    "政策监管": "regulation",
+    "业务里程碑": "technology",
+    "合作战略": "technology",
+    "产品发布": "technology",
+    "财报业绩": "technology",
+    "市场表现": "trade",
+}
+
+# Value tier → radar novelty/impact.
+_TIER_NOVELTY = {"🔴": "new_paradigm", "🟠": "known_escalation",
+                 "🟡": "known_continuation", "⚪": "known_continuation"}
+_TIER_IMPACT = {"🔴": "high", "🟠": "high", "🟡": "medium", "⚪": "low"}
+
+
+def _create_daily_report_events(
+    conn: Any, top5: list[dict[str, Any]], scope: str,
+) -> list[str]:
+    """Persist the daily report Top-5 as radar events so keep/discard/detail
+    work identically to scan-created events. Returns event_ids in rank order.
+    """
+    from src.eventradar import scoring as scoring_mod
+
+    event_ids: list[str] = []
+    now = datetime.now(SHANGHAI_TZ)
+    for rank, item in enumerate(top5, 1):
+        title = item["title"]
+        summary = item.get("summary") or item.get("content") or ""
+        published_at = item.get("published_at")
+        try:
+            seen = dedup.parse_published(published_at) if published_at else now
+        except Exception:
+            seen = now
+
+        skill_label = item.get("event_type") or "-"
+        event_type = _SKILL_EVENT_TYPE_MAP.get(skill_label, "technology")
+        value_tier = item.get("value_tier", "⚪")
+        novelty = _TIER_NOVELTY.get(value_tier, "known_continuation")
+        impact = _TIER_IMPACT.get(value_tier, "low")
+
+        # Derive verify_status/confidence from source tier.
+        source_name = item.get("source_name", "")
+        url = item.get("url", "")
+        best_tier = scoring_mod.source_tier(source_name, url)
+        independent = 1
+        status = scoring_mod.derive_status(
+            best_tier=best_tier, independent_sources=independent,
+            fact_consistency=0.7, confidence=0.6,
+            min_sources=2, confirm_threshold=0.7,
+        )
+        confidence = scoring_mod.confidence_score(
+            best_tier=best_tier, independent_sources=independent,
+            fact_consistency=0.7,
+        )
+
+        # Companies mentioned (from signal_hits like "★英伟达" / "☆特斯拉").
+        themes: list[str] = []
+        entities: list[str] = []
+        for hit in item.get("signal_hits", []):
+            if hit.startswith("★") or hit.startswith("☆"):
+                name = hit[1:].strip()
+                if name:
+                    themes.append(name)
+                    entities.append(name)
+        # Also pull the innovation keyword (💡突破 etc.) as a theme.
+        for hit in item.get("signal_hits", []):
+            if hit.startswith("💡"):
+                kw = hit[1:].strip()
+                if kw:
+                    themes.append(kw)
+
+        # Map the skill score (range ~10-100+) onto the 0-20 paradigm scale.
+        score = float(item.get("score", 0))
+        paradigm_total = int(min(20, max(0, round(score / 5))))
+
+        event_id = str(uuid.uuid4())
+        cluster_key = hashlib.sha1(
+            f"{event_type}:{title}".encode("utf-8")).hexdigest()[:16]
+        row = {
+            "event_id": event_id,
+            "title": title,
+            "event_type": event_type,
+            "entities": entities,
+            "regions": [],
+            "summary": summary[:500] if summary else None,
+            "impact_direction": "uncertain",
+            "affected_assets": [],
+            "cluster_key": cluster_key,
+            "simhash": dedup.to_hex(dedup.simhash64(title)),
+            "novelty_class": novelty,
+            "paradigm_scores": {"daily_report_score": round(score, 1),
+                                "daily_rank": rank},
+            "paradigm_total": paradigm_total,
+            "long_term_themes": themes,
+            "impact_level": impact,
+            "verify_status": status,
+            "confidence": confidence,
+            "source_count": 1,
+            "first_seen_at": seen,
+            "last_update_at": now,
+        }
+        edb.insert_event(conn, row)
+        # Single evidence row so the detail dialog has a source link.
+        edb.insert_evidence(
+            conn,
+            event_id=event_id,
+            url=url or "",
+            source_name=source_name or None,
+            source_tier=best_tier,
+            title=title,
+            snippet=summary[:500] if summary else None,
+            published_at=seen,
+            is_independent=True,
+            scan_id=f"daily-report-{scope}-{now.strftime('%Y%m%d')}",
+        )
+        edb.add_timeline(conn, event_id=event_id, change_type="created",
+                         to_value=status, note="daily-report top5")
+        event_ids.append(event_id)
+    return event_ids
+
+
 def generate_daily_report(scope: str = "all") -> dict[str, Any]:
     """Run the daily-report pipeline and persist the Markdown report.
 
     One report per calendar date (Asia/Shanghai); re-running on the same
-    day overwrites the previous one. Returns the stored report row.
+    day overwrites the previous one. The Top-5 items are also persisted as
+    radar events so the breaking-radar tab can keep/discard/detail them.
+    Returns the stored report row.
     """
     if scope not in VALID_SCOPES:
         raise EventRadarError(f"非法扫描范围：{scope}")
@@ -990,17 +1119,46 @@ def generate_daily_report(scope: str = "all") -> dict[str, Any]:
     conn = edb.event_connection()
     try:
         edb.initialize_schema(conn)
+        top5 = result.get("top5", [])
+        event_ids = _create_daily_report_events(conn, top5, scope) if top5 else []
         rid = edb.upsert_daily_report(
             conn,
             report_date=today,
             scope=scope,
             markdown=result["markdown"],
             news_count=result["news_count"],
-            source_status=None,
+            source_status={"event_ids": event_ids},
         )
         row = edb.get_daily_report(conn, today)
-        logger.info("日报已生成: %s (%d 条, id=%s)", today, result["news_count"], rid)
+        logger.info("日报已生成: %s (%d 条, top5=%d, id=%s)",
+                    today, result["news_count"], len(event_ids), rid)
         return row  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def get_daily_report_top5(report_date: str | None = None) -> list[dict[str, Any]]:
+    """Return the radar events created from the latest daily report's Top-5,
+    in rank order. Empty list if no report exists.
+    """
+    conn = edb.event_connection()
+    try:
+        edb.initialize_schema(conn)
+        report = (edb.get_daily_report(conn, report_date) if report_date
+                  else edb.get_latest_daily_report(conn))
+        if report is None:
+            return []
+        source_status = report.get("source_status")
+        event_ids: list[str] = []
+        if isinstance(source_status, dict):
+            event_ids = source_status.get("event_ids", []) or []
+        if not event_ids:
+            return []
+        events = edb.list_events_by_ids(conn, event_ids)
+        # Preserve the Top-5 rank order from the daily report.
+        order = {eid: i for i, eid in enumerate(event_ids)}
+        events.sort(key=lambda e: order.get(e["event_id"], 999))
+        return events
     finally:
         conn.close()
 

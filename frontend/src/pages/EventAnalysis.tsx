@@ -37,7 +37,6 @@ import {
   type LeaderboardEntry,
   type RadarEvent,
   type RadarEventDetail,
-  type RadarScanRun,
   type RadarScope,
   type ReviewRecord,
 } from "@/lib/api";
@@ -634,12 +633,8 @@ function DailyReportTab() {
 
 function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
   const [scope, setScope] = useState<RadarScope>("all");
-  const [scanning, setScanning] = useState(false);
-  const [scanRuns, setScanRuns] = useState<RadarScanRun[]>([]);
+  const [generating, setGenerating] = useState(false);
   const [events, setEvents] = useState<RadarEvent[]>([]);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [noveltyFilter, setNoveltyFilter] = useState("all");
-  const [topOnly, setTopOnly] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -647,44 +642,30 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      const [runsRes, eventsRes] = await Promise.all([
-        api.radarScanRuns(),
-        api.radarEvents({
-          status: statusFilter,
-          novelty: noveltyFilter,
-          limit: topOnly ? 5 : 300,
-        }),
-      ]);
-      setScanRuns(runsRes);
-      setEvents(eventsRes.items);
+      const res = await api.dailyReportTop5();
+      setEvents(res.items);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, noveltyFilter, topOnly]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const scanRunning = scanRuns.some((r) => r.status === "running");
-  useEffect(() => {
-    if (!scanRunning) return;
-    const timer = setInterval(() => void load(), 3000);
-    return () => clearInterval(timer);
-  }, [scanRunning, load]);
-
-  const startScan = async () => {
-    setScanning(true);
+  const generate = async () => {
+    setGenerating(true);
+    setError("");
     try {
-      await api.radarScan(scope);
+      await api.dailyReportGenerate(scope);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "扫描启动失败");
+      setError(e instanceof Error ? e.message : "生成失败");
     } finally {
-      setScanning(false);
+      setGenerating(false);
     }
   };
 
@@ -713,8 +694,6 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
     }
   };
 
-  const latestRun = scanRuns[0];
-
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -729,16 +708,16 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
         </select>
         <button
           type="button"
-          onClick={() => void startScan()}
-          disabled={scanning || scanRunning}
+          onClick={() => void generate()}
+          disabled={generating}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {scanning || scanRunning ? (
+          {generating ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Radar className="h-4 w-4" />
+            <Sparkles className="h-4 w-4" />
           )}
-          立即扫描
+          生成日报
         </button>
         <button
           type="button"
@@ -748,65 +727,14 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
           <RefreshCw className="h-3.5 w-3.5" />
           刷新
         </button>
-        {latestRun && (
-          <span className="text-xs text-muted-foreground">
-            最近批次：{latestRun.status === "running" ? "进行中…" : latestRun.status === "partial" ? "部分完成" : latestRun.status === "failed" ? "失败" : "完成"}
-            {latestRun.status !== "running" && (
-              <>
-                {" · 候选 "}
-                {latestRun.candidates} · 去重 {latestRun.duplicates} · 新事件{" "}
-                {latestRun.new_events} · {timeAgo(latestRun.finished_at || latestRun.started_at)}
-              </>
-            )}
-          </span>
-        )}
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-border bg-background px-2 py-1"
-        >
-          <option value="all">全部状态</option>
-          <option value="unverified">未证实</option>
-          <option value="verifying">核验中</option>
-          <option value="confirmed">已证实</option>
-          <option value="disputed">有争议</option>
-          <option value="rumor">谣言</option>
-        </select>
-        <select
-          value={noveltyFilter}
-          onChange={(e) => setNoveltyFilter(e.target.value)}
-          className="rounded-md border border-border bg-background px-2 py-1"
-        >
-          <option value="all">全部新颖度</option>
-          <option value="new_paradigm">重大机会候选</option>
-          <option value="known_escalation">已知升级</option>
-          <option value="known_continuation">已知延续</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => setTopOnly((v) => !v)}
-          className={cn(
-            "rounded-md border px-2.5 py-1",
-            topOnly
-              ? "border-primary/50 bg-primary/10 text-primary"
-              : "border-border hover:bg-muted/60",
-          )}
-        >
-          {topOnly ? "仅看最重要 5 条" : "查看全部"}
-        </button>
-        <span className="ml-auto text-muted-foreground">
-          信源：财联社深度 · 华尔街见闻｜每日 04:00 自动扫描 · 05:00 档案复查
+        <span className="ml-auto text-xs text-muted-foreground">
+          信源：财联社深度 · 华尔街见闻｜技能评分筛出今日高价值 Top 5｜每日 08:00 自动生成
         </span>
       </div>
 
-      {topOnly && (
-        <p className="mb-2 text-xs text-muted-foreground">
-          当日工作台：最重要的 5 条可「保留入档案」长期跟踪，其余事件下一轮扫描自动清除；丢弃的事件物理删除、不进档案。
-        </p>
-      )}
+      <p className="mb-2 text-xs text-muted-foreground">
+        当日工作台：技能筛选出的高价值 Top 5 条可「保留入档案」长期跟踪；丢弃的事件物理删除、不进档案。
+      </p>
 
       {error && (
         <div className="mb-3 rounded-md border border-red-500/40 bg-red-500/10 p-2.5 text-sm text-red-500">
@@ -821,11 +749,11 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
       ) : events.length === 0 ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground">
           <ShieldQuestion className="h-6 w-6" />
-          暂无事件，点击「立即扫描」开始
+          暂无日报，点击「生成日报」开始
         </div>
       ) : (
         <div className="space-y-2">
-          {events.map((event) => (
+          {events.map((event, idx) => (
             <div
               key={event.event_id}
               role="button"
@@ -840,6 +768,9 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
               )}
             >
               <div className="flex flex-wrap items-center gap-1.5">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                  {idx + 1}
+                </span>
                 <Badge label={STATUS_META[event.verify_status]?.label ?? event.verify_status} cls={STATUS_META[event.verify_status]?.cls ?? ""} />
                 {NOVELTY_META[event.novelty_class] && (
                   <Badge label={NOVELTY_META[event.novelty_class].label} cls={NOVELTY_META[event.novelty_class].cls} />
@@ -874,34 +805,32 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
                   )}
                 </div>
               )}
-              {topOnly && (
-                <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-border/60 pt-2">
-                  <button
-                    type="button"
-                    disabled={actionId === event.event_id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void discard(event);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-red-500/40 px-2 py-1 text-xs text-red-600 hover:bg-red-500/10 disabled:opacity-50"
-                  >
-                    {actionId === event.event_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    丢弃
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionId === event.event_id || event.archived}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void keep(event);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-violet-500/40 px-2 py-1 text-xs text-violet-600 hover:bg-violet-500/10 disabled:opacity-50"
-                  >
-                    <BookmarkCheck className="h-3.5 w-3.5" />
-                    {event.archived ? "已保留" : "保留入档案"}
-                  </button>
-                </div>
-              )}
+              <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-border/60 pt-2">
+                <button
+                  type="button"
+                  disabled={actionId === event.event_id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void discard(event);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-red-500/40 px-2 py-1 text-xs text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {actionId === event.event_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  丢弃
+                </button>
+                <button
+                  type="button"
+                  disabled={actionId === event.event_id || event.archived}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void keep(event);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-violet-500/40 px-2 py-1 text-xs text-violet-600 hover:bg-violet-500/10 disabled:opacity-50"
+                >
+                  <BookmarkCheck className="h-3.5 w-3.5" />
+                  {event.archived ? "已保留" : "保留入档案"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
