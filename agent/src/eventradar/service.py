@@ -978,6 +978,7 @@ def evaluate_report(report_id: str, evaluation: dict[str, Any]) -> dict[str, Any
 
 # Map skill event labels (Chinese) to radar event_type codes.
 _SKILL_EVENT_TYPE_MAP: dict[str, str] = {
+    # Daily-report mode (finance/company)
     "IPO/上市": "regulation",
     "并购重组": "regulation",
     "风险预警": "regulation",
@@ -988,6 +989,15 @@ _SKILL_EVENT_TYPE_MAP: dict[str, str] = {
     "产品发布": "technology",
     "财报业绩": "technology",
     "市场表现": "trade",
+    # Radar mode (macro/paradigm)
+    "技术范式突破": "technology",
+    "货币政策拐点": "monetary_fiscal",
+    "系统性风险": "regulation",
+    "范式/制度变革": "regulation",
+    "地缘政治冲击": "geopolitical",
+    "公共卫生危机": "public_health",
+    "产业链重塑": "technology",
+    "扩散类": "technology",
 }
 
 # Value tier → radar novelty/impact.
@@ -997,7 +1007,7 @@ _TIER_IMPACT = {"🔴": "high", "🟠": "high", "🟡": "medium", "⚪": "low"}
 
 
 def _create_daily_report_events(
-    conn: Any, top5: list[dict[str, Any]], scope: str,
+    conn: Any, top5: list[dict[str, Any]], scope: str, mode: str = "daily",
 ) -> list[str]:
     """Persist the daily report Top-5 as radar events so keep/discard/detail
     work identically to scan-created events. Returns event_ids in rank order.
@@ -1056,11 +1066,10 @@ def _create_daily_report_events(
         score = float(item.get("score", 0))
         paradigm_total = int(min(20, max(0, round(score / 5))))
 
-        event_id = str(uuid.uuid4())
         cluster_key = hashlib.sha1(
-            f"{event_type}:{title}".encode("utf-8")).hexdigest()[:16]
-        row = {
-            "event_id": event_id,
+            f"{mode}:{event_type}:{title}".encode("utf-8")).hexdigest()[:16]
+
+        fields = {
             "title": title,
             "event_type": event_type,
             "entities": entities,
@@ -1079,67 +1088,116 @@ def _create_daily_report_events(
             "verify_status": status,
             "confidence": confidence,
             "source_count": 1,
-            "first_seen_at": seen,
-            "last_update_at": now,
         }
-        edb.insert_event(conn, row)
+
+        # Dedup by cluster_key: if the same news already exists (e.g. re-run
+        # on the same day), refresh its fields and reuse the event_id instead
+        # of violating the unique constraint.
+        existing = edb.get_event_by_cluster_key(conn, cluster_key)
+        if existing is not None:
+            event_id = existing["event_id"]
+            edb.update_event_fields(conn, event_id, fields)
+        else:
+            event_id = str(uuid.uuid4())
+            row = dict(fields)
+            row["event_id"] = event_id
+            row["first_seen_at"] = seen
+            row["last_update_at"] = now
+            edb.insert_event(conn, row)
+            edb.add_timeline(conn, event_id=event_id, change_type="created",
+                             to_value=status, note="daily-report top5")
+
         # Single evidence row so the detail dialog has a source link.
-        edb.insert_evidence(
-            conn,
-            event_id=event_id,
-            url=url or "",
-            source_name=source_name or None,
-            source_tier=best_tier,
-            title=title,
-            snippet=summary[:500] if summary else None,
-            published_at=seen,
-            is_independent=True,
-            scan_id=f"daily-report-{scope}-{now.strftime('%Y%m%d')}",
-        )
-        edb.add_timeline(conn, event_id=event_id, change_type="created",
-                         to_value=status, note="daily-report top5")
+        # URL may already exist from the other scoring mode; skip in that case.
+        try:
+            edb.insert_evidence(
+                conn,
+                event_id=event_id,
+                url=url or "",
+                source_name=source_name or None,
+                source_tier=best_tier,
+                title=title,
+                snippet=summary[:500] if summary else None,
+                published_at=seen,
+                is_independent=True,
+                scan_id=f"daily-report-{mode}-{scope}-{now.strftime('%Y%m%d')}",
+            )
+        except Exception:
+            pass
         event_ids.append(event_id)
     return event_ids
 
 
-def generate_daily_report(scope: str = "all") -> dict[str, Any]:
+def generate_daily_report(scope: str = "all", *, mode: str = "daily") -> dict[str, Any]:
     """Run the daily-report pipeline and persist the Markdown report.
 
-    One report per calendar date (Asia/Shanghai); re-running on the same
-    day overwrites the previous one. The Top-5 items are also persisted as
-    radar events so the breaking-radar tab can keep/discard/detail them.
-    Returns the stored report row.
+    mode="daily" → finance/company scoring (日报 tab, 10 event types)
+    mode="radar" → macro/paradigm scoring (突发雷达 tab, 8 event types)
+
+    One report row per calendar date; both modes coexist in the same row via
+    separate keys in source_status ("event_ids" for daily, "radar_event_ids"
+    for radar). The Top-5 items are persisted as radar events so the
+    breaking-radar tab can keep/discard/detail them.
     """
     if scope not in VALID_SCOPES:
         raise EventRadarError(f"非法扫描范围：{scope}")
+    if mode not in ("daily", "radar"):
+        raise EventRadarError(f"非法模式：{mode}")
     from src.eventradar import daily_report
 
     today = datetime.now(SHANGHAI_TZ).date()
-    result = daily_report.build_daily_report(scope)
+    result = daily_report.build_daily_report(scope, mode=mode)
     conn = edb.event_connection()
     try:
         edb.initialize_schema(conn)
+        # Preserve the other mode's data from the existing row.
+        existing = edb.get_daily_report(conn, today)
+        existing_status = existing.get("source_status") if existing else None
+        merged: dict[str, Any] = dict(existing_status) if isinstance(existing_status, dict) else {}
+
+        # Persist mode-specific markdown & news_count inside source_status.
+        # The shared markdown/news_count columns are overwritten by whichever
+        # mode runs last, which previously made the 日报 tab render the radar
+        # Top-5 (scheduler runs daily then radar). The columns now always
+        # reflect the daily mode; radar content is kept under radar_* keys.
+        md_key = "radar_markdown" if mode == "radar" else "markdown"
+        nc_key = "radar_news_count" if mode == "radar" else "news_count"
+        merged[md_key] = result["markdown"]
+        merged[nc_key] = result["news_count"]
+
         top5 = result.get("top5", [])
-        event_ids = _create_daily_report_events(conn, top5, scope) if top5 else []
+        event_ids = _create_daily_report_events(conn, top5, scope, mode) if top5 else []
+        key = "radar_event_ids" if mode == "radar" else "event_ids"
+        merged[key] = event_ids
+
+        # The markdown/news_count columns serve the 日报 tab → keep the daily
+        # mode's values. Fall back to the current run's values if no daily
+        # markdown has been stored yet (e.g. radar generated before daily).
+        column_markdown = merged.get("markdown") or result["markdown"]
+        column_news_count = merged.get("news_count", result["news_count"])
         rid = edb.upsert_daily_report(
             conn,
             report_date=today,
             scope=scope,
-            markdown=result["markdown"],
-            news_count=result["news_count"],
-            source_status={"event_ids": event_ids},
+            markdown=column_markdown,
+            news_count=column_news_count,
+            source_status=merged,
         )
         row = edb.get_daily_report(conn, today)
-        logger.info("日报已生成: %s (%d 条, top5=%d, id=%s)",
-                    today, result["news_count"], len(event_ids), rid)
+        logger.info("日报已生成[%s]: %s (%d 条, top5=%d, id=%s)",
+                    mode, today, result["news_count"], len(event_ids), rid)
         return row  # type: ignore[return-value]
     finally:
         conn.close()
 
 
-def get_daily_report_top5(report_date: str | None = None) -> list[dict[str, Any]]:
+def get_daily_report_top5(report_date: str | None = None,
+                          *, mode: str = "radar") -> list[dict[str, Any]]:
     """Return the radar events created from the latest daily report's Top-5,
     in rank order. Empty list if no report exists.
+
+    mode="radar" → reads radar_event_ids (突发雷达 tab)
+    mode="daily" → reads event_ids (日报 tab)
     """
     conn = edb.event_connection()
     try:
@@ -1151,7 +1209,8 @@ def get_daily_report_top5(report_date: str | None = None) -> list[dict[str, Any]
         source_status = report.get("source_status")
         event_ids: list[str] = []
         if isinstance(source_status, dict):
-            event_ids = source_status.get("event_ids", []) or []
+            key = "radar_event_ids" if mode == "radar" else "event_ids"
+            event_ids = source_status.get(key, []) or []
         if not event_ids:
             return []
         events = edb.list_events_by_ids(conn, event_ids)

@@ -1597,18 +1597,20 @@ export const api = {
       `/events/daily-picks?${params.toString()}`,
     );
   },
-  dailyReportGenerate: (scope: RadarScope = "all") =>
+  dailyReportGenerate: (scope: RadarScope = "all", mode: "daily" | "radar" = "daily") =>
     request<DailyReport>("/events/daily-report/generate", {
       method: "POST",
-      body: JSON.stringify({ scope }),
+      body: JSON.stringify({ scope, mode }),
     }),
   dailyReport: (date?: string) => {
     const q = date ? `?date=${encodeURIComponent(date)}` : "";
     return request<DailyReport>(`/events/daily-report${q}`);
   },
-  dailyReportTop5: (date?: string) => {
-    const q = date ? `?date=${encodeURIComponent(date)}` : "";
-    return request<{ items: RadarEvent[] }>(`/events/daily-report/top5${q}`);
+  dailyReportTop5: (date?: string, mode: "daily" | "radar" = "radar") => {
+    const params = new URLSearchParams();
+    if (date) params.set("date", date);
+    params.set("mode", mode);
+    return request<{ items: RadarEvent[] }>(`/events/daily-report/top5?${params.toString()}`);
   },
   dailyReports: (limit = 30) =>
     request<{ items: DailyReport[] }>(

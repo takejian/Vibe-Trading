@@ -124,29 +124,71 @@ CORE_TECH_KEYWORDS = [
     "量子计算", "量子通信",
 ]
 
+# ---- 雷达模式宏观关键词（突发雷达 tab 允许通过领域过滤）----
+# 与 CORE_TECH_KEYWORDS 合并作为雷达模式的白名单，确保宏观/政策/地缘
+# 新闻能进入雷达评分器（日报模式仍只保留科技关键词命中）。
+MACRO_KEYWORDS = [
+    # 货币政策
+    "央行", "降准", "降息", "加息", "货币政策", "利率", "lpr", "mlf", "逆回购",
+    "流动性", "存款准备金", "再贷款", "再贴现", "公开市场", "美联储", "fed",
+    "欧央行", "日央行", "英央行", "缩表", "扩表", "qe", "taper",
+    # 财政
+    "财政", "赤字", "国债", "地方债", "专项债", "特别国债", "转移支付",
+    # 通胀/经济数据
+    "cpi", "ppi", "pce", "通胀", "通缩", "gdp", "经济增长", "衰退", "萧条",
+    "失业率", "非农", "制造业pmi", "pmi",
+    # 汇率/国际收支
+    "汇率", "人民币", "贬值", "升值", "外汇", "外储", "贸易逆差", "贸易顺差",
+    "经常账户", "资本外流",
+    # 地缘政治
+    "地缘", "制裁", "脱钩", "禁运", "封锁", "战争", "冲突", "关税", "贸易战",
+    "出口管制", "实体清单", "芯片法案", "反制裁", "中立", "结盟",
+    # 系统性风险
+    "系统性", "危机", "崩盘", "爆雷", "违约", "挤兑", "黑天鹅", "灰犀牛",
+    "流动性危机", "债务危机", "金融危机", "银行危机",
+    # 能源/大宗商品
+    "原油", "石油", "天然气", "煤炭", "opec", "油价", "大宗商品", "铁矿石",
+    "铜价", "黄金", "贵金属",
+    # 房地产/制度变革
+    "房地产", "楼市", "房价", "地产", "限购", "限贷", "棚改", "城中村",
+    "土地出让", "房产税",
+    # 债市
+    "债市", "债券", "收益率", "信用债", "利率债", "地方政府债",
+    # 监管/制度
+    "监管", "新规", "试点", "立法", "修法", "反垄断", "数据安全", "数据主权",
+    "平台治理", "金融监管", "证监会", "银保监会", "金融委",
+    # 公共卫生
+    "疫情", "公共卫生", "大流行", "传染病", "致死率",
+]
+
 EXCLUDE_PATTERNS = [
     r"\|速读公告", r"\|盘后公告集锦",
     r"退市风险警示.*触发", r"会计处理调整.*触发", r"可能被实施退市风险警示",
     r"世界杯|足球|球队|出线|小组赛|淘汰赛|半决赛|决赛",
     r"梅西|C罗|姆巴佩|内马尔|FIFA",
     r"五一.*出游|假期.*预订",
-    r"黄金.*大涨|金价.*上涨",
     r"红海航道|美伊.*和平|美伊.*封锁|美伊.*谈判|美伊会谈|霍尔木兹",
     r"伊朗.*美国|伊朗.*核|伊朗.*制裁|伊朗代表|伊朗宣布",
+    r"城市更新行动",
+    r"NBA|火箭队|篮球|湖人|勇士队|季后赛|球员|球队",
+    r"茅台|五粮液|白酒|金徽酒",
+    r"永辉超市|开立医疗|网达软件",
+    r"造谣|谣言|行政拘留|行拘|刑事拘留|警方通报|不实信息|治安管理处罚|寻衅滋事",
+    r"分手|绯闻|恋情|求婚|恋情曝光",
+]
+
+# 仅日报模式排除的宏观/政策类模式；雷达模式需要保留这些新闻用于宏观评分。
+EXCLUDE_PATTERNS_DAILY = [
+    r"黄金.*大涨|金价.*上涨",
     r"房价.*信号|二手房复苏",
-    r"GDP.*增长|国民经济", r"城市更新行动",
+    r"GDP.*增长|国民经济",
     r"央行.*降准|央行.*降息|货币政策|美联储.*加息|美联储.*降息",
     r"贸易逆差", r"GDP.*(终值|初值|年化|增速|数据|环比)",
     r"PCE|CPI.*(预期|数据|同比|环比)|PPI",
     r"加息预期|降息预期|加息概率|降息概率",
     r"楼市新政|房地产.*(新政|调控)|房屋销售|二手房.*(成交|价格)",
     r"摊余.*债基|信用债.*(抢筹|利差|发行)|债市.*(增量资金|震荡)",
-    r"NBA|火箭队|篮球|湖人|勇士队|季后赛|球员|球队",
     r"燃油|原油.*价格|石油.*出口|油价",
-    r"茅台|五粮液|白酒|金徽酒",
-    r"永辉超市|开立医疗|网达软件",
-    r"造谣|谣言|行政拘留|行拘|刑事拘留|警方通报|不实信息|治安管理处罚|寻衅滋事",
-    r"分手|绯闻|恋情|求婚|恋情曝光",
 ]
 
 
@@ -158,14 +200,27 @@ def _kw_matches(kw: str, content: str) -> bool:
     return k in c
 
 
-def filter_by_relevance(news_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def filter_by_relevance(news_list: list[dict[str, Any]], *, mode: str = "daily") -> list[dict[str, Any]]:
+    """领域过滤。
+
+    mode="daily"  → 仅保留科技关键词命中，同时排除宏观/政策类新闻
+    mode="radar"  → 保留科技 + 宏观关键词命中，不排除宏观/政策新闻
+    """
+    # 日报模式排除宏观类模式；雷达模式不排除（保留给宏观评分器）。
+    exclude_patterns = (
+        EXCLUDE_PATTERNS + EXCLUDE_PATTERNS_DAILY if mode == "daily" else EXCLUDE_PATTERNS
+    )
+    # 雷达模式允许宏观关键词通过白名单。
+    allow_keywords = (
+        CORE_TECH_KEYWORDS + MACRO_KEYWORDS if mode == "radar" else CORE_TECH_KEYWORDS
+    )
     result: list[dict[str, Any]] = []
     for news in news_list:
         title = news.get("title", "")
         summary = news.get("summary", "")
         content = f"{title} {summary}".lower()
         excluded = False
-        for pattern in EXCLUDE_PATTERNS:
+        for pattern in exclude_patterns:
             try:
                 if re.search(pattern, title, re.IGNORECASE):
                     excluded = True
@@ -176,9 +231,9 @@ def filter_by_relevance(news_list: list[dict[str, Any]]) -> list[dict[str, Any]]
             continue
         if is_low_value_column_post(title):
             continue
-        if any(_kw_matches(kw, content) for kw in CORE_TECH_KEYWORDS):
+        if any(_kw_matches(kw, content) for kw in allow_keywords):
             result.append(news)
-    logger.info("日报领域过滤: %d条 -> %d条", len(news_list), len(result))
+    logger.info("日报领域过滤[%s]: %d条 -> %d条", mode, len(news_list), len(result))
     return result
 
 
@@ -326,6 +381,152 @@ def score_and_classify(news_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         news["signal_hits"] = signal_hits
         news["event_type"] = event_label or "-"
         news["mag_factor"] = round(mag_factor, 2)
+        news["decay_factor"] = round(decay_factor, 2)
+        if final_score >= 42:
+            news["value_tier"] = "🔴"
+        elif final_score >= 32:
+            news["value_tier"] = "🟠"
+        elif final_score >= 22:
+            news["value_tier"] = "🟡"
+        else:
+            news["value_tier"] = "⚪"
+    news_list.sort(key=lambda x: x["score"], reverse=True)
+    return news_list[:MAX_FINAL]
+
+
+# ---- 雷达评分（突发雷达 tab 使用，宏观/范式导向，权重见 SKILL.md）----
+
+RADAR_EVENT_TYPES: dict[str, dict[str, Any]] = {
+    "tech_paradigm": {"keywords": ["突破性", "商用化", "量产", "国产替代", "卡脖子",
+                                   "范式", "重构", "颠覆性", "sota", "全球第一",
+                                   "行业首创", "世界首例"],
+                       "label": "技术范式突破", "weight": 30, "icon": "🔴", "require_title_for_strong": True},
+    "monetary_turning": {"keywords": ["拐点", "周期转向", "加息周期", "降息周期", "缩表", "扩表",
+                                      "央行", "货币政策", "降准", "降息", "加息", "利率",
+                                      "流动性", "存款准备金", "逆回购", "mlf", "lpr", "公开市场",
+                                      "美联储", "fed", "欧央行", "日央行", "英央行",
+                                      "财政", "赤字", "国债", "地方债", "专项债",
+                                      "债市", "债券", "收益率", "信用债", "利率债"],
+                          "label": "货币政策拐点", "weight": 25, "icon": "🔴"},
+    "systemic_risk": {"keywords": ["系统性", "违约", "挤兑", "流动性危机", "黑天鹅", "崩盘", "爆雷",
+                                   "危机", "破产", "清算", "退市", "债务危机", "金融危机",
+                                   "银行危机", "灰犀牛"],
+                       "label": "系统性风险", "weight": 25, "icon": "🔴", "require_title_for_strong": True},
+    "institution_change": {"keywords": ["制度性", "历史性", "首次", "里程碑", "监管", "数据主权",
+                                         "反垄断", "平台治理", "出口管制", "制裁", "脱钩", "禁运",
+                                         "封锁", "战争", "冲突升级", "新规", "试点", "立法",
+                                         "修法", "改革", "政策", "数据安全", "金融监管",
+                                         "证监会", "银保监会", "金融委"],
+                            "label": "范式/制度变革", "weight": 20, "icon": "🟠"},
+    "geopolitical": {"keywords": ["地缘", "制裁", "脱钩", "禁运", "封锁", "战争", "冲突升级",
+                                  "关税", "贸易战", "实体清单", "芯片法案", "反制裁"],
+                      "label": "地缘政治冲击", "weight": 20, "icon": "🟠"},
+    "public_health": {"keywords": ["致死率高", "传染", "疫情危机", "公共卫生危机", "大流行"],
+                       "label": "公共卫生危机", "weight": 20, "icon": "🟠"},
+    "industry_reshape": {"keywords": ["产业链", "重塑", "供应链", "重构", "转移", "能源",
+                                      "原油", "石油", "天然气", "煤炭", "opec", "油价",
+                                      "大宗商品", "铁矿石", "铜价", "黄金", "贵金属",
+                                      "房地产", "楼市", "房价", "地产"],
+                          "label": "产业链重塑", "weight": 15, "icon": "🟡"},
+    "diffusion": {"keywords": ["用户破亿", "指数增长", "历史最快", "颠覆", "普及"],
+                   "label": "扩散类", "weight": 15, "icon": "🟡"},
+}
+
+
+def _classify_event_radar(content: str, title: str) -> tuple[Optional[dict], int, bool]:
+    """Return (event_info, score, title_hit). Title hit = full weight, body = 1/3."""
+    title_lower = title.lower()
+    content_lower = content.lower()
+    for info in RADAR_EVENT_TYPES.values():
+        for kw in info["keywords"]:
+            kw_l = kw.lower()
+            if kw_l in title_lower:
+                return info, info["weight"], True
+            if kw_l in content_lower:
+                return info, max(1, info["weight"] // 3), False
+    return None, 0, False
+
+
+def _extract_duration_factor(content: str) -> float:
+    """影响时长因子：>5 年 ×1.30；1–5 年 ×1.15；<1 年 ×1.00"""
+    if re.search(r"[5-9]\s*年|十年|长期|永久", content):
+        return 1.30
+    if re.search(r"[1-4]\s*年", content):
+        return 1.15
+    return 1.00
+
+
+def _extract_breadth_factor(content: str) -> float:
+    """广度因子：跨资产 ×1.30；跨行业 ≥3 ×1.15；单行业/单公司 ×1.00"""
+    if re.search(r"跨资产|多资产|股债商|全球市场", content):
+        return 1.30
+    industries = re.findall(
+        r"(半导体|芯片|人工智能|ai|新能源|汽车|医药|生物|金融|地产|消费|能源|军工|"
+        r"云计算|软件|互联网|制造|化工|农业)", content.lower())
+    if len(set(industries)) >= 3:
+        return 1.15
+    return 1.00
+
+
+def score_and_classify_radar(news_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Radar-tab scoring: macro/paradigm oriented (weights per SKILL.md)."""
+    for news in news_list:
+        title = news["title"]
+        summary = news.get("summary", "")
+        content = f"{title} {summary}".lower()
+        score = 10
+        event_info, event_score, title_hit = _classify_event_radar(content, title)
+        score += event_score
+        if event_info:
+            weight = event_info["weight"]
+            # 强烈信号必须标题命中（技术范式突破/风险类等标注 require_title_for_strong 的类型）
+            require_title = event_info.get("require_title_for_strong", False)
+            if require_title and not title_hit:
+                weight = min(weight, 21)
+            if weight >= 22:
+                signal_type = "strong_signal"
+            elif weight >= 10:
+                signal_type = "watch"
+            else:
+                signal_type = "data_ref"
+            event_label = event_info["label"]
+            signal_hits = [f"{event_info['icon']} {event_label}"]
+        else:
+            signal_type = "data_ref"
+            event_label = ""
+            signal_hits = []
+        # 公司加分（与日报共用分档）
+        company_bonus = 0
+        for company in TIER1_COMPANIES:
+            if company.lower() in content:
+                company_bonus = 8
+                signal_hits.append(f"★{company}")
+                break
+        if company_bonus == 0:
+            for company in TIER2_COMPANIES:
+                if company.lower() in content:
+                    company_bonus = 5
+                    signal_hits.append(f"☆{company}")
+                    break
+        score += company_bonus
+        # 创新/突破加分
+        for kw in ["首创", "突破", "全球第一", "sota", "首个", "刷新纪录", "世界首例", "行业首创"]:
+            if kw in title:
+                score += 8
+                signal_hits.append(f"💡{kw}")
+                break
+        mag_factor = _extract_magnitude(content)
+        duration_factor = _extract_duration_factor(content)
+        breadth_factor = _extract_breadth_factor(content)
+        decay_factor = _time_decay_factor(_parse_news_time(news))
+        final_score = round(score * mag_factor * duration_factor * breadth_factor * decay_factor, 1)
+        news["score"] = final_score
+        news["signal_type"] = signal_type
+        news["signal_hits"] = signal_hits
+        news["event_type"] = event_label or "-"
+        news["mag_factor"] = round(mag_factor, 2)
+        news["duration_factor"] = round(duration_factor, 2)
+        news["breadth_factor"] = round(breadth_factor, 2)
         news["decay_factor"] = round(decay_factor, 2)
         if final_score >= 42:
             news["value_tier"] = "🔴"
@@ -711,11 +912,16 @@ def generate_report(news_list: list[dict[str, Any]]) -> str:
 
 # ---- 管线入口 ----
 
-def build_daily_report(scope: str = "all") -> dict[str, Any]:
+def build_daily_report(scope: str = "all", *, mode: str = "daily") -> dict[str, Any]:
+    """Build the daily report.
+
+    mode="daily"  → finance/company scoring (10 event types, for the 日报 tab)
+    mode="radar"  → macro/paradigm scoring (8 event types, for the 突发雷达 tab)
+    """
     from src.eventradar import sources
     collected = sources.collect(scope)
     candidates = collected["candidates"]
-    logger.info("日报采集: %d 条候选", len(candidates))
+    logger.info("日报采集[%s]: %d 条候选", mode, len(candidates))
 
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
@@ -726,7 +932,7 @@ def build_daily_report(scope: str = "all") -> dict[str, Any]:
             deduped.append(news)
     logger.info("日报 MD5 去重: %d -> %d", len(candidates), len(deduped))
 
-    filtered = filter_by_relevance(deduped)
+    filtered = filter_by_relevance(deduped, mode=mode)
     if not filtered:
         now = datetime.now(SHANGHAI_TZ)
         return {
@@ -737,7 +943,8 @@ def build_daily_report(scope: str = "all") -> dict[str, Any]:
             "top5": [],
         }
 
-    scored = score_and_classify(filtered)
+    scorer = score_and_classify_radar if mode == "radar" else score_and_classify
+    scored = scorer(filtered)
     deduped_topics = topic_dedup(scored)
     enriched = enrich_summaries(deduped_topics)
     markdown = generate_report(enriched)

@@ -528,7 +528,7 @@ function DailyReportTab() {
     setGenerating(true);
     setError("");
     try {
-      const rep = await api.dailyReportGenerate(scope);
+      const rep = await api.dailyReportGenerate(scope, "daily");
       setReport(rep);
       await load();
     } catch (e) {
@@ -642,7 +642,7 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.dailyReportTop5();
+      const res = await api.dailyReportTop5(undefined, "radar");
       setEvents(res.items);
       setError("");
     } catch (e) {
@@ -660,7 +660,7 @@ function RadarTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
     setGenerating(true);
     setError("");
     try {
-      await api.dailyReportGenerate(scope);
+      await api.dailyReportGenerate(scope, "radar");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "生成失败");

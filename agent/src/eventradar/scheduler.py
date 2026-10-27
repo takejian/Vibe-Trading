@@ -162,8 +162,11 @@ async def _daily_report_loop(app: Any) -> None:
             if now < next_due:
                 continue
             try:
-                await asyncio.to_thread(service.generate_daily_report, "all")
-                logger.info("event radar daily report generated")
+                # Generate both scoring modes so the 日报 tab (finance/company)
+                # and the 突发雷达 tab (macro/paradigm) both get fresh Top-5.
+                await asyncio.to_thread(service.generate_daily_report, "all", mode="daily")
+                await asyncio.to_thread(service.generate_daily_report, "all", mode="radar")
+                logger.info("event radar daily report generated (daily + radar)")
             except Exception:
                 logger.warning("event radar daily report generation failed",
                                exc_info=True)

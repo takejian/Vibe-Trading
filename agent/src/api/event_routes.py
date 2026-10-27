@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class ScanBody(BaseModel):
     scope: str = Field(default="all", pattern="^(china|global|all)$")
+    mode: str = Field(default="daily", pattern="^(daily|radar)$")
 
 
 class VerifyBody(BaseModel):
@@ -91,7 +92,7 @@ def register_event_routes(app: FastAPI) -> None:
     @app.post("/events/daily-report/generate", dependencies=[Depends(require_auth)])
     def generate_daily_report(body: ScanBody) -> dict[str, Any]:
         try:
-            return service.generate_daily_report(body.scope)
+            return service.generate_daily_report(body.scope, mode=body.mode)
         except Exception as exc:
             raise _handle_service_errors(exc) from exc
 
@@ -113,8 +114,9 @@ def register_event_routes(app: FastAPI) -> None:
     @app.get("/events/daily-report/top5", dependencies=[Depends(require_auth)])
     def get_daily_report_top5(
         date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+        mode: str = Query(default="radar", pattern="^(daily|radar)$"),
     ) -> dict[str, Any]:
-        return {"items": service.get_daily_report_top5(date)}
+        return {"items": service.get_daily_report_top5(date, mode=mode)}
 
     # -- Daily picks / archive / Task Force candidates (v1.2) ----------
 
