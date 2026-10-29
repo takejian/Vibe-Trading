@@ -88,9 +88,17 @@ def get_cycle_months(cycle_id: int) -> dict[str, Any]:
 
 
 def trigger_refresh(source: str = "manual") -> dict[str, Any]:
-    """Refresh the last-completed month via LLM. Returns diff summary + pending flags."""
-    # Determine target month: previous natural month
-    target_month = _previous_month_str(date.today())
+    """Refresh the latest month via LLM. Returns diff summary + pending flags.
+
+    - ``source="manual"``: target = current month (try fetching the in-progress
+      month; if not yet official, keep last month's snapshot).
+    - ``source="scheduler"``: target = previous month (run on the 1st).
+    """
+    today = date.today()
+    if source == "scheduler":
+        target_month = _previous_month_str(today)
+    else:
+        target_month = _current_month_str(today)
 
     try:
         llm_data = _fetch_via_llm(target_month)
@@ -406,6 +414,10 @@ def _auto_detect_cycle(conn: Any) -> dict[str, Any] | None:
 def _tips_available_for_month(month: str) -> bool:
     """TIPS data only exists from 2003-01 onward."""
     return month >= "2003-01"
+
+
+def _current_month_str(today: date) -> str:
+    return f"{today.year:04d}-{today.month:02d}"
 
 
 def _previous_month_str(today: date) -> str:

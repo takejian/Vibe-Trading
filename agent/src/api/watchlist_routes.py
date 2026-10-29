@@ -32,7 +32,11 @@ from src.watchlist.market import normalize_a_share_symbol
 from src.watchlist.models import QuoteSnapshot
 from src.watchlist.role_catalog_filter import CHANLUN_ROLE_REF
 from src.watchlist.store import (
+    DuplicateGroupError,
     DuplicateWatchError,
+    GroupNotFoundError,
+    SystemGroupError,
+    WatchlistError,
     WatchlistStore,
 )
 
@@ -171,6 +175,19 @@ class AddWatchBody(BaseModel):
     symbol: str
     name: str = ""
     industry: str | None = None
+    group_id: str | None = None
+
+
+class MoveWatchBody(BaseModel):
+    group_id: str
+
+
+class CreateGroupBody(BaseModel):
+    name: str
+
+
+class UpdateGroupBody(BaseModel):
+    name: str
 
 
 class ObjectiveFetchBody(BaseModel):
@@ -206,11 +223,17 @@ def register_watchlist_routes(app: FastAPI) -> None:
 
     # -- Membership --------------------------------------------------------
     @app.get("/watch/list", dependencies=[Depends(require_auth)])
-    def list_watch() -> dict[str, Any]:
+    def list_watch(
+        group_id: str | None = Query(None),
+        exclude_group_ids: str | None = Query(None),
+    ) -> dict[str, Any]:
         store = _get_watch_store()
         quote_error: str | None = None
         snapshots: dict[str, QuoteSnapshot] = {}
-        entries = store.list_entries()
+        exclude: set[str] | None = None
+        if exclude_group_ids:
+            exclude = {g.strip() for g in exclude_group_ids.split(",") if g.strip()}
+        entries = store.list_entries(group_id=group_id, exclude_group_ids=exclude)
         if entries:
             try:
                 snapshots = watch_market.fetch_quote_snapshots(
@@ -219,11 +242,18 @@ def register_watchlist_routes(app: FastAPI) -> None:
             except watch_market.WatchlistDataError as exc:
                 quote_error = str(exc)
 
-        # Merge every snapshot in a single document write (no per-row I/O).
         stamped = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
             entries = store.apply_quote_snapshots(snapshots, stamped_at=stamped)
-        except Exception:  # noqa: BLE001 - cache failure keeps page alive
+            # Re-filter after quote merge since apply_quote_snapshots returns
+            # the full membership; keep the requested view.
+            if group_id is not None or exclude:
+                entries = [
+                    e for e in entries
+                    if (group_id is None or e.group_id == group_id)
+                    and (exclude is None or e.group_id not in exclude)
+                ]
+        except Exception:  # noqa: BLE001
             logger.warning("watchlist quote cache merge failed", exc_info=True)
         return {"items": [entry.model_dump() for entry in entries],
                 "quote_error": quote_error}
@@ -234,14 +264,20 @@ def register_watchlist_routes(app: FastAPI) -> None:
         symbol = _symbol_or_400(body.symbol)
         try:
             entry = store.add_entry(
-                symbol, name=body.name, industry=body.industry
+                symbol,
+                name=body.name,
+                industry=body.industry,
+                group_id=body.group_id or "default",
             )
         except DuplicateWatchError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except GroupNotFoundError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return entry.model_dump()
 
     @app.delete("/watch/{symbol}", dependencies=[Depends(require_auth)])
     def remove_watch(symbol: str) -> dict[str, Any]:
+        """Hard-delete a membership row (e.g. from 'canceled' group)."""
         store = _get_watch_store()
         symbol = _symbol_or_400(symbol)
         if not store.remove_entry(symbol):
@@ -249,6 +285,116 @@ def register_watchlist_routes(app: FastAPI) -> None:
                 status_code=404, detail=f"标的不在关注列表中: {symbol}"
             )
         return {"ok": True, "symbol": symbol}
+
+    @app.post(
+        "/watch/{symbol}/cancel",
+        dependencies=[Depends(require_auth)],
+    )
+    def cancel_watch(symbol: str) -> dict[str, Any]:
+        """Soft cancel — move an active entry into the 'canceled' group."""
+        store = _get_watch_store()
+        symbol = _symbol_or_400(symbol)
+        try:
+            entry = store.cancel_entry(symbol)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except WatchlistError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return entry.model_dump()
+
+    @app.post(
+        "/watch/{symbol}/restore",
+        dependencies=[Depends(require_auth)],
+    )
+    def restore_watch(symbol: str) -> dict[str, Any]:
+        """Restore a canceled entry back to the 'default' group."""
+        store = _get_watch_store()
+        symbol = _symbol_or_400(symbol)
+        try:
+            entry = store.restore_entry(symbol)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except WatchlistError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return entry.model_dump()
+
+    @app.post(
+        "/watch/{symbol}/move",
+        dependencies=[Depends(require_auth)],
+    )
+    def move_watch(
+        symbol: str,
+        body: "MoveWatchBody",
+    ) -> dict[str, Any]:
+        store = _get_watch_store()
+        symbol = _symbol_or_400(symbol)
+        try:
+            entry = store.move_entry(symbol, body.group_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except GroupNotFoundError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except WatchlistError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return entry.model_dump()
+
+    # -- Groups ------------------------------------------------------------
+    @app.get("/watch/groups", dependencies=[Depends(require_auth)])
+    def list_groups() -> dict[str, Any]:
+        store = _get_watch_store()
+        groups = store.list_groups()
+        counts: dict[str, int] = {}
+        for g in groups:
+            counts[g.id] = len(store.list_entries(group_id=g.id))
+        return {
+            "items": [
+                {**g.model_dump(), "count": counts.get(g.id, 0)}
+                for g in groups
+            ]
+        }
+
+    @app.post("/watch/groups", dependencies=[Depends(require_auth)])
+    def create_group(body: "CreateGroupBody") -> dict[str, Any]:
+        store = _get_watch_store()
+        try:
+            group = store.create_group(body.name)
+        except DuplicateGroupError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except WatchlistError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return group.model_dump()
+
+    @app.patch(
+        "/watch/groups/{group_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    def rename_group(group_id: str, body: "UpdateGroupBody") -> dict[str, Any]:
+        store = _get_watch_store()
+        try:
+            group = store.rename_group(group_id, body.name)
+        except GroupNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SystemGroupError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except DuplicateGroupError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except WatchlistError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return group.model_dump()
+
+    @app.delete(
+        "/watch/groups/{group_id}",
+        dependencies=[Depends(require_auth)],
+    )
+    def delete_group(group_id: str) -> dict[str, Any]:
+        store = _get_watch_store()
+        try:
+            relocated = store.delete_group(group_id)
+        except GroupNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SystemGroupError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return {"ok": True, "relocated": relocated}
 
     # -- Search ------------------------------------------------------------
     @app.get("/watch/search", dependencies=[Depends(require_auth)])

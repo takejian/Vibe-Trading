@@ -1343,7 +1343,16 @@ export const api = {
     request<{ status: string }>("/api/paper/reset", { method: "POST" }),
 
   // --- M16 personal A-share watchlist -------------------------------------
-  listWatch: () => request<WatchListResponse>("/watch/list"),
+  listWatch: (options?: { group_id?: string; exclude_group_ids?: string[] }) => {
+    const params = new URLSearchParams();
+    if (options?.group_id) params.set("group_id", options.group_id);
+    if (options?.exclude_group_ids?.length)
+      params.set("exclude_group_ids", options.exclude_group_ids.join(","));
+    const qs = params.toString();
+    return request<WatchListResponse>(
+      `/watch/list${qs ? `?${qs}` : ""}`,
+    );
+  },
   addWatch: (body: AddWatchRequest) =>
     request<WatchEntry>("/watch", {
       method: "POST",
@@ -1352,6 +1361,36 @@ export const api = {
   removeWatch: (symbol: string) =>
     request<{ ok: boolean; symbol: string }>(
       `/watch/${encodeURIComponent(symbol)}`,
+      { method: "DELETE" },
+    ),
+  cancelWatch: (symbol: string) =>
+    request<WatchEntry>(`/watch/${encodeURIComponent(symbol)}/cancel`, {
+      method: "POST",
+    }),
+  restoreWatch: (symbol: string) =>
+    request<WatchEntry>(`/watch/${encodeURIComponent(symbol)}/restore`, {
+      method: "POST",
+    }),
+  moveWatch: (symbol: string, groupId: string) =>
+    request<WatchEntry>(`/watch/${encodeURIComponent(symbol)}/move`, {
+      method: "POST",
+      body: JSON.stringify({ group_id: groupId }),
+    }),
+  listWatchGroups: () =>
+    request<{ items: WatchGroup[] }>("/watch/groups"),
+  createWatchGroup: (name: string) =>
+    request<WatchGroup>("/watch/groups", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  renameWatchGroup: (groupId: string, name: string) =>
+    request<WatchGroup>(`/watch/groups/${encodeURIComponent(groupId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteWatchGroup: (groupId: string) =>
+    request<{ ok: boolean; relocated: number }>(
+      `/watch/groups/${encodeURIComponent(groupId)}`,
       { method: "DELETE" },
     ),
   searchWatch: (q: string) =>
@@ -1652,22 +1691,22 @@ export const api = {
     ),
 
   // --- Gold policy-cycle monitor ---
-  goldCurrent: () => request<GoldCurrentStatus>("/gold/current"),
-  goldCycles: () => request<GoldCyclesResponse>("/gold/cycles"),
+  goldCurrent: () => request<GoldCurrentStatus>("/api/gold/current"),
+  goldCycles: () => request<GoldCyclesResponse>("/api/gold/cycles"),
   goldCycleMonths: (cycleId: number) =>
-    request<GoldCycleMonthsResponse>(`/gold/cycles/${cycleId}/months`),
-  goldRefresh: () => request<GoldRefreshResult>("/gold/refresh", { method: "POST" }),
+    request<GoldCycleMonthsResponse>(`/api/gold/cycles/${cycleId}/months`),
+  goldRefresh: () => request<GoldRefreshResult>("/api/gold/refresh", { method: "POST" }),
   goldConfirm: (targetMonth: string, acceptFields?: string[]) =>
-    request<GoldConfirmResult>("/gold/confirm", {
+    request<GoldConfirmResult>("/api/gold/confirm", {
       method: "POST",
       body: JSON.stringify({ target_month: targetMonth, accept_fields: acceptFields ?? null }),
     }),
   goldApproveCycle: (cycleId: number) =>
     request<{ cycle_id: number; status: string }>(
-      `/gold/cycle/${cycleId}/approve`,
+      `/api/gold/cycle/${cycleId}/approve`,
       { method: "POST" },
     ),
-  goldRefreshNeeded: () => request<GoldRefreshNeeded>("/gold/refresh-needed"),
+  goldRefreshNeeded: () => request<GoldRefreshNeeded>("/api/gold/refresh-needed"),
 };
 
 // --- Scheduled research types ---
@@ -3272,10 +3311,18 @@ export interface QuoteSnapshot {
   quote_updated_at: string | null;
 }
 
+export interface WatchGroup {
+  id: string;
+  name: string;
+  system: boolean;
+  count?: number;
+}
+
 export interface WatchEntry {
   symbol: string;
   name: string;
   industry: string | null;
+  group_id: string;
   added_at: string;
   updated_at: string;
   quote: QuoteSnapshot | null;
@@ -3290,6 +3337,19 @@ export interface AddWatchRequest {
   symbol: string;
   name?: string;
   industry?: string | null;
+  group_id?: string;
+}
+
+export interface MoveWatchRequest {
+  group_id: string;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+}
+
+export interface UpdateGroupRequest {
+  name: string;
 }
 
 export interface WatchCandidate {

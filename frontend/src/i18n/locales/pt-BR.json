@@ -2523,7 +2523,10 @@
     "action": {
       "view": "Ver",
       "cancel": "Remover",
-      "refresh": "Atualizar"
+      "refresh": "Atualizar",
+      "restore": "Follow again",
+      "hardDelete": "Delete",
+      "moveTo": "Move to group"
     },
     "confirmCancel": {
       "title": "Remover da lista?",
@@ -2776,6 +2779,28 @@
     "error": {
       "dataFailed": "Erro no serviço de dados, tente novamente",
       "duplicate": "Este ativo já está na sua lista"
+    },
+    "group": {
+      "default": "Watchlist",
+      "canceled": "Canceled",
+      "addNew": "+ New group",
+      "createTitle": "Create group",
+      "createPlaceholder": "Group name",
+      "renameTitle": "Rename group",
+      "deleteTitle": "Delete group",
+      "deleteMessage": "Delete group? All symbols inside will move to the \"Canceled\" group.",
+      "nameExists": "Group name already exists",
+      "systemReadOnly": "System groups cannot be edited",
+      "confirmDeleteTitle": "Permanently remove?",
+      "confirmDeleteMessage": "Remove {{name}} ({{symbol}}) from your watchlist? Analysis history is kept.",
+      "confirmCancelTitle": "Unwatch symbol?",
+      "confirmCancelMessage": "Move {{name}} ({{symbol}}) to the \"Canceled\" group.",
+      "confirmRestoreTitle": "Follow again?",
+      "confirmRestoreMessage": "Move {{name}} ({{symbol}}) back to the \"Watchlist\" group."
+    },
+    "emptyCanceled": {
+      "title": "No canceled symbols",
+      "hint": "Unwatched symbols land here automatically so you can still review them"
     }
   },
   "paper": {

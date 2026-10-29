@@ -89,9 +89,9 @@ def test_apply_quote_snapshots_single_write(tmp_path: Path, monkeypatch) -> None
 
     writes = []
     original = store._write
-    def counting(entries):
+    def counting(groups, entries):
         writes.append(len(entries))
-        return original(entries)
+        return original(groups, entries)
     monkeypatch.setattr(store, "_write", counting)
 
     result = store.apply_quote_snapshots(
@@ -141,11 +141,15 @@ def test_write_is_atomic_single_document(tmp_path: Path) -> None:
     data = json.loads(
         (tmp_path / "watchlist" / "watchlist.json").read_text(encoding="utf-8")
     )
-    assert data["version"] == 1
+    assert data["version"] == 2
     assert {row["symbol"] for row in data["entries"]} == {
         "600519.SH",
         "000001.SZ",
     }
+    # v2 document always carries the two system groups.
+    group_ids = {g["id"] for g in data.get("groups", [])}
+    assert "default" in group_ids
+    assert "canceled" in group_ids
     # No temp files left behind after a successful write.
     leftovers = [
         p.name

@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS gold_policy_cycle (
 );
 
 CREATE TABLE IF NOT EXISTS gold_refresh_log (
-    log_id          INTEGER PRIMARY KEY,
+    log_id          UUID PRIMARY KEY DEFAULT uuid(),
     refreshed_month VARCHAR(7) NOT NULL,
     action          VARCHAR(16) NOT NULL,
     diff_summary    VARCHAR(512),
@@ -74,6 +74,18 @@ def gold_connection() -> duckdb.DuckDBPyConnection:
 def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create gold_* tables if they do not yet exist."""
     conn.execute(_DDL)
+    # Migration: gold_refresh_log.log_id was originally INTEGER; it is now UUID.
+    # Drop and recreate the log table (audit-only, no critical data).
+    try:
+        log_id_type = conn.execute(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = 'gold_refresh_log' AND column_name = 'log_id'"
+        ).fetchone()
+        if log_id_type and log_id_type[0] != "UUID":
+            conn.execute("DROP TABLE gold_refresh_log")
+            conn.execute(_DDL)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -287,8 +299,8 @@ def log_refresh(
     conn.execute(
         """
         INSERT INTO gold_refresh_log
-            (refreshed_month, action, diff_summary, success, error_msg, source)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (log_id, refreshed_month, action, diff_summary, success, error_msg, source)
+        VALUES (uuid(), ?, ?, ?, ?, ?, ?)
         """,
         [refreshed_month, action, diff_summary, success, error_msg, source],
     )

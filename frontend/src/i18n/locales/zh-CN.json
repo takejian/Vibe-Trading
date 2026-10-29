@@ -2523,7 +2523,32 @@
     "action": {
       "view": "查看",
       "cancel": "取消关注",
-      "refresh": "刷新"
+      "refresh": "刷新",
+      "restore": "重新关注",
+      "hardDelete": "删除",
+      "moveTo": "移动到分组"
+    },
+    "group": {
+      "default": "自选",
+      "canceled": "取消",
+      "addNew": "+ 新增分组",
+      "createTitle": "新增分组",
+      "createPlaceholder": "输入分组名称",
+      "renameTitle": "重命名分组",
+      "deleteTitle": "删除分组",
+      "deleteMessage": "确定删除分组「{{name}}」？分组内全部标的将自动归入「取消」分组。",
+      "nameExists": "分组名称已存在",
+      "systemReadOnly": "系统分组不可编辑",
+      "confirmDeleteTitle": "彻底删除标的？",
+      "confirmDeleteMessage": "确定从关注清单中彻底移除 {{name}}（{{symbol}}）？分析历史仍会保留。",
+      "confirmCancelTitle": "确认取消关注？",
+      "confirmCancelMessage": "确定将 {{name}}（{{symbol}}）移出当前分组？该标的将自动归入「取消」分组。",
+      "confirmRestoreTitle": "重新关注？",
+      "confirmRestoreMessage": "将 {{name}}（{{symbol}}）移回「自选」分组。"
+    },
+    "emptyCanceled": {
+      "title": "暂无已取消的标的",
+      "hint": "被取消关注的标的会自动归入此分组，保留回看入口"
     },
     "confirmCancel": {
       "title": "确认取消关注？",
