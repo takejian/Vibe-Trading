@@ -674,13 +674,76 @@ def list_archive(**filters: Any) -> dict[str, Any]:
         conn.close()
 
 
-def leaderboard(window_days: int = 30, limit: int = 10) -> list[dict[str, Any]]:
+def _keyword_taxonomy() -> list[tuple[str, list[str]]]:
+    """Ordered keyword categories for the 30-day keyword leaderboard.
+
+    Order matters: earlier categories take priority when a keyword appears
+    in multiple lists (e.g. company names also live in CORE_TECH_KEYWORDS).
+    """
+    from src.eventradar import daily_report as dr
+    return [
+        ("头部公司", dr.TIER1_COMPANIES),
+        ("知名公司", dr.TIER2_COMPANIES),
+        ("宏观政策", dr.MACRO_KEYWORDS),
+        ("科技", dr.CORE_TECH_KEYWORDS),
+    ]
+
+
+def _extract_keywords(title: str) -> list[tuple[str, str]]:
+    """Return [(keyword, category), ...] matched in title (case-insensitive).
+
+    Each keyword is reported at most once even if it occurs multiple times
+    in the title.
+    """
+    title_lower = (title or "").lower()
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for category, keywords in _keyword_taxonomy():
+        for kw in keywords:
+            kw_l = kw.lower()
+            if kw_l and kw_l not in seen and kw_l in title_lower:
+                seen.add(kw_l)
+                found.append((kw, category))
+    return found
+
+
+def leaderboard(window_days: int = 30, limit: int = 30) -> list[dict[str, Any]]:
+    """近 30 天入榜次数榜 → 关键词频率榜。
+
+    统计每日 Top5 记录中新闻标题的关键词出现频次，按频次降序返回。
+    每个关键词附带命中的新闻条目（标题 + 入榜日期 + 排名），供前端
+    点击关键词后展开查看。
+    """
+    from datetime import timedelta
     conn = edb.event_connection()
     try:
         edb.initialize_schema(conn)
-        return edb.pick_leaderboard(
-            conn, window_days=window_days, limit=limit
+        cutoff = (datetime.now(SHANGHAI_TZ) - timedelta(days=window_days)).date()
+        picks = edb.list_daily_picks(
+            conn, date_from=str(cutoff), date_to=None, limit=10000,
         )
+        buckets: dict[str, dict[str, Any]] = {}
+        for p in picks:
+            title = p.get("title_snapshot") or ""
+            for kw, category in _extract_keywords(title):
+                entry = buckets.setdefault(kw, {
+                    "keyword": kw,
+                    "category": category,
+                    "count": 0,
+                    "picks": [],
+                })
+                entry["count"] += 1
+                entry["picks"].append({
+                    "title": title,
+                    "pick_date": p.get("pick_date"),
+                    "rank_position": p.get("rank_position"),
+                    "event_id": p.get("event_id"),
+                })
+        result = sorted(buckets.values(), key=lambda x: (-x["count"], x["keyword"]))[:limit]
+        for r in result:
+            r["picks"].sort(key=lambda x: (x.get("pick_date") or "", x.get("rank_position") or 0),
+                            reverse=True)
+        return result
     finally:
         conn.close()
 

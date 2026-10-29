@@ -667,12 +667,18 @@ export interface DailyReport {
   generated_at: string;
 }
 
-export interface LeaderboardEntry {
-  event_id?: string | null;
+export interface LeaderboardPick {
   title: string;
-  pick_days: number;
-  first_pick_date: string;
-  last_pick_date: string;
+  pick_date: string;
+  rank_position: number;
+  event_id?: string | null;
+}
+
+export interface LeaderboardEntry {
+  keyword: string;
+  category: string;
+  count: number;
+  picks: LeaderboardPick[];
 }
 
 export interface RadarEventQuery {
@@ -1644,6 +1650,24 @@ export const api = {
       `/events/reports/${encodeURIComponent(reportId)}/evaluation`,
       { method: "PUT", body: JSON.stringify(body) },
     ),
+
+  // --- Gold policy-cycle monitor ---
+  goldCurrent: () => request<GoldCurrentStatus>("/gold/current"),
+  goldCycles: () => request<GoldCyclesResponse>("/gold/cycles"),
+  goldCycleMonths: (cycleId: number) =>
+    request<GoldCycleMonthsResponse>(`/gold/cycles/${cycleId}/months`),
+  goldRefresh: () => request<GoldRefreshResult>("/gold/refresh", { method: "POST" }),
+  goldConfirm: (targetMonth: string, acceptFields?: string[]) =>
+    request<GoldConfirmResult>("/gold/confirm", {
+      method: "POST",
+      body: JSON.stringify({ target_month: targetMonth, accept_fields: acceptFields ?? null }),
+    }),
+  goldApproveCycle: (cycleId: number) =>
+    request<{ cycle_id: number; status: string }>(
+      `/gold/cycle/${cycleId}/approve`,
+      { method: "POST" },
+    ),
+  goldRefreshNeeded: () => request<GoldRefreshNeeded>("/gold/refresh-needed"),
 };
 
 // --- Scheduled research types ---
@@ -3550,4 +3574,99 @@ export interface WatchKlineBarsResponse {
   interval: WatchKlineInterval;
   /** Stored OHLCV bars in ascending time order (empty when never fetched). */
   items: PriceBar[];
+}
+
+// --- Gold policy-cycle monitor types ---
+
+export interface GoldSeriesPoint {
+  month: string;
+  value: number | null;
+}
+
+export interface GoldIndicator {
+  current: number | null;
+  series: GoldSeriesPoint[];
+}
+
+export interface GoldCycleSummary {
+  name: string | null;
+  start_month: string | null;
+  end_month: string | null;
+  cycle_type: string | null;
+  status: string | null;
+}
+
+export interface GoldCurrentStatus {
+  latest_month: string;
+  updated_at: string;
+  source: string;
+  cycle: GoldCycleSummary;
+  indicators: Record<string, GoldIndicator>;
+  tips_available: boolean;
+}
+
+export interface GoldPolicyCycle {
+  cycle_id: number;
+  cycle_name: string;
+  start_month: string;
+  end_month: string | null;
+  cycle_type: string;
+  source: string;
+  status: string;
+  gold_start: number | null;
+  gold_end: number | null;
+  gold_change_pct: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoldMonthlyRow {
+  month: string;
+  gold_price: number | null;
+  ffr: number | null;
+  yield_nominal: number | null;
+  bei: number | null;
+  tips_real: number | null;
+  gold_change_pct: number | null;
+  ffr_change: number | null;
+  real_change: number | null;
+  updated_at: string;
+  source: string;
+}
+
+export interface GoldCyclesResponse {
+  items: GoldPolicyCycle[];
+}
+
+export interface GoldCycleMonthsResponse {
+  cycle: GoldPolicyCycle;
+  months: GoldMonthlyRow[];
+  tips_available_from: string;
+}
+
+export interface GoldDiffField {
+  old: number | null;
+  new: number | null;
+  diff: boolean;
+}
+
+export interface GoldRefreshResult {
+  status: "inserted" | "updated" | "pending_diff" | "not_published" | "failed";
+  target_month: string;
+  diff?: { has_diff: boolean; fields: Record<string, GoldDiffField> };
+  new_values?: Record<string, number | null>;
+  auto_cycle?: { cycle_id: number; cycle_type: string; start_month: string; cycle_name: string } | null;
+  message?: string;
+}
+
+export interface GoldConfirmResult {
+  target_month: string;
+  auto_cycle?: { cycle_id: number; cycle_type: string; start_month: string; cycle_name: string } | null;
+}
+
+export interface GoldRefreshNeeded {
+  needed: boolean;
+  reason?: string;
+  latest?: string;
+  target?: string;
 }

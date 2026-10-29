@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   ExternalLink,
   FileText,
@@ -875,6 +876,8 @@ function ArchiveTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [expandedKeyword, setExpandedKeyword] = useState<string | null>(null);
+  const [snapshotPick, setSnapshotPick] = useState<DailyPick | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -887,7 +890,7 @@ function ArchiveTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
           date_to: dateTo || undefined,
           limit: 200,
         }),
-        api.radarLeaderboard(30, 10),
+        api.radarLeaderboard(30, 50),
         api.radarDailyPicks(dateFrom || undefined, dateTo || undefined, 300),
       ]);
       setItems(archiveRes.items);
@@ -1021,33 +1024,67 @@ function ArchiveTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
         <div className="space-y-3">
           <div className="rounded-lg border border-border bg-card p-4">
             <h2 className="flex items-center gap-1.5 text-sm font-medium">
-              <Trophy className="h-4 w-4 text-amber-500" /> 近 30 天入榜次数榜
+              <Trophy className="h-4 w-4 text-amber-500" /> 近 30 天入榜关键词榜
             </h2>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              统计每日 Top5 新闻标题的关键词出现频次，点击关键词查看命中新闻。
+            </p>
             {board.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">暂无数据</p>
             ) : (
-              <ol className="mt-2 space-y-1.5">
-                {board.map((entry, idx) => (
-                  <li key={entry.event_id || `${entry.title}-${idx}`} className="text-xs">
-                    {entry.event_id ? (
+              <ol className="mt-2 max-h-80 space-y-1 overflow-y-auto pr-1">
+                {board.map((entry, idx) => {
+                  const expanded = expandedKeyword === entry.keyword;
+                  return (
+                    <li key={entry.keyword} className="text-xs">
                       <button
                         type="button"
-                        onClick={() => setDetailId(entry.event_id!)}
-                        className="flex w-full items-center gap-2 text-left hover:text-primary"
+                        onClick={() => setExpandedKeyword(expanded ? null : entry.keyword)}
+                        className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-muted/50"
                       >
+                        {expanded ? (
+                          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        )}
                         <span className="w-5 shrink-0 font-mono text-muted-foreground">{idx + 1}</span>
-                        <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-                        <span className="shrink-0 font-medium text-amber-600">{entry.pick_days} 天</span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{entry.keyword}</span>
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {entry.category}
+                        </span>
+                        <span className="shrink-0 font-medium text-amber-600">{entry.count} 次</span>
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span className="w-5 font-mono">{idx + 1}</span>
-                        <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-                        <span>{entry.pick_days} 天</span>
-                      </div>
-                    )}
-                  </li>
-                ))}
+                      {expanded && (
+                        <ul className="ml-7 mt-1 space-y-1 border-l border-border pl-3">
+                          {entry.picks.map((p, i) => (
+                            <li key={`${entry.keyword}-${i}`} className="flex items-start gap-1.5 text-[11px]">
+                              <span className="mt-0.5 shrink-0 font-mono text-muted-foreground">
+                                {p.pick_date} #{p.rank_position}
+                              </span>
+                              {p.event_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setDetailId(p.event_id!)}
+                                  className="min-w-0 flex-1 truncate text-left hover:text-primary"
+                                  title={p.title}
+                                >
+                                  {p.title}
+                                </button>
+                              ) : (
+                                <span
+                                  className="min-w-0 flex-1 cursor-pointer truncate text-muted-foreground hover:text-primary"
+                                  title={p.title}
+                                >
+                                  {p.title}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </div>
@@ -1082,9 +1119,14 @@ function ArchiveTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
                                   {pick.title_snapshot}
                                 </button>
                               ) : (
-                                <span className="text-muted-foreground line-through">
-                                  {pick.title_snapshot}（已丢弃）
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSnapshotPick(pick)}
+                                  className="text-left text-muted-foreground hover:text-primary"
+                                >
+                                  {pick.title_snapshot}
+                                  <span className="ml-1 text-[10px]">（已丢弃）</span>
+                                </button>
                               )}
                               <span className="mt-0.5 block text-[10px] text-muted-foreground">
                                 {(pick.source_channels || []).join(" · ") || "来源未知"}
@@ -1115,6 +1157,62 @@ function ArchiveTab({ onGoTaskForce }: { onGoTaskForce: () => void }) {
           onChanged={() => void load()}
           onAnalyzed={onGoTaskForce}
         />
+      )}
+
+      {snapshotPick && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+          onClick={() => setSnapshotPick(null)}
+        >
+          <div
+            className="my-8 w-full max-w-2xl rounded-xl border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+              <div>
+                <h2 className="text-base font-semibold">{snapshotPick.title_snapshot}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>入榜日期：{snapshotPick.pick_date}</span>
+                  <span>·</span>
+                  <span>排名：#{snapshotPick.rank_position}</span>
+                  <span>·</span>
+                  <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-amber-600">已丢弃</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSnapshotPick(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 p-4 text-sm">
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground">来源</div>
+                <div className="mt-1">
+                  {(snapshotPick.source_channels || []).length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(snapshotPick.source_channels || []).map((ch) => (
+                        <span
+                          key={ch}
+                          className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {ch}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">来源未知</span>
+                  )}
+                </div>
+              </div>
+              <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                该事件已从雷达中丢弃，仅保留入榜时的标题快照与来源信息。
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

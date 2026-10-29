@@ -283,6 +283,10 @@ from src.api.live_routes import (  # noqa: F401, E402
 from src.api.alpha_routes import register_alpha_routes  # noqa: E402
 register_alpha_routes(app)
 
+# --- Gold policy-cycle monitor ---
+from src.api.gold_routes import register_gold_routes  # noqa: E402
+register_gold_routes(app)
+
 # --- Options analysis ---
 from src.api.options_routes import register_options_routes  # noqa: E402
 register_options_routes(app)
