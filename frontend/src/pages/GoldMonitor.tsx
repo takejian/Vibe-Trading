@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { api, type GoldCurrentStatus, type GoldPolicyCycle } from "@/lib/api";
+import { api, type GoldCurrentStatus, type GoldPolicyCycle, type GoldCycleTrend, type GoldSignalsResponse, type GoldFomcResponse } from "@/lib/api";
 import { StatusCards } from "@/components/gold/StatusCards";
 import { CycleList } from "@/components/gold/CycleList";
 import { ReviewDialog } from "@/components/gold/ReviewDialog";
+import { SignalSection } from "@/components/gold/SignalSection";
 
 type Tab = "current" | "history";
 
@@ -11,6 +12,9 @@ export function GoldMonitor() {
   const [tab, setTab] = useState<Tab>("current");
   const [status, setStatus] = useState<GoldCurrentStatus | null>(null);
   const [cycles, setCycles] = useState<GoldPolicyCycle[]>([]);
+  const [trend, setTrend] = useState<GoldCycleTrend | null>(null);
+  const [signals, setSignals] = useState<GoldSignalsResponse | null>(null);
+  const [fomc, setFomc] = useState<GoldFomcResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshNeeded, setRefreshNeeded] = useState<string | null>(null);
@@ -28,13 +32,19 @@ export function GoldMonitor() {
   const loadStatus = async () => {
     setError(null);
     try {
-      const [s, c, rn] = await Promise.all([
+      const [s, c, rn, t, sig, f] = await Promise.all([
         api.goldCurrent(),
         api.goldCycles(),
         api.goldRefreshNeeded(),
+        api.goldCycleTrend().catch(() => null),
+        api.goldSignals().catch(() => null),
+        api.goldFomc().catch(() => null),
       ]);
       setStatus(s);
       setCycles(c.items);
+      setTrend(t);
+      setSignals(sig);
+      setFomc(f);
       if (rn.needed) {
         setRefreshNeeded(rn.target ?? "上月");
       }
@@ -139,11 +149,17 @@ export function GoldMonitor() {
       </div>
 
       {tab === "current" && status && (
-        <StatusCards
-          status={status}
-          onRefresh={handleRefresh}
-          refreshNeeded={refreshNeeded}
-        />
+        <>
+          <StatusCards
+            status={status}
+            trend={trend}
+            fomc={fomc}
+            onRefresh={handleRefresh}
+            refreshNeeded={refreshNeeded}
+            onRefreshFomc={() => api.goldFomcRefresh().then(() => loadStatus())}
+          />
+          <SignalSection signals={signals} onChanged={loadStatus} />
+        </>
       )}
 
       {tab === "history" && (

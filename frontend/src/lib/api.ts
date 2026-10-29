@@ -1707,6 +1707,46 @@ export const api = {
       { method: "POST" },
     ),
   goldRefreshNeeded: () => request<GoldRefreshNeeded>("/api/gold/refresh-needed"),
+
+  // --- V2: policy-cycle trend ---
+  goldCycleTrend: () => request<GoldCycleTrend>("/api/gold/cycle-trend"),
+
+  // --- V2: indicator signals ---
+  goldSignals: () => request<GoldSignalsResponse>("/api/gold/signals"),
+  goldSignalRefresh: (indicatorKey: string) =>
+    request<GoldSignal>(`/api/gold/signals/${encodeURIComponent(indicatorKey)}/refresh`, { method: "POST" }),
+  goldSignalsRefreshAll: () =>
+    request<{ results: Record<string, GoldSignal | { error: string }> }>("/api/gold/signals/refresh-all", { method: "POST" }),
+  goldSignalHistory: (indicatorKey: string, limit = 20) =>
+    request<GoldSignalHistoryResponse>(`/api/gold/signals/${encodeURIComponent(indicatorKey)}/history?limit=${limit}`),
+  goldSignalUpdateConfidence: (signalId: string, confidence: number) =>
+    request<{ signal_id: string; confidence: number }>(`/api/gold/signals/${encodeURIComponent(signalId)}/confidence`, {
+      method: "PATCH",
+      body: JSON.stringify({ confidence }),
+    }),
+
+  // --- V2: prompts ---
+  goldPromptGet: (indicatorKey: string) =>
+    request<GoldPrompt>(`/api/gold/prompts/${encodeURIComponent(indicatorKey)}`),
+  goldPromptUpdate: (indicatorKey: string, system_prompt: string, user_prompt: string) =>
+    request<{ indicator_key: string; updated: boolean }>(`/api/gold/prompts/${encodeURIComponent(indicatorKey)}`, {
+      method: "PUT",
+      body: JSON.stringify({ system_prompt, user_prompt }),
+    }),
+
+  // --- V2: FOMC ---
+  goldFomc: () => request<GoldFomcResponse>("/api/gold/fomc"),
+  goldFomcRefresh: () =>
+    request<{ inserted: number; meetings: GoldFomcMeeting[] }>("/api/gold/fomc/refresh", { method: "POST" }),
+
+  // --- V2: cycle-level 5-dimension state + post-hoc confidence ---
+  goldCycleSignals: (cycleId: number) =>
+    request<GoldCycleSignalsResponse>(`/api/gold/cycles/${encodeURIComponent(String(cycleId))}/signals`),
+  goldCyclePostHocConfidence: (cycleId: number, confidence: number | null) =>
+    request<{ cycle_id: number; post_hoc_confidence: number | null }>(
+      `/api/gold/cycles/${encodeURIComponent(String(cycleId))}/post-hoc-confidence`,
+      { method: "PATCH", body: JSON.stringify({ confidence }) },
+    ),
 };
 
 // --- Scheduled research types ---
@@ -3676,6 +3716,7 @@ export interface GoldPolicyCycle {
   gold_start: number | null;
   gold_end: number | null;
   gold_change_pct: number | null;
+  post_hoc_confidence: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -3729,4 +3770,72 @@ export interface GoldRefreshNeeded {
   reason?: string;
   latest?: string;
   target?: string;
+}
+
+// --- V2: trend / signals / FOMC types ---
+
+export interface GoldCycleTrendPoint {
+  month: string;
+  gold_price: number | null;
+  ffr: number | null;
+  yield_nominal: number | null;
+  tips_real: number | null;
+}
+
+export interface GoldCycleTrend {
+  cycle_name: string | null;
+  start_month: string;
+  end_month: string;
+  months: GoldCycleTrendPoint[];
+}
+
+export interface GoldSignal {
+  signal_id: string;
+  indicator_key: string;
+  judgment: "bullish" | "bearish" | "neutral";
+  confidence: number | null;
+  summary: string | null;
+  details: string | null;
+  source: string;
+  created_at: string;
+}
+
+export interface GoldSignalItem {
+  indicator_key: string;
+  signal: GoldSignal | null;
+}
+
+export interface GoldSignalsResponse {
+  items: GoldSignalItem[];
+}
+
+export interface GoldSignalHistoryResponse {
+  items: GoldSignal[];
+}
+
+export interface GoldPrompt {
+  indicator_key: string;
+  system_prompt: string;
+  user_prompt: string;
+  updated_at: string;
+}
+
+export interface GoldFomcMeeting {
+  meeting_id: string;
+  meeting_date: string;
+  title: string | null;
+  notes: string | null;
+  source: string;
+  updated_at: string;
+}
+
+export interface GoldFomcResponse {
+  next: GoldFomcMeeting | null;
+  all: GoldFomcMeeting[];
+}
+
+export interface GoldCycleSignalsResponse {
+  cycle_id: number;
+  cycle_name: string | null;
+  items: GoldSignalItem[];
 }

@@ -40,6 +40,19 @@ class ImportExcelRequest(BaseModel):
     excel_path: str = Field(..., min_length=1)
 
 
+class UpdatePromptRequest(BaseModel):
+    system_prompt: str = Field(..., min_length=1)
+    user_prompt: str = Field(..., min_length=1)
+
+
+class UpdateConfidenceRequest(BaseModel):
+    confidence: float = Field(..., ge=0, le=1)
+
+
+class UpdatePostHocConfidenceRequest(BaseModel):
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
 # --- Registration -----------------------------------------------------------
 
 def register_gold_routes(app: FastAPI) -> None:
@@ -109,6 +122,92 @@ def register_gold_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail=f"Excel not found: {body.excel_path}") from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Import failed: {exc}") from exc
+
+    # --- V2: policy-cycle trend chart ---
+    @app.get("/api/gold/cycle-trend", dependencies=[Depends(require_auth)])
+    def gold_cycle_trend() -> dict[str, Any]:
+        try:
+            return service.get_cycle_trend()
+        except GoldDataError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # --- V2: indicator signals ---
+    @app.get("/api/gold/signals", dependencies=[Depends(require_auth)])
+    def gold_signals() -> dict[str, Any]:
+        return service.get_all_signals()
+
+    @app.post("/api/gold/signals/{indicator_key}/refresh", dependencies=[Depends(require_auth)])
+    def gold_signal_refresh(indicator_key: str) -> dict[str, Any]:
+        try:
+            return service.refresh_signal(indicator_key, source="manual")
+        except GoldDataError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GoldLLMError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.post("/api/gold/signals/refresh-all", dependencies=[Depends(require_auth)])
+    def gold_signals_refresh_all() -> dict[str, Any]:
+        return service.refresh_all_signals(source="manual")
+
+    @app.get("/api/gold/signals/{indicator_key}/history", dependencies=[Depends(require_auth)])
+    def gold_signal_history(indicator_key: str, limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+        try:
+            return service.get_signal_history(indicator_key, limit=limit)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.patch("/api/gold/signals/{signal_id}/confidence", dependencies=[Depends(require_auth)])
+    def gold_signal_confidence(signal_id: str, body: UpdateConfidenceRequest) -> dict[str, Any]:
+        try:
+            return service.update_signal_confidence(signal_id, body.confidence)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except GoldValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # --- V2: prompts ---
+    @app.get("/api/gold/prompts/{indicator_key}", dependencies=[Depends(require_auth)])
+    def gold_get_prompt(indicator_key: str) -> dict[str, Any]:
+        try:
+            return service.get_prompt(indicator_key)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/api/gold/prompts/{indicator_key}", dependencies=[Depends(require_auth)])
+    def gold_update_prompt(indicator_key: str, body: UpdatePromptRequest) -> dict[str, Any]:
+        try:
+            return service.update_prompt(indicator_key, body.system_prompt, body.user_prompt)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # --- V2: FOMC ---
+    @app.get("/api/gold/fomc", dependencies=[Depends(require_auth)])
+    def gold_fomc() -> dict[str, Any]:
+        return service.get_next_fomc()
+
+    @app.post("/api/gold/fomc/refresh", dependencies=[Depends(require_auth)])
+    def gold_fomc_refresh() -> dict[str, Any]:
+        try:
+            return service.refresh_fomc()
+        except GoldLLMError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # --- V2: cycle-level 5-dimension state + post-hoc confidence ---
+    @app.get("/api/gold/cycles/{cycle_id}/signals", dependencies=[Depends(require_auth)])
+    def gold_cycle_signals(cycle_id: int) -> dict[str, Any]:
+        try:
+            return service.get_cycle_signals(cycle_id)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.patch("/api/gold/cycles/{cycle_id}/post-hoc-confidence", dependencies=[Depends(require_auth)])
+    def gold_cycle_post_hoc_confidence(cycle_id: int, body: UpdatePostHocConfidenceRequest) -> dict[str, Any]:
+        try:
+            return service.update_cycle_post_hoc_confidence(cycle_id, body.confidence)
+        except GoldDataError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except GoldValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

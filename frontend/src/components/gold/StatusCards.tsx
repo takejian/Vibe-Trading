@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
+import { RefreshCw, Loader2, AlertTriangle, AlertCircle, Calendar } from "lucide-react";
 import { echarts } from "@/lib/echarts";
 import { getChartTheme } from "@/lib/chart-theme";
 import { useThemeDark } from "@/lib/theme-store";
-import type { GoldCurrentStatus, GoldIndicator } from "@/lib/api";
+import type { GoldCurrentStatus, GoldIndicator, GoldCycleTrend, GoldFomcResponse } from "@/lib/api";
 
 interface Props {
   status: GoldCurrentStatus;
+  trend: GoldCycleTrend | null;
+  fomc: GoldFomcResponse | null;
   onRefresh: () => void;
   refreshNeeded: string | null;
+  onRefreshFomc: () => void;
 }
 
 const METRIC_META: { key: string; label: string; unit: string }[] = [
@@ -74,12 +77,18 @@ function pctSign(v: number | null | undefined): string {
   return v > 0 ? "+" : "";
 }
 
-export function StatusCards({ status, onRefresh, refreshNeeded }: Props) {
+export function StatusCards({ status, trend, fomc, onRefresh, refreshNeeded, onRefreshFomc }: Props) {
   const [refreshing, setRefreshing] = useState(false);
+  const [fomcRefreshing, setFomcRefreshing] = useState(false);
 
   const handleClick = async () => {
     setRefreshing(true);
     try { await onRefresh(); } finally { setRefreshing(false); }
+  };
+
+  const handleFomcRefresh = async () => {
+    setFomcRefreshing(true);
+    try { await onRefreshFomc(); } finally { setFomcRefreshing(false); }
   };
 
   const cycle = status.cycle;
@@ -90,7 +99,7 @@ export function StatusCards({ status, onRefresh, refreshNeeded }: Props) {
 
   return (
     <>
-      {/* Cycle header */}
+      {/* Cycle header + FOMC */}
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
           <AlertTriangle className="h-4 w-4 text-primary" />
@@ -98,6 +107,22 @@ export function StatusCards({ status, onRefresh, refreshNeeded }: Props) {
         <div className="flex-1 min-w-0">
           <div className="text-xs text-muted-foreground">当前政策周期</div>
           <div className="text-sm font-semibold truncate">{cycleLabel}</div>
+        </div>
+        {/* FOMC next meeting */}
+        <div className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5">
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+          <div className="text-xs">
+            <span className="text-muted-foreground">下次FOMC：</span>
+            <span className="font-medium">{fomc?.next ? fomc.next.meeting_date : "暂无日程"}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleFomcRefresh}
+            disabled={fomcRefreshing}
+            className="ml-1 text-xs text-primary hover:underline disabled:opacity-50"
+          >
+            {fomcRefreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : "更新"}
+          </button>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           数据月份：<span className="font-medium text-foreground">{status.latest_month}</span>
@@ -148,6 +173,60 @@ export function StatusCards({ status, onRefresh, refreshNeeded }: Props) {
           );
         })}
       </div>
+
+      {/* Policy-cycle rate trend chart */}
+      {trend && trend.months.length > 1 && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4">
+          <div className="mb-2 text-sm font-medium">
+            当前政策周期利率走势 <span className="text-xs font-normal text-muted-foreground">（{trend.start_month} ~ {trend.end_month}）</span>
+          </div>
+          <CycleTrendChart trend={trend} />
+        </div>
+      )}
     </>
   );
+}
+
+
+function CycleTrendChart({ trend }: { trend: GoldCycleTrend }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const dark = useThemeDark();
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = echarts.init(ref.current, dark ? "dark" : undefined);
+    const months = trend.months.map(m => m.month);
+    chart.setOption({
+      backgroundColor: "transparent",
+      tooltip: { trigger: "axis" },
+      legend: {
+        data: ["联邦基金利率(%)", "10Y名义利率(%)", "10Y实际利率(%)", "金价(美元/盎司)"],
+        textStyle: { fontSize: 11 },
+      },
+      grid: { left: 44, right: 64, top: 36, bottom: 28 },
+      xAxis: { type: "category", data: months, axisLabel: { fontSize: 10, rotate: 45 } },
+      yAxis: [
+        { type: "value", name: "利率(%)", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        {
+          type: "log",
+          name: "金价(USD/oz)",
+          nameTextStyle: { fontSize: 10 },
+          position: "right",
+          axisLabel: { fontSize: 10, formatter: (v: number) => v.toLocaleString() },
+          splitLine: { show: false },
+        },
+      ],
+      series: [
+        { name: "联邦基金利率(%)", type: "line", smooth: true, yAxisIndex: 0, data: trend.months.map(m => m.ffr), lineStyle: { width: 2 }, itemStyle: { color: "#f59e0b" } },
+        { name: "10Y名义利率(%)", type: "line", smooth: true, yAxisIndex: 0, data: trend.months.map(m => m.yield_nominal), lineStyle: { width: 2 }, itemStyle: { color: "#3b82f6" } },
+        { name: "10Y实际利率(%)", type: "line", smooth: true, yAxisIndex: 0, data: trend.months.map(m => m.tips_real), lineStyle: { width: 2 }, itemStyle: { color: "#10b981" } },
+        { name: "金价(美元/盎司)", type: "line", smooth: true, yAxisIndex: 1, data: trend.months.map(m => m.gold_price), lineStyle: { width: 2.5 }, itemStyle: { color: "#eab308" }, symbol: "none" },
+      ],
+    });
+    const ro = new ResizeObserver(() => chart.resize());
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.dispose(); };
+  }, [trend, dark]);
+
+  return <div ref={ref} style={{ height: 300 }} />;
 }

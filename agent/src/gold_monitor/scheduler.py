@@ -35,7 +35,7 @@ def stop_gold_scheduler(app) -> None:
 
 
 async def _refresh_loop(app) -> None:
-    """Daily check — trigger LLM refresh on the 1st of each month."""
+    """Daily check — monthly data refresh on the 1st, signal batch refresh on Mondays."""
     from src.gold_monitor import db as gold_db
     from src.gold_monitor import service as gold_service
 
@@ -44,8 +44,9 @@ async def _refresh_loop(app) -> None:
         while True:
             try:
                 today = date.today()
+
+                # 1) Monthly data refresh on the 1st of each month
                 if today.day == 1:
-                    # Refresh previous natural month
                     prev_year = today.year
                     prev_month = today.month - 1
                     if prev_month == 0:
@@ -70,6 +71,24 @@ async def _refresh_loop(app) -> None:
                                     conn, target, "failed", False, "scheduler",
                                     error_msg=str(exc),
                                 )
+
+                # 2) Batch signal refresh every Monday
+                if today.weekday() == 0:
+                    with gold_db.gold_connection() as conn:
+                        gold_db.initialize_schema(conn)
+                        sig_done = gold_db.has_refreshed_today(conn, source="scheduler_signals")
+                    if not sig_done:
+                        try:
+                            gold_service.refresh_all_signals(source="scheduler")
+                            logger.info("Gold scheduler: batch signal refresh done")
+                            with gold_db.gold_connection() as conn:
+                                gold_db.initialize_schema(conn)
+                                gold_db.log_refresh(
+                                    conn, today.strftime("%Y-%m"), "signals_batch", True,
+                                    "scheduler_signals",
+                                )
+                        except Exception as exc:
+                            logger.warning("Gold scheduler: signal batch refresh failed: %s", exc)
             except Exception as exc:
                 logger.exception("Gold scheduler: unhandled loop error: %s", exc)
 

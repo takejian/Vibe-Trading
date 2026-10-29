@@ -260,21 +260,21 @@ def _fetch_via_llm(target_month: str) -> dict[str, Any]:
 
 
 def _extract_json(text: str) -> str | None:
-    """Best-effort extraction of a JSON object from a possibly-markdown response."""
+    """Best-effort extraction of a JSON object/array from a possibly-markdown response."""
     text = text.strip()
-    # Direct JSON object
-    if text.startswith("{"):
+    # Direct JSON object or array
+    if text.startswith("{") or text.startswith("["):
         return text
     # Fenced code block
     if "```" in text:
         for block in text.split("```"):
             block = block.strip()
-            if block.startswith("{"):
+            if block.startswith("{") or block.startswith("["):
                 return block
             # Strip possible language tag like "json\n"
             if "\n" in block:
                 block = block.split("\n", 1)[1]
-                if block.startswith("{"):
+                if block.startswith("{") or block.startswith("["):
                     return block
     return None
 
@@ -442,3 +442,291 @@ def _pct_change(start: float | None, end: float | None) -> float | None:
     if start is None or end is None or start == 0:
         return None
     return round((end - start) / start * 100, 2)
+
+
+# ---------------------------------------------------------------------------
+# V2: Policy-cycle rate trend chart
+# ---------------------------------------------------------------------------
+
+#: The 5 indicator keys for LLM-driven gold analysis.
+INDICATOR_KEYS = ["ffr_drivers", "bei_drivers", "usd_fx", "tail_risk", "physical_flow"]
+
+
+def get_cycle_trend() -> dict[str, Any]:
+    """Return FFR / 10Y nominal / 10Y real monthly series for the active cycle."""
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        latest = db.get_latest_monthly(conn)
+        if latest is None:
+            raise GoldDataError("No monthly data available.")
+        cycle = db.get_active_cycle_for_month(conn, latest["month"])
+        start = cycle["start_month"] if cycle else latest["month"]
+        end = latest["month"]
+        months = db.get_monthly_range(conn, start, end)
+    return {
+        "cycle_name": cycle["cycle_name"] if cycle else None,
+        "start_month": start,
+        "end_month": end,
+        "months": [
+            {
+                "month": m["month"],
+                "gold_price": m.get("gold_price"),
+                "ffr": m.get("ffr"),
+                "yield_nominal": m.get("yield_nominal"),
+                "tips_real": m.get("tips_real"),
+            }
+            for m in months
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# V2: Indicator signal analysis (LLM)
+# ---------------------------------------------------------------------------
+
+def _call_llm_for_signal(indicator_key: str) -> dict[str, Any]:
+    """Call LLM with the indicator's stored prompt, return parsed JSON."""
+    from src.providers.chat import ChatLLM
+
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        prompt = db.get_prompt(conn, indicator_key)
+    if prompt is None:
+        raise GoldDataError(f"No prompt configured for indicator '{indicator_key}'.")
+
+    messages = [
+        {"role": "system", "content": prompt["system_prompt"]},
+        {"role": "user", "content": prompt["user_prompt"]},
+    ]
+    try:
+        llm = ChatLLM()
+        response = llm.chat(messages, timeout=60)
+        content = getattr(response, "content", str(response))
+    except Exception as exc:
+        raise GoldLLMError(f"LLM call failed for {indicator_key}: {exc}") from exc
+
+    json_str = _extract_json(content)
+    if not json_str:
+        raise GoldLLMError(f"LLM returned non-JSON for {indicator_key}: {content[:200]}")
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as exc:
+        raise GoldLLMError(f"LLM JSON parse failed for {indicator_key}: {exc}") from exc
+
+    judgment = str(data.get("judgment", "neutral")).lower()
+    if judgment not in ("bullish", "bearish", "neutral"):
+        judgment = "neutral"
+    confidence = data.get("confidence")
+    try:
+        confidence = float(confidence) if confidence is not None else None
+        if confidence is not None:
+            confidence = max(0.0, min(1.0, confidence))
+    except (TypeError, ValueError):
+        confidence = None
+
+    return {
+        "judgment": judgment,
+        "confidence": confidence,
+        "summary": str(data.get("summary", ""))[:1024],
+        "details": json.dumps(data, ensure_ascii=False)[:8000],
+    }
+
+
+def refresh_signal(indicator_key: str, source: str = "manual") -> dict[str, Any]:
+    """Run LLM analysis for a single indicator and persist the result."""
+    if indicator_key not in INDICATOR_KEYS:
+        raise GoldDataError(f"Unknown indicator key: {indicator_key}")
+
+    result = _call_llm_for_signal(indicator_key)
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        # Link the signal to the currently active policy cycle (if any).
+        latest = db.get_latest_monthly(conn)
+        cycle_id = None
+        if latest is not None:
+            cycle = db.get_active_cycle_for_month(conn, latest["month"])
+            if cycle is not None:
+                cycle_id = cycle["cycle_id"]
+        signal_id = db.insert_signal(
+            conn,
+            indicator_key=indicator_key,
+            judgment=result["judgment"],
+            confidence=result["confidence"],
+            summary=result["summary"],
+            details=result["details"],
+            source=source,
+            cycle_id=cycle_id,
+        )
+        conn.commit()
+    return {"signal_id": signal_id, **result}
+
+
+def refresh_all_signals(source: str = "scheduled") -> dict[str, Any]:
+    """Run LLM analysis for all 5 indicators. Failures are isolated."""
+    results: dict[str, Any] = {}
+    for key in INDICATOR_KEYS:
+        try:
+            results[key] = refresh_signal(key, source=source)
+        except Exception as exc:
+            logger.warning("Signal refresh failed for %s: %s", key, exc)
+            results[key] = {"error": str(exc)}
+    return {"results": results}
+
+
+def get_all_signals() -> dict[str, Any]:
+    """Return the latest signal for each of the 5 indicators."""
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        latest = db.get_all_latest_signals(conn)
+    by_key: dict[str, Any] = {}
+    for row in latest:
+        by_key[row["indicator_key"]] = row
+    # Ensure all 5 keys are present (null if no record yet)
+    items = []
+    for key in INDICATOR_KEYS:
+        items.append({"indicator_key": key, "signal": by_key.get(key)})
+    return {"items": items}
+
+
+def get_signal_history(indicator_key: str, limit: int = 20) -> dict[str, Any]:
+    if indicator_key not in INDICATOR_KEYS:
+        raise GoldDataError(f"Unknown indicator key: {indicator_key}")
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        rows = db.get_signal_history(conn, indicator_key, limit=limit)
+    return {"items": rows}
+
+
+def update_signal_confidence(signal_id: str, confidence: float) -> dict[str, Any]:
+    if not 0 <= confidence <= 1:
+        raise GoldValidationError("confidence must be between 0 and 1.")
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        db.update_signal_confidence(conn, signal_id, confidence)
+        conn.commit()
+    return {"signal_id": signal_id, "confidence": confidence}
+
+
+def get_cycle_signals(cycle_id: int) -> dict[str, Any]:
+    """Return the latest signal per indicator linked to the given cycle."""
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        cycle = db.get_cycle_by_id(conn, cycle_id)
+        if cycle is None:
+            raise GoldDataError(f"Cycle {cycle_id} not found.")
+        rows = db.get_latest_signals_for_cycle(conn, cycle_id)
+    by_key: dict[str, Any] = {}
+    for row in rows:
+        by_key[row["indicator_key"]] = row
+    items = []
+    for key in INDICATOR_KEYS:
+        items.append({"indicator_key": key, "signal": by_key.get(key)})
+    return {"cycle_id": cycle_id, "cycle_name": cycle.get("cycle_name"), "items": items}
+
+
+def update_cycle_post_hoc_confidence(cycle_id: int, confidence: float | None) -> dict[str, Any]:
+    """Set the user's post-hoc confidence judgment for a historical cycle."""
+    if confidence is not None and not 0 <= confidence <= 1:
+        raise GoldValidationError("confidence must be between 0 and 1, or null.")
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        cycle = db.get_cycle_by_id(conn, cycle_id)
+        if cycle is None:
+            raise GoldDataError(f"Cycle {cycle_id} not found.")
+        db.update_post_hoc_confidence(conn, cycle_id, confidence)
+        conn.commit()
+    return {"cycle_id": cycle_id, "post_hoc_confidence": confidence}
+
+
+# ---------------------------------------------------------------------------
+# V2: Prompt management
+# ---------------------------------------------------------------------------
+
+def get_prompt(indicator_key: str) -> dict[str, Any]:
+    if indicator_key not in INDICATOR_KEYS:
+        raise GoldDataError(f"Unknown indicator key: {indicator_key}")
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        prompt = db.get_prompt(conn, indicator_key)
+    if prompt is None:
+        raise GoldDataError(f"No prompt for indicator '{indicator_key}'.")
+    return prompt
+
+
+def update_prompt(indicator_key: str, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+    if indicator_key not in INDICATOR_KEYS:
+        raise GoldDataError(f"Unknown indicator key: {indicator_key}")
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        db.upsert_prompt(conn, indicator_key, system_prompt, user_prompt)
+        conn.commit()
+    return {"indicator_key": indicator_key, "updated": True}
+
+
+# ---------------------------------------------------------------------------
+# V2: FOMC meeting schedule
+# ---------------------------------------------------------------------------
+
+_FOMC_PROMPT = {
+    "system": (
+        "你是美联储日程分析助手。返回未来12个月内已公布的FOMC议息会议日期列表。"
+        "输出严格JSON数组，每个元素含 meeting_date(YYYY-MM-DD)、title、notes。"
+        "只返回JSON，不要markdown。"
+    ),
+    "user": (
+        "请列出未来12个月内已公布的美联储FOMC议息会议日期。"
+        "返回JSON数组，格式：[{\"meeting_date\":\"YYYY-MM-DD\",\"title\":\"...\",\"notes\":\"...\"}]"
+    ),
+}
+
+
+def get_next_fomc() -> dict[str, Any]:
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        next_meeting = db.get_next_fomc(conn)
+        all_meetings = db.get_all_fomc(conn)
+    return {"next": next_meeting, "all": all_meetings}
+
+
+def refresh_fomc() -> dict[str, Any]:
+    """Fetch FOMC schedule via LLM and replace future meetings."""
+    from src.providers.chat import ChatLLM
+
+    messages = [
+        {"role": "system", "content": _FOMC_PROMPT["system"]},
+        {"role": "user", "content": _FOMC_PROMPT["user"]},
+    ]
+    try:
+        llm = ChatLLM()
+        response = llm.chat(messages, timeout=30)
+        content = getattr(response, "content", str(response))
+    except Exception as exc:
+        raise GoldLLMError(f"LLM call failed for FOMC: {exc}") from exc
+
+    json_str = _extract_json(content)
+    if not json_str:
+        raise GoldLLMError(f"LLM returned non-JSON for FOMC: {content[:200]}")
+    try:
+        meetings = json.loads(json_str)
+    except json.JSONDecodeError as exc:
+        raise GoldLLMError(f"LLM JSON parse failed for FOMC: {exc}") from exc
+
+    if not isinstance(meetings, list):
+        raise GoldLLMError("LLM FOMC response is not a JSON array.")
+
+    normalized = []
+    for m in meetings:
+        if not isinstance(m, dict) or "meeting_date" not in m:
+            continue
+        normalized.append({
+            "meeting_date": str(m["meeting_date"])[:10],
+            "title": str(m.get("title", "FOMC议息会议"))[:128],
+            "notes": str(m.get("notes", ""))[:256],
+            "source": "llm",
+        })
+
+    with gold_connection() as conn:
+        initialize_schema(conn)
+        count = db.replace_future_fomc(conn, normalized)
+        conn.commit()
+    return {"inserted": count, "meetings": normalized}

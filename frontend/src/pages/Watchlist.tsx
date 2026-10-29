@@ -1090,7 +1090,7 @@ function AddWatchDialog({
         {groups.length > 1 && (
           <div className="mt-3 flex items-center gap-2 text-sm">
             <label className="text-muted-foreground">
-              {t("watch.group.addNew") === "+ 新增分组" ? "分组：" : "Group:"}
+              {t("watch.group.addNew") === "新增分组" ? "分组：" : "Group:"}
             </label>
             <select
               value={groupId}

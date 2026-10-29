@@ -1,11 +1,19 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, Loader2 } from "lucide-react";
-import { api, type GoldPolicyCycle, type GoldMonthlyRow } from "@/lib/api";
+import { ChevronRight, ChevronDown, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { api, type GoldPolicyCycle, type GoldMonthlyRow, type GoldSignalItem } from "@/lib/api";
 
 interface Props {
   cycles: GoldPolicyCycle[];
   onCycleApproved?: () => void;
 }
+
+const INDICATOR_LABELS: Record<string, string> = {
+  ffr_drivers: "增长与就业(FFR)",
+  bei_drivers: "通胀预期(BEI)",
+  usd_fx: "美元与汇率",
+  tail_risk: "尾部风险溢价",
+  physical_flow: "实物与资金流",
+};
 
 function fmtNum(v: number | null | undefined, decimals = 2): string {
   if (v === null || v === undefined) return "—";
@@ -26,11 +34,42 @@ function cycleTypeLabel(t: string): string {
   return { hiking: "加息周期", cutting: "降息周期", plateau: "利率平台" }[t] ?? t;
 }
 
+function judgmentLabel(j: string): string {
+  if (j === "bullish") return "利多";
+  if (j === "bearish") return "利空";
+  return "中性";
+}
+
+function judgmentClass(j: string): string {
+  if (j === "bullish") return "text-green-600 bg-green-500/10 border-green-500/30";
+  if (j === "bearish") return "text-red-500 bg-red-500/10 border-red-500/30";
+  return "text-muted-foreground bg-muted border-border";
+}
+
+function judgmentIcon(j: string) {
+  if (j === "bullish") return <TrendingUp className="h-3 w-3" />;
+  if (j === "bearish") return <TrendingDown className="h-3 w-3" />;
+  return <Minus className="h-3 w-3" />;
+}
+
+function fmtConfidence(c: number | null | undefined): string {
+  if (c === null || c === undefined) return "—";
+  return `${Math.round(c * 100)}%`;
+}
+
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return "—";
+  return s.replace("T", " ").slice(0, 16);
+}
+
 export function CycleList({ cycles }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loadingMonths, setLoadingMonths] = useState(false);
   const [months, setMonths] = useState<GoldMonthlyRow[]>([]);
   const [tipsAvailableFrom, setTipsAvailableFrom] = useState("2003-01");
+  const [cycleSignals, setCycleSignals] = useState<GoldSignalItem[] | null>(null);
+  const [postHocConf, setPostHocConf] = useState<number | null>(null);
+  const [savingPhc, setSavingPhc] = useState(false);
 
   const handleToggle = async (cycle: GoldPolicyCycle) => {
     if (expanded === cycle.cycle_id) {
@@ -39,14 +78,32 @@ export function CycleList({ cycles }: Props) {
     }
     setExpanded(cycle.cycle_id);
     setLoadingMonths(true);
+    setPostHocConf(cycle.post_hoc_confidence ?? null);
     try {
-      const resp = await api.goldCycleMonths(cycle.cycle_id);
+      const [resp, sigResp] = await Promise.all([
+        api.goldCycleMonths(cycle.cycle_id),
+        api.goldCycleSignals(cycle.cycle_id).catch(() => null),
+      ]);
       setMonths(resp.months);
       setTipsAvailableFrom(resp.tips_available_from);
+      setCycleSignals(sigResp?.items ?? null);
     } catch {
       setMonths([]);
+      setCycleSignals(null);
     } finally {
       setLoadingMonths(false);
+    }
+  };
+
+  const handleSavePostHoc = async (cycleId: number) => {
+    setSavingPhc(true);
+    try {
+      const val = postHocConf === null ? null : Number(postHocConf);
+      await api.goldCyclePostHocConfidence(cycleId, val);
+    } catch (e) {
+      alert("保存失败：" + (e as Error).message);
+    } finally {
+      setSavingPhc(false);
     }
   };
 
@@ -96,6 +153,9 @@ export function CycleList({ cycles }: Props) {
                   {cycle.gold_change_pct !== null && (
                     <> · <span className={pctClass(cycle.gold_change_pct)}>{cycle.gold_change_pct >= 0 ? "+" : ""}{cycle.gold_change_pct.toFixed(2)}%</span></>
                   )}
+                  {cycle.post_hoc_confidence !== null && (
+                    <span> · 事后置信度 <span className="font-medium text-foreground">{fmtConfidence(cycle.post_hoc_confidence)}</span></span>
+                  )}
                 </div>
               </div>
               <span className="text-xs text-muted-foreground">{cycleTypeLabel(cycle.cycle_type)}</span>
@@ -108,13 +168,101 @@ export function CycleList({ cycles }: Props) {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />加载中...
                   </div>
                 ) : (
-                  <MonthlyTable rows={months} tipsAvailableFrom={tipsAvailableFrom} />
+                  <>
+                    {/* 5-dimension state + post-hoc confidence */}
+                    <CycleSignalPanel
+                      signals={cycleSignals}
+                      postHocConf={postHocConf}
+                      onPostHocChange={setPostHocConf}
+                      onSavePostHoc={() => handleSavePostHoc(cycle.cycle_id)}
+                      savingPhc={savingPhc}
+                    />
+                    <MonthlyTable rows={months} tipsAvailableFrom={tipsAvailableFrom} />
+                  </>
                 )}
               </div>
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function CycleSignalPanel({
+  signals,
+  postHocConf,
+  onPostHocChange,
+  onSavePostHoc,
+  savingPhc,
+}: {
+  signals: GoldSignalItem[] | null;
+  postHocConf: number | null;
+  onPostHocChange: (v: number | null) => void;
+  onSavePostHoc: () => void;
+  savingPhc: boolean;
+}) {
+  return (
+    <div className="space-y-3 border-b border-border p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">五维指标状态</h3>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">事后置信度</label>
+          <input
+            type="number"
+            step="0.05"
+            min="0"
+            max="1"
+            value={postHocConf ?? ""}
+            onChange={(e) => {
+              const v = e.target.value === "" ? null : Number(e.target.value);
+              onPostHocChange(v);
+            }}
+            placeholder="0~1"
+            className="w-20 rounded border border-border bg-background px-2 py-1 text-xs"
+          />
+          <button
+            type="button"
+            onClick={onSavePostHoc}
+            disabled={savingPhc}
+            className="rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {savingPhc ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+      {signals === null ? (
+        <div className="text-xs text-muted-foreground">暂无该周期的指标分析记录</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {signals.map(item => {
+            const s = item.signal;
+            return (
+              <div key={item.indicator_key} className="rounded-md border border-border p-2.5">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-medium">{INDICATOR_LABELS[item.indicator_key] ?? item.indicator_key}</span>
+                  {s && (
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${judgmentClass(s.judgment)}`}>
+                      {judgmentIcon(s.judgment)}
+                      {judgmentLabel(s.judgment)}
+                    </span>
+                  )}
+                </div>
+                {s ? (
+                  <>
+                    <div className="mb-1 text-[11px] text-muted-foreground">
+                      可信度 {fmtConfidence(s.confidence)} · {fmtDate(s.created_at)}
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-foreground/80 line-clamp-2">{s.summary ?? "（无摘要）"}</p>
+                  </>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground">无记录</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

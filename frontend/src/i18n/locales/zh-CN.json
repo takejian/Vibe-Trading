@@ -2531,7 +2531,7 @@
     "group": {
       "default": "自选",
       "canceled": "取消",
-      "addNew": "+ 新增分组",
+      "addNew": "新增分组",
       "createTitle": "新增分组",
       "createPlaceholder": "输入分组名称",
       "renameTitle": "重命名分组",
