@@ -32,6 +32,7 @@ export function Layout() {
     { to: "/reports", icon: FileText, label: t('layout.reports') },
     { to: "/paper", icon: ChartLine, label: t('layout.paperPortfolio') },
     { to: "/gold", icon: CircleDollarSign, label: t('layout.goldMonitor') },
+    { to: "/investor-celebrity", icon: Users, label: t('layout.investorCelebrity') },
     { to: "/alpha-zoo", icon: Layers, label: t('layout.alphaZoo') },
     { to: "/options", icon: CandlestickChart, label: t('layout.optionsLab') },
     { to: "/settings", icon: Settings, label: t('layout.settings') },

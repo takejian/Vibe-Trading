@@ -287,6 +287,10 @@ register_alpha_routes(app)
 from src.api.gold_routes import register_gold_routes  # noqa: E402
 register_gold_routes(app)
 
+# --- Investment celebrity holdings & opinions tracker ---
+from src.api.celebrity_routes import register_celebrity_routes  # noqa: E402
+register_celebrity_routes(app)
+
 # --- Options analysis ---
 from src.api.options_routes import register_options_routes  # noqa: E402
 register_options_routes(app)

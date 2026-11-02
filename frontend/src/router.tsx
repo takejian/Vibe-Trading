@@ -61,6 +61,9 @@ const WatchDetail = lazy(() =>
 const GoldMonitor = lazy(() =>
   import("@/pages/GoldMonitor").then((m) => ({ default: m.GoldMonitor })),
 );
+const InvestorCelebrity = lazy(() =>
+  import("@/pages/InvestorCelebrity").then((m) => ({ default: m.InvestorCelebrity })),
+);
 
 function PageLoader() {
   return (
@@ -107,6 +110,7 @@ export const router = createBrowserRouter([
       { path: "/alpha-zoo/compare", element: wrap(AlphaZoo) },
       { path: "/alpha-zoo/:alphaId", element: wrap(AlphaZoo) },
       { path: "/gold", element: wrap(GoldMonitor) },
+      { path: "/investor-celebrity", element: wrap(InvestorCelebrity) },
     ],
   },
 ]);

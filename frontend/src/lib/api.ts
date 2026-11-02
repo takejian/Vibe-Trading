@@ -1747,6 +1747,59 @@ export const api = {
       `/api/gold/cycles/${encodeURIComponent(String(cycleId))}/post-hoc-confidence`,
       { method: "PATCH", body: JSON.stringify({ confidence }) },
     ),
+
+  // --- Investment celebrity holdings & opinions tracker ---
+  celebrityInvestors: () => request<{ items: CelebrityInvestor[] }>("/api/celebrity/investors"),
+  celebrityAddInvestor: (name: string, investStyle: string, remark: string) =>
+    request<{ id: number; name: string }>("/api/celebrity/investors", {
+      method: "POST",
+      body: JSON.stringify({ name, invest_style: investStyle, remark }),
+    }),
+  celebrityDeleteInvestor: (investorId: number) =>
+    request<{ deleted: boolean; id: number }>(`/api/celebrity/investors/${investorId}`, { method: "DELETE" }),
+  celebrityCard: (investorId: number) =>
+    request<CelebrityCard>(`/api/celebrity/investors/${investorId}/card`),
+  celebrityRefresh: (investorId: number) =>
+    request<CelebrityRefreshResult>(`/api/celebrity/investors/${investorId}/refresh`, { method: "POST" }),
+  celebrityBackfill: (investorId: number) =>
+    request<CelebrityRefreshResult>(`/api/celebrity/investors/${investorId}/backfill`, { method: "POST" }),
+  celebrityGetPerformance: (investorId: number) =>
+    request<{ performance: CelebrityPerformance | null }>(`/api/celebrity/investors/${investorId}/performance`),
+  celebrityGeneratePerformance: (investorId: number) =>
+    request<{ status: string; performance: CelebrityPerformance }>(`/api/celebrity/investors/${investorId}/performance`, { method: "POST" }),
+  celebritySavePerformance: (investorId: number, data: Partial<CelebrityPerformance>) =>
+    request<{ status: string; updated: boolean }>(`/api/celebrity/investors/${investorId}/performance`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  celebrityUpdateStyle: (investorId: number, investStyle: string) =>
+    request<{ id: number; updated: boolean }>(`/api/celebrity/investors/${investorId}/style`, {
+      method: "PUT",
+      body: JSON.stringify({ invest_style: investStyle }),
+    }),
+  celebrityReviewOpinions: (investorId: number, items: Array<Record<string, unknown>>) =>
+    request<{ status: string; updated: number }>("/api/celebrity/review/opinions", {
+      method: "POST",
+      body: JSON.stringify({ investor_id: investorId, items }),
+    }),
+  celebrityReviewAdjusts: (investorId: number, items: Array<Record<string, unknown>>) =>
+    request<{ status: string; updated: number }>("/api/celebrity/review/adjusts", {
+      method: "POST",
+      body: JSON.stringify({ investor_id: investorId, items }),
+    }),
+  celebrityWeekly: () => request<{ items: CelebrityWeeklyItem[] }>("/api/celebrity/weekly"),
+  celebrityPromptGet: (key: string) =>
+    request<CelebrityPrompt>(`/api/celebrity/prompts/${encodeURIComponent(key)}`),
+  celebrityPromptUpdate: (key: string, content: string) =>
+    request<{ key: string; updated: boolean }>(`/api/celebrity/prompts/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+  celebrityPromptReset: (key: string) =>
+    request<{ key: string; content: string; reset: boolean }>(
+      `/api/celebrity/prompts/${encodeURIComponent(key)}/reset`,
+      { method: "POST" },
+    ),
 };
 
 // --- Scheduled research types ---
@@ -3838,4 +3891,106 @@ export interface GoldCycleSignalsResponse {
   cycle_id: number;
   cycle_name: string | null;
   items: GoldSignalItem[];
+}
+
+// --- Investment celebrity types ---
+
+export interface CelebrityInvestor {
+  id: number;
+  name: string;
+  invest_style: string;
+  remark: string;
+  is_builtin: boolean;
+  updated_at: string;
+}
+
+export interface CelebrityPosition {
+  id: string;
+  investor_id: number;
+  target: string;
+  percentage: string | null;
+  direction: string | null;
+  source: string | null;
+  update_time: string | null;
+  confidence: string | null;
+  created_at: string;
+}
+
+export interface CelebrityOpinion {
+  id: string;
+  investor_id: number;
+  publish_time: string | null;
+  content: string | null;
+  source: string | null;
+  confidence: string | null;
+  review_result: string | null;
+  is_latest: boolean;
+  created_at: string;
+}
+
+export interface CelebrityAdjust {
+  id: string;
+  investor_id: number;
+  time: string | null;
+  action: string | null;
+  target: string | null;
+  profit_desc: string | null;
+  source: string | null;
+  review_result: string | null;
+  created_at: string;
+}
+
+export interface CelebrityPerformance {
+  id?: string;
+  investor_id?: number;
+  recent_performance: string | null;
+  return_1y: string | null;
+  return_3y: string | null;
+  return_5y: string | null;
+  return_10y: string | null;
+  max_drawdown: string | null;
+  stability_tag: string | null;
+  stability_desc: string | null;
+  peer_compare: string | null;
+  risk_note: string | null;
+  created_at?: string;
+}
+
+export interface CelebrityCard {
+  investor: CelebrityInvestor;
+  positions: CelebrityPosition[];
+  latest_opinion: CelebrityOpinion | null;
+  history_opinions: CelebrityOpinion[];
+  adjusts: CelebrityAdjust[];
+  performance: CelebrityPerformance | null;
+}
+
+export interface CelebrityRefreshResult {
+  status: string;
+  message?: string;
+  inserted?: { positions: number; opinions: number; adjusts: number };
+  snapshot_saved?: boolean;
+}
+
+export interface CelebrityWeeklyItem {
+  investor_id: number;
+  name: string;
+  latest_opinion: {
+    publish_time: string | null;
+    content: string | null;
+    confidence: string | null;
+  } | null;
+  latest_adjust: {
+    time: string | null;
+    action: string | null;
+    target: string | null;
+    review_result: string | null;
+  } | null;
+  updated_at: string | null;
+}
+
+export interface CelebrityPrompt {
+  prompt_key: string;
+  content: string;
+  updated_at: string;
 }
