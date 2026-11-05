@@ -1568,7 +1568,12 @@ export const api = {
     ),
   radarAnalyze: (
     eventId: string,
-    body: { mode: "live" | "retrospective"; market?: string; time_horizon?: string },
+    body: {
+      mode: "live" | "retrospective";
+      market?: string;
+      time_horizon?: string;
+      event_override?: string | null;
+    },
   ) =>
     request<{ report_id: string; run_id: string; status: string; title: string }>(
       `/events/events/${encodeURIComponent(eventId)}/analyze`,
@@ -1578,6 +1583,7 @@ export const api = {
     event_title: string;
     event_period?: string;
     market?: string;
+    event_override?: string | null;
   }) =>
     request<{ report_id: string; run_id: string; status: string; title: string }>(
       "/events/analyze",

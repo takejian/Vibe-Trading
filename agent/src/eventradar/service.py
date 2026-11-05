@@ -254,9 +254,9 @@ def _top_touched(
 def _write_daily_picks(
     conn: Any, top_events: list[dict[str, Any]], scan_id: str
 ) -> None:
-    """Replace today's Top-N snapshot (later scans within a day overwrite)."""
+    """Replace today's Top-N scan snapshot (later scans within a day overwrite)."""
     today = datetime.now(SHANGHAI_TZ).date()
-    conn.execute("DELETE FROM radar_daily_pick WHERE pick_date = ?", [today])
+    conn.execute("DELETE FROM radar_daily_pick WHERE pick_date = ? AND source_mode = 'scan'", [today])
     for rank, event in enumerate(top_events, start=1):
         evidence = edb.list_evidence(conn, event["event_id"])
         channels = sorted({
@@ -265,6 +265,7 @@ def _write_daily_picks(
         edb.upsert_daily_pick(
             conn,
             pick_date=today,
+            source_mode="scan",
             rank_position=rank,
             event_id=event["event_id"],
             title_snapshot=event["title"],
@@ -820,6 +821,7 @@ def start_analysis(
     time_horizon: str = "",
     event_title: str = "",
     event_period: str = "",
+    event_override: str | None = None,
 ) -> dict[str, Any]:
     if mode not in VALID_MODES:
         raise EventRadarError(f"非法分析模式：{mode}")
@@ -834,14 +836,17 @@ def start_analysis(
             if event["verify_status"] != scoring.STATUS_CONFIRMED:
                 raise EventNotConfirmed("仅已证实事件可发起 Task Force 分析")
             title = event["title"]
-            brief = _build_event_brief(event, conn)
+            brief = event_override.strip() if event_override and event_override.strip() \
+                else _build_event_brief(event, conn)
         else:
             title = (event_title or "").strip()
             if not title:
                 raise EventRadarError("历史复盘需要提供事件名称")
             if mode != "retrospective":
                 raise EventRadarError("自定义事件仅支持 retrospective 模式")
-            brief = f"历史事件：{title}\n复盘区间：{event_period or '由分析团队界定'}"
+            default_brief = f"历史事件：{title}\n复盘区间：{event_period or '由分析团队界定'}"
+            brief = event_override.strip() if event_override and event_override.strip() \
+                else default_brief
 
         horizon = time_horizon or (
             event_period if mode == "retrospective" else "未来3-6个月"
@@ -1246,6 +1251,28 @@ def generate_daily_report(scope: str = "all", *, mode: str = "daily") -> dict[st
             news_count=column_news_count,
             source_status=merged,
         )
+        # Also write daily Top-5 snapshots into radar_daily_pick so
+        # list_archive's date filtering and the archive tab's "每日 Top5
+        # 记录" section can find them. Each mode overwrites only its own
+        # source_mode rows (source_mode='radar' | 'daily'), leaving scan
+        # snapshots untouched.
+        pick_mode = mode if mode in ("radar", "daily") else "daily"
+        conn.execute(
+            "DELETE FROM radar_daily_pick WHERE pick_date = ? AND source_mode = ?",
+            [today, pick_mode],
+        )
+        for rank, top_item in enumerate(top5, start=1):
+            eid = event_ids[rank - 1] if rank - 1 < len(event_ids) else None
+            edb.upsert_daily_pick(
+                conn,
+                pick_date=today,
+                source_mode=pick_mode,
+                rank_position=rank,
+                event_id=eid,
+                title_snapshot=top_item.get("title", "")[:120],
+                source_channels=[],
+                scan_id=f"daily-report-{pick_mode}-{scope}",
+            )
         row = edb.get_daily_report(conn, today)
         logger.info("日报已生成[%s]: %s (%d 条, top5=%d, id=%s)",
                     mode, today, result["news_count"], len(event_ids), rid)

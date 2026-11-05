@@ -271,6 +271,21 @@ class MacroConfig(_EnvBase):
     macro_llm_timeout: int = Field(alias="MACRO_LLM_TIMEOUT", default=0)
 
 
+class CelebrityConfig(_EnvBase):
+    """Investment-celebrity tracking module configuration.
+
+    Source: ``src/celebrity/db.py``. Investor / position / opinion data lives
+    in a local MySQL database (default schema ``vibe``). Defaults to the same
+    local instance as the macro module so no extra env setup is required.
+    """
+
+    celebrity_db_host: str = Field(alias="CELEBRITY_DB_HOST", default="127.0.0.1")
+    celebrity_db_port: int = Field(alias="CELEBRITY_DB_PORT", default=3306)
+    celebrity_db_user: str = Field(alias="CELEBRITY_DB_USER", default="root")
+    celebrity_db_password: str = Field(alias="CELEBRITY_DB_PASSWORD", default="")
+    celebrity_db_name: str = Field(alias="CELEBRITY_DB_NAME", default="vibe")
+
+
 # ---------------------------------------------------------------------------
 # OCR
 # ---------------------------------------------------------------------------
@@ -759,7 +774,7 @@ class EventRadarConfig(_EnvBase):
         alias="VIBE_EVENT_DAILY_REPORT_ENABLED", default=True
     )
     vibe_event_daily_report_at: str = Field(
-        alias="VIBE_EVENT_DAILY_REPORT_AT", default="08:00",
+        alias="VIBE_EVENT_DAILY_REPORT_AT", default="07:00",
         pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
     )
 
@@ -783,6 +798,7 @@ class EnvConfig(_EnvBase):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     data: DataConfig = Field(default_factory=DataConfig)
     macro: MacroConfig = Field(default_factory=MacroConfig)
+    celebrity: CelebrityConfig = Field(default_factory=CelebrityConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     agent_tuning: AgentTuningConfig = Field(default_factory=AgentTuningConfig)

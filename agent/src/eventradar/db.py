@@ -103,7 +103,8 @@ CREATE INDEX IF NOT EXISTS idx_radar_timeline_event ON radar_event_timeline(even
 CREATE TABLE IF NOT EXISTS radar_daily_pick (
     id                VARCHAR PRIMARY KEY,
     pick_date         DATE NOT NULL,
-    rank_position     INTEGER NOT NULL,
+    source_mode       VARCHAR NOT NULL DEFAULT 'scan',  -- 'scan' | 'radar' | 'daily'
+    rank_position     INTEGER NOT NULL,                 -- offset-encoded: 1..5=scan, 11..15=radar, 21..25=daily
     event_id          VARCHAR,
     title_snapshot    VARCHAR NOT NULL,
     source_channels   VARCHAR,
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS radar_daily_pick (
 );
 CREATE INDEX IF NOT EXISTS idx_daily_pick_event ON radar_daily_pick(event_id, pick_date);
 CREATE INDEX IF NOT EXISTS idx_daily_pick_date ON radar_daily_pick(pick_date);
+-- idx_daily_pick_mode is created after _migrate_columns adds source_mode (see initialize_schema)
 
 CREATE TABLE IF NOT EXISTS event_report (
     id                VARCHAR PRIMARY KEY,
@@ -237,6 +239,22 @@ def initialize_schema(conn: duckdb.DuckDBPyConnection) -> None:
             conn.execute(ddl)
     _migrate_columns(conn, "radar_event", _EVENT_MIGRATION_COLUMNS)
     _migrate_columns(conn, "event_report", _REPORT_MIGRATION_COLUMNS)
+    # v1.3: add source_mode to radar_daily_pick and migrate existing rows.
+    _migrate_columns(conn, "radar_daily_pick", (("source_mode", "VARCHAR"),))
+    try:
+        conn.execute(
+            "UPDATE radar_daily_pick SET source_mode = 'scan' "
+            "WHERE source_mode IS NULL OR source_mode = ''"
+        )
+    except Exception:
+        pass
+    try:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_daily_pick_mode "
+            "ON radar_daily_pick(pick_date, source_mode)"
+        )
+    except Exception:
+        pass
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_radar_event_archived "
         "ON radar_event(archived, verify_status, last_update_at)"
@@ -849,39 +867,50 @@ def upsert_daily_pick(
     conn: duckdb.DuckDBPyConnection,
     *,
     pick_date: Any,
+    source_mode: str = "scan",
     rank_position: int,
     event_id: str | None,
     title_snapshot: str,
     source_channels: Sequence[str],
     scan_id: str | None,
 ) -> None:
+    """Upsert a daily-pick snapshot row.
+
+    The caller is responsible for deleting existing rows for the same
+    (pick_date, source_mode) before calling this — see ``_write_daily_picks``
+    and the pick-writing block in ``generate_daily_report``.
+    """
+    offset = {"scan": 0, "radar": 10, "daily": 20}.get(source_mode, 0)
+    effective_rank = rank_position + offset
     conn.execute(
-        "INSERT INTO radar_daily_pick (id, pick_date, rank_position, event_id, "
+        "INSERT INTO radar_daily_pick (id, pick_date, source_mode, rank_position, event_id, "
         "title_snapshot, source_channels, scan_id, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT (pick_date, rank_position) DO UPDATE SET "
-        "event_id = excluded.event_id, title_snapshot = excluded.title_snapshot, "
-        "source_channels = excluded.source_channels, scan_id = excluded.scan_id",
-        [str(uuid.uuid4()), pick_date, rank_position, event_id, title_snapshot,
-         _dumps(list(source_channels)), scan_id, _now()],
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [str(uuid.uuid4()), pick_date, source_mode, effective_rank, event_id,
+         title_snapshot, _dumps(list(source_channels)), scan_id, _now()],
     )
 
 
 def _pick_row(row: Sequence[Any]) -> dict[str, Any]:
+    source_mode = row[2]
+    effective_rank = row[3]
+    offset = {"scan": 0, "radar": 10, "daily": 20}.get(source_mode, 0)
+    display_rank = effective_rank - offset
     return {
         "id": row[0],
         "pick_date": str(row[1]),
-        "rank_position": row[2],
-        "event_id": row[3],
-        "title_snapshot": row[4],
-        "source_channels": _loads(row[5]),
-        "scan_id": row[6],
-        "created_at": row[7].isoformat() if row[7] else None,
+        "source_mode": source_mode,
+        "rank_position": display_rank,
+        "event_id": row[4],
+        "title_snapshot": row[5],
+        "source_channels": _loads(row[6]),
+        "scan_id": row[7],
+        "created_at": row[8].isoformat() if row[8] else None,
     }
 
 
 _PICK_COLUMNS = (
-    "id, pick_date, rank_position, event_id, title_snapshot, "
+    "id, pick_date, source_mode, rank_position, event_id, title_snapshot, "
     "source_channels, scan_id, created_at"
 )
 

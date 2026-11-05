@@ -19,6 +19,7 @@ import {
   Newspaper,
   Radar,
   RefreshCw,
+  Rocket,
   RotateCcw,
   ShieldQuestion,
   Sparkles,
@@ -207,6 +208,9 @@ function EventDetailDialog({
   const [busy, setBusy] = useState(false);
   const [rechecking, setRechecking] = useState(false);
   const [openReport, setOpenReport] = useState<EventReport | null>(null);
+  const [analyzeOpen, setAnalyzeOpen] = useState(false);
+  const [analyzeQuestion, setAnalyzeQuestion] = useState("");
+  const [analyzeHorizon, setAnalyzeHorizon] = useState("未来3-6个月");
 
   const load = useCallback(async () => {
     try {
@@ -233,11 +237,30 @@ function EventDetailDialog({
     }
   };
 
-  const analyze = async () => {
+  const openAnalyzeDialog = () => {
+    if (!detail) return;
+    const defaultQ = [
+      `事件：${detail.title}`,
+      detail.summary ? `摘要：${detail.summary.slice(0, 300)}` : "",
+      "",
+      "请围绕以下市场/资产/时间跨度展开分析：",
+      "（可在此处修改问题，限定你关心的范围）",
+    ].filter(Boolean).join("\n");
+    setAnalyzeQuestion(defaultQ);
+    setAnalyzeHorizon("未来3-6个月");
+    setAnalyzeOpen(true);
+  };
+
+  const doAnalyze = async () => {
     if (!detail) return;
     setBusy(true);
     try {
-      await api.radarAnalyze(detail.event_id, { mode: "live" });
+      await api.radarAnalyze(detail.event_id, {
+        mode: "live",
+        time_horizon: analyzeHorizon || undefined,
+        event_override: analyzeQuestion.trim() || undefined,
+      });
+      setAnalyzeOpen(false);
       onAnalyzed();
     } catch (e) {
       setError(e instanceof Error ? e.message : "启动失败");
@@ -414,7 +437,7 @@ function EventDetailDialog({
             <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
               <button
                 type="button"
-                onClick={() => void analyze()}
+                onClick={openAnalyzeDialog}
                 disabled={busy || detail.verify_status !== "confirmed"}
                 title={detail.verify_status !== "confirmed" ? "仅已证实事件可发起分析" : ""}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
@@ -464,6 +487,85 @@ function EventDetailDialog({
           onClose={() => setOpenReport(null)}
           onChanged={() => void openReportById(openReport.id)}
         />
+      )}
+
+      {analyzeOpen && detail && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+          onClick={() => !busy && setAnalyzeOpen(false)}
+        >
+          <div
+            className="my-16 w-full max-w-xl rounded-xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">发起 Task Force 分析</h3>
+              <button
+                type="button"
+                onClick={() => !busy && setAnalyzeOpen(false)}
+                disabled={busy}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              编辑问题 / 限定范围后提交，Task Force 将围绕你的问题展开分析。
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  问题描述 / 分析范围
+                </label>
+                <textarea
+                  value={analyzeQuestion}
+                  onChange={(e) => setAnalyzeQuestion(e.target.value)}
+                  rows={8}
+                  placeholder="描述你想分析的问题、关心的市场/资产、时间跨度等"
+                  className="w-full resize-y rounded-md border border-border bg-background p-2.5 text-sm leading-relaxed focus:border-primary focus:outline-none"
+                />
+                <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>留空则使用系统自动生成的事件 brief</span>
+                  <span>{analyzeQuestion.length} / 2000</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  时间跨度
+                </label>
+                <input
+                  type="text"
+                  value={analyzeHorizon}
+                  onChange={(e) => setAnalyzeHorizon(e.target.value)}
+                  placeholder="未来3-6个月"
+                  className="w-full rounded-md border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAnalyzeOpen(false)}
+                disabled={busy}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-40"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void doAnalyze()}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                启动分析
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1237,6 +1339,11 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
   const [comparing, setComparing] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
+  // Dialog state for pre-edit questions
+  const [analyzeOpen, setAnalyzeOpen] = useState<null | { mode: "live" | "retro"; eventId?: string; title?: string; period?: string }>(null);
+  const [analyzeQuestion, setAnalyzeQuestion] = useState("");
+  const [analyzeHorizon, setAnalyzeHorizon] = useState("未来3-6个月");
+
   const load = useCallback(async () => {
     try {
       const [candidates, reportsRes] = await Promise.all([
@@ -1264,24 +1371,54 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
     return () => clearInterval(timer);
   }, [anyRunning, load]);
 
-  const startLive = async () => {
+  const openLiveDialog = () => {
     if (!selectedEventId) return;
-    setSubmitting(true);
-    try {
-      await api.radarAnalyze(selectedEventId, { mode: "live" });
-      setSelectedEventId("");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "启动失败");
-    } finally {
-      setSubmitting(false);
-    }
+    const ev = events.find((e) => e.event_id === selectedEventId);
+    const defaultQ = [
+      ev ? `事件：${ev.title}` : "",
+      ev?.summary ? `摘要：${ev.summary.slice(0, 300)}` : "",
+      "",
+      "请围绕以下市场/资产/时间跨度展开分析：",
+      "（可在此处修改问题，限定你关心的范围）",
+    ].filter(Boolean).join("\n");
+    setAnalyzeQuestion(defaultQ);
+    setAnalyzeHorizon("未来3-6个月");
+    setAnalyzeOpen({ mode: "live", eventId: selectedEventId });
   };
 
-  const startRetro = async (title: string, period: string) => {
+  const openRetroDialog = (title: string, period: string) => {
+    const defaultQ = [
+      `历史事件：${title}`,
+      period ? `复盘区间：${period}` : "",
+      "",
+      "请分析该事件的早期信号、资产真实表现、没抓住的机会清单与「若重演」预案。",
+      "（可在此处修改问题/范围）",
+    ].filter(Boolean).join("\n");
+    setAnalyzeQuestion(defaultQ);
+    setAnalyzeHorizon(period || "由分析团队界定");
+    setAnalyzeOpen({ mode: "retro", title, period });
+  };
+
+  const doSubmitAnalyze = async () => {
+    if (!analyzeOpen) return;
     setSubmitting(true);
     try {
-      await api.eventAnalyzeCustom({ event_title: title, event_period: period });
+      const override = analyzeQuestion.trim() || undefined;
+      if (analyzeOpen.mode === "live" && analyzeOpen.eventId) {
+        await api.radarAnalyze(analyzeOpen.eventId, {
+          mode: "live",
+          time_horizon: analyzeHorizon || undefined,
+          event_override: override,
+        });
+        setSelectedEventId("");
+      } else if (analyzeOpen.mode === "retro" && analyzeOpen.title) {
+        await api.eventAnalyzeCustom({
+          event_title: analyzeOpen.title,
+          event_period: analyzeOpen.period,
+          event_override: override,
+        });
+      }
+      setAnalyzeOpen(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "启动失败");
@@ -1374,7 +1511,7 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
             <button
               type="button"
               disabled={!selectedEventId || submitting}
-              onClick={() => void startLive()}
+              onClick={openLiveDialog}
               className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-40"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
@@ -1400,7 +1537,7 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
                 key={preset.title}
                 type="button"
                 disabled={submitting}
-                onClick={() => void startRetro(preset.title, preset.period)}
+                onClick={() => openRetroDialog(preset.title, preset.period)}
                 className="rounded-md border border-border px-2 py-1 text-xs hover:border-primary/40 hover:bg-muted/60 disabled:opacity-40"
               >
                 {preset.title}
@@ -1423,7 +1560,7 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
             <button
               type="button"
               disabled={!customTitle.trim() || submitting}
-              onClick={() => void startRetro(customTitle.trim(), customPeriod.trim())}
+              onClick={() => openRetroDialog(customTitle.trim(), customPeriod.trim())}
               className="inline-flex items-center gap-1 rounded-md border border-primary px-3 py-1.5 text-sm text-primary hover:bg-primary/10 disabled:opacity-40"
             >
               复盘
@@ -1594,6 +1731,87 @@ function TaskForceTab({ onGoArchive }: { onGoArchive: () => void }) {
       )}
       {comparing && compareIds.length === 2 && (
         <CompareDialog reportIds={compareIds} onClose={() => setComparing(false)} />
+      )}
+
+      {analyzeOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+          onClick={() => !submitting && setAnalyzeOpen(null)}
+        >
+          <div
+            className="my-16 w-full max-w-xl rounded-xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">
+                {analyzeOpen.mode === "live" ? "发起 Task Force 当下影响分析" : "发起历史复盘"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => !submitting && setAnalyzeOpen(null)}
+                disabled={submitting}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              编辑问题 / 限定范围后提交，Task Force 将围绕你的问题展开分析。
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  问题描述 / 分析范围
+                </label>
+                <textarea
+                  value={analyzeQuestion}
+                  onChange={(e) => setAnalyzeQuestion(e.target.value)}
+                  rows={8}
+                  placeholder="描述你想分析的问题、关心的市场/资产、时间跨度等"
+                  className="w-full resize-y rounded-md border border-border bg-background p-2.5 text-sm leading-relaxed focus:border-primary focus:outline-none"
+                />
+                <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>留空则使用系统默认 brief</span>
+                  <span>{analyzeQuestion.length} / 2000</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  时间跨度
+                </label>
+                <input
+                  type="text"
+                  value={analyzeHorizon}
+                  onChange={(e) => setAnalyzeHorizon(e.target.value)}
+                  placeholder={analyzeOpen.mode === "retro" ? "如 2011-01 至 2012-12" : "未来3-6个月"}
+                  className="w-full rounded-md border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAnalyzeOpen(null)}
+                disabled={submitting}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-40"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void doSubmitAnalyze()}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                启动分析
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

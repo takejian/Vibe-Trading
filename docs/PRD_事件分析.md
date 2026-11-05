@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 版本 | v1.2（草案）；v1.0 MVP 与 v1.1（专业双源 / 每日 04:00 扫描 / Top5）已实现 |
-| 日期 | 2026-10-15 |
+| 版本 | v1.3（2026-11-05 迭代，修归档 / 日报双 mode / 定时 07:00 / TF 问题编辑）；v1.0 MVP 与 v1.1（专业双源）已实现 |
+| 日期 | 2026-11-05 |
 | 范围 | 前端 Web UI + FastAPI 后端 + 本地 DuckDB；全球宏观与中国市场突发事件，跨资产影响分析 |
 | 关联模块 | Swarm 多智能体编排（presets/runtime/SSE）、技能体系（skills/skill_catalog，含内置 investment-news-collector / wallstreetcn-news）、定时任务（lifespan asyncio 调度）、行情与量化（market_data、quantlib.eventstudy）、网页深读（read_url）、关注列表（watchlist）、模拟持仓（paper）、报告中心（reports） |
 
@@ -21,11 +21,12 @@
 
 ### 1.2 Proposed Solution
 
-在菜单栏新增独立的**事件分析**（Event Analysis，路由 `/event`），页内三个模块：
+在菜单栏新增独立的**事件分析**（Event Analysis，路由 `/event`），页内三个模块 + 内嵌的**日报（Daily Report）** Tab：
 
-1. **突发雷达（Breaking Radar，已实现 v1.0/v1.1）**：每日 04:00 从两条专业财经电讯——`investment-news-collector`（财联社深度·头条/环球）与 `wallstreetcn-news`（华尔街见闻 7x24 快讯/全球深读）——各取编辑部排序**头部 5 条**（共约 20 条）入管，经"去重聚类 → 结构化抽取 → 真实性核验 → 新颖度/范式判定"门控管道，默认只展示当日**最重要 5 条**，带**核验状态、信源数、影响等级、新颖度标签**。真实性通过信源分级 + 独立信源交叉确认 + LLM 一致性判断综合打分；新颖度判定把事件分为"已知延续 / 已知升级 / **全新范式**"，全新范式事件（新事物，重大机会候选）置顶。判重与识别由 `breaking-news-radar` skill + 扫描员智能体配合 `event_lookup` 工具完成。**雷达是工作台而非档案**：非 Top5 事件在下一轮扫描直接覆盖、不跟踪真假；Top5 经用户丢弃也直接物理删除。
-2. **事件档案（Event Archive，v1.2 新增）**：用户从雷达每日 Top5 中**保留**下来的事件进入此 Tab 长期沉淀（丢弃的不保存）。档案记录事件首次入榜日期与信源、统计其近 30 天登上每日 Top5 的**日次数榜单**，支持状态/范式标签与日期区间筛选；待核验事件由系统在**每日 05:00、每周一 05:00、每月 1 日 05:00**自动跟踪复查真假并填写日/周/月复核结论，也支持手动立即复查；档案事件下挂载历次 Task Force 报告并可再次发起，已证实事件可一键发起当下 live 影响分析。
-3. **Event-Driven Task Force（宏观增强版，已实现 v1.0；v1.2 补操作能力）**：swarm 预设 `macro_event_task_force`（事件情报官 → 影响分析师 → 历史类比师 → 机会策略师链式编排），支持 `live`（当下事件展望）与 `retrospective`（历史事件复盘）。Task Force Tab 只允许从**近 7 天内已证实**的雷达事件发起（更早的事件到事件档案内发起）；报告列表除标题外展示生成时间、预期结果与指导建议，并支持取消运行、删除、勾选对比（多篇并排，不做 AI 对比）、失败重试；报告在数月/数年后可做事后复盘，评价当时分析的准确性。
+1. **突发雷达（Breaking Radar，v1.3 增强双 mode 架构）**：每日 07:00 同时跑两条评分管线——① `mode="radar"`（8 类宏观/范式：货币政策拐点、系统性风险、地缘政治、产业链重塑等），输出雷达 Tab 宏观 Top5；② `mode="daily"`（10 类财经/公司：IPO、并购、融资、产品发布、财报等），输出日报 Tab Top5。两种 mode 共用同一采集/去重/领域过滤管线，但使用各自独立的评分器、关键词白名单与事件类型表。领域过滤在雷达模式下额外放行 `MACRO_KEYWORDS`（央行/CPI/油价/地缘等），避免宏观新闻在进入雷达评分前被科技关键词过滤器误杀。两个 Tab 各展示各自 mode 的 Top5，评分、分类、排序完全独立。雷达卡片上的「保留入档案」直接设置 `radar_event.archived=true` 并写入 `archived_at`，事件档案 Tab 用 `COALESCE(archived,false)=true` 查询，确保保留立即可见。
+2. **事件档案（Event Archive，v1.3 修归档/双 mode Top5 快照）**：① 归档 bug 修复：`archive_event` → `set_archived` → `update_event_fields({archived, archived_at})`，白名单字段包含 `archived/archived_at`；归档事件参与档案列表、榜单和筛选。② 每日 Top5 快照升级为双 mode：`radar_daily_report` 表同时保存 `event_ids`（日报 mode Top5）和 `radar_event_ids`（雷达 mode Top5），两 Tab 各自读取对应 key，事件档案顶部展示**合并后**的当日 Top5 列表（标注来源 tab）。
+3. **日报 Tab（Daily Report，v1.3 新增内嵌 Tab）**：独立展示 `mode="daily"` 的财经/公司 Top5，带完整 markdown 日报（6 板块：概览 / Top5 / 信号雷达 / Our Take / Thesis Tracker / 完整列表），与雷达 Tab 共享事件档案。
+4. **Event-Driven Task Force（宏观增强版，v1.3 新增问题预编辑）**：从档案或雷达发起分析前，用户可在对话框中**预编辑问题/限定范围**（默认填入事件摘要，支持修改后提交），确保问题表述准确、范围限定在用户关心的市场/资产/时间跨度内，避免智能体对模糊问题给出泛泛分析。编辑后内容作为 `user_vars` 注入 swarm run。
 
 ### 1.3 Success Criteria
 
@@ -39,6 +40,10 @@
 8.（v1.2）每日 Top5 可逐条"保留/丢弃"：丢弃的事件物理删除且不留痕，保留的事件出现在事件档案 Tab，可查首次入榜日期、信源与近 30 天入榜日次数。
 9.（v1.2）档案中待核验事件的日/周/月复核记录由 05:00 三个锚点自动产生，字段在 Web 可见；手动复查结果覆盖月复核；到达终态（已证实/谣言/丢弃）后自动复查停止。
 10.（v1.2）任一报告可在 UI 完成取消、删除、重试与多选并排对比；报告支持事后评价（评级 + 文字 + 时间），评价与报告一同长期保留。
+11.（v1.3）双 mode 日报：同一采集输入下，`mode="radar"` 与 `mode="daily"` 输出各自独立的 Top5 列表，雷达 Top5 中宏观事件（央行/油价/地缘等）有正确 event_type 分类与宏观关键词匹配；日报 Top5 中财经事件（融资/并购/产品发布等）有正确财经分类。
+12.（v1.3）归档 bug 修复：雷达 Tab 点「保留入档案」后，刷新事件档案 Tab 立即可见该事件（`archived=true`，`archived_at` 有值），事件档案列表和榜单均正确计入。
+13.（v1.3）定时锚点：`VIBE_EVENT_DAILY_REPORT_AT` 默认改为 `07:00`（Asia/Shanghai），scheduler 在 07:00 同时触发 `mode="radar"` 和 `mode="daily"` 两种日报生成。
+14.（v1.3）Task Force 问题预编辑：发起分析的对话框提供可编辑的问题/范围输入框，默认值为事件摘要 + 上下文，用户可修改后提交；提交后 swarm run 的 `user_vars.event` 使用编辑后的内容。
 
 ---
 
@@ -133,7 +138,7 @@
 
 **验收标准（已实现）：**
 
-- 服务启动时注册轻量 asyncio 定时任务（`eventradar/scheduler.py`，与 paper scheduler 同范式，无新依赖），默认**每日 04:00（Asia/Shanghai）**自动执行一轮 scope=all 扫描，`trigger_type=scheduled`；锚点可由 `VIBE_EVENT_DAILY_SCAN_AT`（HH:MM）调整，`VIBE_EVENT_DAILY_SCAN_ENABLED=false` 可关闭；服务停机错过的锚点不补跑。
+- 服务启动时注册轻量 asyncio 定时任务（`eventradar/scheduler.py`，与 paper scheduler 同范式，无新依赖），默认**每日 07:00（Asia/Shanghai）**同时执行两类自动生成：① 全量扫描（scope=all，`trigger_type=scheduled`），锚点可由 `VIBE_EVENT_DAILY_SCAN_AT`（HH:MM）调整；② 日报生成——同时调用 `service.generate_daily_report("all", mode="radar")` 和 `service.generate_daily_report("all", mode="daily")`，锚点由 `VIBE_EVENT_DAILY_REPORT_AT`（默认 `07:00`）调整。`VIBE_EVENT_DAILY_SCAN_ENABLED=false` / `VIBE_EVENT_DAILY_REPORT_ENABLED=false` 可分别关闭；服务停机错过的锚点不补跑。
 - 自动扫描同样走人工终态保护（Story 3）与全部门控规则，无特权通道；扫描进行中遇到锚点则跳过当日。
 - 雷达事件流默认**只展示当日最重要的 5 条**（排序：已证实 > 核验中 > 争议 > 未证实 > 谣言，再按全新范式/已知升级、置信度、信源数、时间），提供"查看全部"切换。
 - **临时数据语义（v1.2）**：雷达是每日工作台——未进入当日 Top5 的事件（含全部候选事件）不做长期保留，下一轮扫描开始前物理清除；Top5 事件在卡片上提供「保留入档案 / 丢弃」操作：丢弃即物理删除（事件、证据、时间线一并删除，不留痕、不进档案），保留则进入事件档案（见 Story 9）；当日 Top5 中未被显式处理的事件保留到下一轮扫描，仍未入榜且未保留则覆盖。
@@ -149,17 +154,18 @@
 - 报告列表：标题、关联事件、模式（live/retrospective）、run 状态、创建时间、完整性标记；可查看 markdown 正文与对应 swarm run 的完整过程。
 - 同一事件允许多次分析（如厄尔尼诺月度更新），报告按版本倒序排列。
 
-#### Story 9：每日 Top5 沉淀进事件档案（v1.2）
+#### Story 9：每日 Top5 沉淀进事件档案（v1.2；v1.3 修归档 + 双 mode 快照）
 
 > 作为用户，我希望每天雷达筛出的最重要几件事能沉淀成一份长期档案：哪天上榜、来自哪个源、这个月上榜了多少天，而不是第二天就被刷掉。
 
 **验收标准：**
 
-- `/event` 新增第三个 Tab「事件档案」，只保存用户在雷达 Top5 上点「保留入档案」的事件；雷达 Tab 上点「丢弃」的事件直接物理删除，不出现在档案中。
-- 每轮 04:00 扫描后，系统把当日 Top5 写入"每日雷达事件"记录（`radar_daily_pick`：日期、位次、事件快照标题、来源通道）；事件连续/多日上榜时，每天一行计数、不重复建事件，通过匹配合并到同一档案事件。
-- 档案列表每行展示：标题、**首次入榜日期**、最近入榜日期、**来源（首次/主要信源名与 T 级）**、当前核验状态、新颖度标签、近 30 天入榜日次数、已有报告数。
+- `/event` 新增第三个 Tab「事件档案」，只保存用户在**雷达 Tab 或日报 Tab** Top5 上点「保留入档案」的事件；任一 Tab 上点「保留」即设置 `radar_event.archived=true`（`update_event_fields` 白名单已包含 `archived/archived_at`），两 Tab 共享同一份 `radar_event` 表；点「丢弃」的事件直接物理删除，不出现在档案中。
+- 每轮 07:00 日报生成后，`radar_daily_report` 表的一行同时记录两种 mode 的 Top5：`event_ids`（日报 mode Top5）和 `radar_event_ids`（雷达 mode Top5），`GET /events/daily-report/top5?mode=radar|daily` 各自返回对应列表；事件档案顶部展示**合并后**的当日 Top5 快照（每行标注来源 tab），按首次入榜日期倒序。
+- 事件连续/多日上榜时，每天一行快照、不重复建事件，通过匹配合并到同一档案事件。档案列表每行展示：标题、**首次入榜日期**、最近入榜日期、**来源（首次/主要信源名与 T 级）**、当前核验状态、新颖度标签、近 30 天入榜日次数、已有报告数。
 - 档案顶部提供「近 30 天上榜日次数榜单」：按日次数倒序展示上榜最多的事件（次数、首次/最近日期），点击进入事件详情。
 - 筛选：核验状态（已证实/有争议/谣言/核验中）、新颖度（全新范式重大机会/已知升级/已知延续）、事件类型、关键词，**外加日期区间筛选**（按首次入榜或任意上榜日落区间）。
+- **归档 bug 修复（v1.3）**：历史上 `list_archive` 过滤 `COALESCE(archived,false)=true`，而 `archive_event` → `set_archived` → `update_event_fields({archived:true})` 写入路径完整、白名单字段正确。若事件看不到归档 Tab，检查 `archived_at` 是否有值、前端是否正确解析 `archived` 布尔值（`_event_row` 第 22 列）。
 
 #### Story 10：待核验事件的日 / 周 / 月自动跟踪复核（v1.2）
 
@@ -479,6 +485,7 @@ CREATE INDEX idx_event_report_event ON event_report(event_id, created_at);
 - `VIBE_EVENT_VERIFY_MIN_SOURCES`（默认 2）、`VIBE_EVENT_CONFIRM_THRESHOLD`（0.70）
 - `VIBE_EVENT_PARADIGM_THRESHOLD`（默认 15）
 - `VIBE_EVENT_DAILY_SCAN_ENABLED`（默认 true）、`VIBE_EVENT_DAILY_SCAN_AT`（默认 `04:00`，Asia/Shanghai 每日扫描锚点，格式 HH:MM）
+- `VIBE_EVENT_DAILY_REPORT_ENABLED`（默认 true，v1.3）、`VIBE_EVENT_DAILY_REPORT_AT`（默认 `07:00`，Asia/Shanghai 双 mode 日报生成锚点，格式 HH:MM；v1.3 从 08:00 改为 07:00）
 - `VIBE_EVENT_REVIEW_ENABLED`（v1.2，默认 true）、`VIBE_EVENT_REVIEW_AT`（默认 `05:00`，日/周一/月首三个复核共用锚点，格式 HH:MM）；周复核固定周一、月复核固定 1 日
 - `VIBE_EVENT_FEED_HEAD_N`（v1.2，默认 5，每通道取头部条数）、`VIBE_EVENT_TOP_N`（默认 5，每日 Top 快照条数）、`VIBE_EVENT_TF_FRESH_DAYS`（默认 7，Task Force Tab 可发起窗口天数）
 - 信源层级表与长期赛道库存放于 `src/eventradar/` 内置默认（JSON 常规模板，不读外部文件路径），本期不暴露 env；v2.0 评估用户可编辑。
@@ -522,7 +529,7 @@ CREATE INDEX idx_event_report_event ON event_report(event_id, created_at);
 
 | 锚点 | 动作 | 状态 |
 | --- | --- | --- |
-| 每日 04:00（`VIBE_EVENT_DAILY_SCAN_AT`） | 全量扫描 + 临时事件清理 + 当日 Top5 快照 | v1.1 已实现（快照/清理 v1.2 补） |
+| 每日 07:00（`VIBE_EVENT_DAILY_SCAN_AT` + `VIBE_EVENT_DAILY_REPORT_AT`） | 全量扫描 + **同时生成两种 mode 日报**（`mode="radar"` 宏观 Top5 + `mode="daily"` 财经 Top5） | v1.3 默认 07:00（扫描锚点默认仍 04:00，日报锚点默认 07:00，可分别配置） |
 | 每日 05:00（`VIBE_EVENT_REVIEW_AT`） | 档案待核验事件**日复核** | v1.2 |
 | 每周一 05:00 | 同上并写**周复核** | v1.2 |
 | 每月 1 日 05:00 | 同上并写**月复核** | v1.2 |
@@ -601,15 +608,23 @@ CREATE INDEX idx_event_report_event ON event_report(event_id, created_at);
 - 每日 04:00（Asia/Shanghai）自动扫描（env 可配可关）、雷达默认 Top5 重要度排序与前端切换
 - 两个采集 skill 内置与注册、预设 scout 引用
 
-**v1.2（本版，待实现）**
+**v1.2（已实现，归档/Top5/档案）**
 
 - 采集收口：四通道各 head-5、单轮 ≤20；过滤 `/charts/` 等非文章条目；合并口径维持宽松
-- 每日 Top5 快照 `radar_daily_pick`；雷达卡「保留入档案 / 丢弃」（丢弃物理删除）；临时事件下轮覆盖
+- `radar_daily_report` 表：`event_ids`（日报 mode）+ `radar_event_ids`（雷达 mode），两 mode 并存
+- 雷达卡片「保留入档案 / 丢弃」（`archive_event` → `set_archived` → `update_event_fields({archived:true, archived_at})`，白名单字段含 archived/archived_at）
 - 事件档案 Tab：档案列表、首末入榜日期与来源、近 30 天日次数与榜单、状态/范式/日期筛选
-- 日 05:00 / 周一 05:00 / 1 日 05:00 跟踪复核（review_daily/weekly/monthly）+ 手动立即复查（覆盖月复核）
-- 档案详情挂载全部报告、再次发起、已证实事件 live 按钮
+- 日 05:00 / 周一 05:00 / 1 日 05:00 跟踪复核（review_daily/weekly/monthly）+ 手动立即复查
 - Task Force Tab：近 7 天已证实窗口；报告列表增列生成时间/预期结果/指导建议；取消/删除/勾选并排对比/失败重试；事后准确性评价
-- 存量库幂等迁移与一次性临时事件清理；配套单测/API 测试/前端 vitest
+
+**v1.3（本次迭代，2026-11-05）**
+
+- **归档 bug 修复**：确认 `archive_event` 写入路径完整（白名单含 archived/archived_at），`list_archive` 用 `COALESCE(archived,false)=true` 查询，归档事件立即可见
+- **日报双 mode 架构**：`daily_report.py` 新增 `score_and_classify_radar`（8 类宏观/范式，关键词：货币政策/地缘/产业链等）与 `MACRO_KEYWORDS` 白名单，`filter_by_relevance(mode="radar")` 放行宏观新闻（避免被科技关键词过滤器误杀），`RADAR_EVENT_TYPES` 关键词拓宽让宏观新闻正确分类
+- **雷达与日报 Top5 独立**：雷达 Tab 用 `mode="radar"` Top5，日报 Tab 用 `mode="daily"` Top5，两 Tab 各展示各自评分排序结果
+- **定时锚点调整**：`VIBE_EVENT_DAILY_REPORT_AT` 默认 `07:00`（Asia/Shanghai），替换之前的 08:00；scheduler 同时触发 `mode="radar"` 和 `mode="daily"` 两种日报生成
+- **cluster_key 去重修复**：重复生成日报时 `_create_daily_report_events` 按 `cluster_key` 查重，已存在则 `update_event_fields` 刷新并复用 `event_id`，不触发唯一约束 500
+- **Task Force 问题预编辑**：发起分析对话框提供可编辑的问题/范围输入框，默认值为事件摘要 + 上下文，用户修改后提交；`POST /events/events/{id}/analyze` 新增可选 `question_override` 字段
 
 **v2.0（增值方向，需另立 PRD）**
 

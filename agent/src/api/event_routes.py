@@ -38,6 +38,10 @@ class AnalyzeBody(BaseModel):
     mode: str = Field(default="live", pattern="^(live|retrospective)$")
     market: str = "A股+全球"
     time_horizon: str = ""
+    event_override: str | None = Field(
+        default=None, max_length=2000,
+        description="用户编辑后的事件/问题描述，覆盖自动生成的 brief",
+    )
 
 
 class CustomAnalyzeBody(BaseModel):
@@ -45,6 +49,10 @@ class CustomAnalyzeBody(BaseModel):
     event_period: str = ""
     market: str = "A股+全球"
     mode: str = Field(default="retrospective", pattern="^retrospective$")
+    event_override: str | None = Field(
+        default=None, max_length=2000,
+        description="用户编辑后的问题描述，覆盖默认的历史复盘 brief",
+    )
 
 
 class ArchiveBody(BaseModel):
@@ -197,6 +205,7 @@ def register_event_routes(app: FastAPI) -> None:
                 _get_swarm_runtime(),
                 event_id=event_id, mode=body.mode, market=body.market,
                 time_horizon=body.time_horizon,
+                event_override=body.event_override,
             )
         except Exception as exc:
             raise _handle_service_errors(exc) from exc
@@ -235,6 +244,7 @@ def register_event_routes(app: FastAPI) -> None:
                 _get_swarm_runtime(),
                 event_id=None, mode=body.mode, market=body.market,
                 event_title=body.event_title, event_period=body.event_period,
+                event_override=body.event_override,
             )
         except Exception as exc:
             raise _handle_service_errors(exc) from exc
