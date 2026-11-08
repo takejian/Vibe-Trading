@@ -287,6 +287,10 @@ register_alpha_routes(app)
 from src.api.gold_routes import register_gold_routes  # noqa: E402
 register_gold_routes(app)
 
+# --- Super-rebound (超跌反弹) finance monitor ---
+from src.api.super_rebound_routes import register_super_rebound_routes  # noqa: E402
+register_super_rebound_routes(app)
+
 # --- Investment celebrity holdings & opinions tracker ---
 from src.api.celebrity_routes import register_celebrity_routes  # noqa: E402
 register_celebrity_routes(app)

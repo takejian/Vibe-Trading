@@ -82,6 +82,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         start_celebrity_scheduler,
         stop_celebrity_scheduler,
     )
+    from src.super_rebound.scheduler import (
+        start_super_rebound_scheduler,
+        stop_super_rebound_scheduler,
+    )
 
     startup = _compat.host_attr("_run_startup_preflight", _run_startup_preflight)
     shutdown = _compat.host_attr(
@@ -93,8 +97,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         start_event_radar_scheduler(app)
         start_gold_scheduler(app)
         start_celebrity_scheduler(app)
+        start_super_rebound_scheduler(app)
         yield
     finally:
+        stop_super_rebound_scheduler(app)
         stop_celebrity_scheduler(app)
         stop_gold_scheduler(app)
         await stop_event_radar_scheduler(app)

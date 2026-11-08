@@ -64,6 +64,9 @@ const GoldMonitor = lazy(() =>
 const InvestorCelebrity = lazy(() =>
   import("@/pages/InvestorCelebrity").then((m) => ({ default: m.InvestorCelebrity })),
 );
+const SuperRebound = lazy(() =>
+  import("@/pages/SuperRebound").then((m) => ({ default: m.SuperRebound })),
+);
 
 function PageLoader() {
   return (
@@ -111,6 +114,7 @@ export const router = createBrowserRouter([
       { path: "/alpha-zoo/:alphaId", element: wrap(AlphaZoo) },
       { path: "/gold", element: wrap(GoldMonitor) },
       { path: "/investor-celebrity", element: wrap(InvestorCelebrity) },
+      { path: "/super-rebound", element: wrap(SuperRebound) },
     ],
   },
 ]);

@@ -286,6 +286,22 @@ class CelebrityConfig(_EnvBase):
     celebrity_db_name: str = Field(alias="CELEBRITY_DB_NAME", default="vibe")
 
 
+class SuperReboundConfig(_EnvBase):
+    """Super-rebound (超跌反弹) finance module configuration.
+
+    Source: ``src/super_rebound/db.py``. Margin-ratio history and ETF monitor
+    data live in a local MySQL database (default schema ``vibe``). Defaults to
+    the same local instance as the macro module so no extra env setup is
+    required.
+    """
+
+    super_rebound_db_host: str = Field(alias="SUPER_REBOUND_DB_HOST", default="127.0.0.1")
+    super_rebound_db_port: int = Field(alias="SUPER_REBOUND_DB_PORT", default=3306)
+    super_rebound_db_user: str = Field(alias="SUPER_REBOUND_DB_USER", default="root")
+    super_rebound_db_password: str = Field(alias="SUPER_REBOUND_DB_PASSWORD", default="")
+    super_rebound_db_name: str = Field(alias="SUPER_REBOUND_DB_NAME", default="vibe")
+
+
 # ---------------------------------------------------------------------------
 # OCR
 # ---------------------------------------------------------------------------
@@ -799,6 +815,7 @@ class EnvConfig(_EnvBase):
     data: DataConfig = Field(default_factory=DataConfig)
     macro: MacroConfig = Field(default_factory=MacroConfig)
     celebrity: CelebrityConfig = Field(default_factory=CelebrityConfig)
+    super_rebound: SuperReboundConfig = Field(default_factory=SuperReboundConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     agent_tuning: AgentTuningConfig = Field(default_factory=AgentTuningConfig)
