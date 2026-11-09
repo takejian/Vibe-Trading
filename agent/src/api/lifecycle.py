@@ -83,12 +83,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         stop_super_rebound_scheduler,
     )
 
-    # NOTE: celebrity scheduler 已废弃，改由 Trae 工作台定时任务调用
-    # /api/celebrity/investors/{id}/refresh 接口实现批量刷新。
-    # from src.celebrity.scheduler import (
-    #     start_celebrity_scheduler,
-    #     stop_celebrity_scheduler,
-    # )
+    from src.celebrity.scheduler import (
+        start_celebrity_scheduler,
+        stop_celebrity_scheduler,
+    )
 
     startup = _compat.host_attr("_run_startup_preflight", _run_startup_preflight)
     shutdown = _compat.host_attr(
@@ -99,12 +97,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         start_paper_scheduler(app)
         start_event_radar_scheduler(app)
         start_gold_scheduler(app)
-        # start_celebrity_scheduler(app)  # 已废弃
+        start_celebrity_scheduler(app)  # weekly price update only (positions refresh → Trae)
         start_super_rebound_scheduler(app)
         yield
     finally:
         stop_super_rebound_scheduler(app)
-        # stop_celebrity_scheduler(app)  # 已废弃
+        stop_celebrity_scheduler(app)
         stop_gold_scheduler(app)
         await stop_event_radar_scheduler(app)
         await stop_paper_scheduler(app)

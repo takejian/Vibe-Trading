@@ -410,6 +410,183 @@ def get_position_snapshots(investor_id: int) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Aggregated positions (公募持仓 Tab)
+# ---------------------------------------------------------------------------
+
+def _normalize_target(name: str) -> str:
+    import re
+    n = str(name or "").strip()
+    # Full-width → half-width for common punctuation; strip spaces/full-width spaces
+    n = n.replace("\u3000", " ").strip()
+    n = re.sub(r"\s+", "", n)
+    # Traditional → simplified (common chars only; keep as-is if mapping absent)
+    _T2S = str.maketrans("後東學國時長門開關沒有進過這對話麼麼麼", "后东学国时长门开关没有进过这对话么么么")
+    n = n.translate(_T2S)
+    return n.lower()
+
+
+def _action_label(action: str | None) -> str:
+    a = (action or "").strip()
+    if not a:
+        return "不变"
+    if "增" in a:
+        return "增持"
+    if "减" in a:
+        return "减持"
+    if "清" in a or "賣" in a or "卖" in a:
+        return "清仓"
+    if "建" in a or "新" in a:
+        return "新建"
+    return a
+
+
+def get_aggregated_positions() -> dict[str, Any]:
+    """Target-first aggregation: each target owns multiple rows (per investor)."""
+    with celebrity_connection() as conn:
+        initialize_schema(conn)
+        positions = db.list_all_positions_with_investors(conn)
+        adjust_lookup = db.list_latest_adjust_per_target(conn)
+        cleared = db.list_latest_batch_cleared(conn)
+
+    # Group by normalized target
+    from collections import defaultdict
+
+    groups: dict[str, dict[str, Any]] = defaultdict(lambda: {
+        "raw_target": "",
+        "investors": [],  # list of investor rows
+    })
+    for p in positions:
+        norm = _normalize_target(str(p["target"]))
+        g = groups[norm]
+        if not g["raw_target"]:
+            g["raw_target"] = str(p["target"])
+        action = adjust_lookup.get((int(p["investor_id"]), str(p["target"])), {}).get("action")
+        g["investors"].append({
+            "investor_id": int(p["investor_id"]),
+            "investor_name": str(p["investor_name"]),
+            "target": str(p["target"]),
+            "percentage": p.get("percentage"),
+            "action": _action_label(action),
+            "first_added_price": float(p["first_added_price"]) if p.get("first_added_price") is not None else None,
+            "latest_price": float(p["latest_price"]) if p.get("latest_price") is not None else None,
+            "return_rate": float(p["return_rate"]) if p.get("return_rate") is not None else None,
+        })
+
+    # Sort: holding count desc, then target name asc
+    sorted_groups = sorted(
+        groups.values(),
+        key=lambda g: (-len(g["investors"]), g["raw_target"]),
+    )
+
+    aggregated = []
+    for g in sorted_groups:
+        invs = g["investors"]
+        # latest_price for display = first non-null latest_price among investors (合并单元格)
+        display_latest_price = next(
+            (inv["latest_price"] for inv in invs if inv["latest_price"] is not None), None
+        )
+        aggregated.append({
+            "target": g["raw_target"],
+            "count": len(invs),
+            "latest_price": display_latest_price,
+            "rows": invs,  # per-investor rows for the multi-row table
+        })
+
+    return {
+        "items": aggregated,
+        "recently_cleared": cleared,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Price update (manual + scheduled)
+# ---------------------------------------------------------------------------
+
+def _query_all_target_prices() -> dict[str, float | None]:
+    """Use LLM to batch-query latest prices for all distinct current targets."""
+    with celebrity_connection() as conn:
+        initialize_schema(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT target FROM celebrity_position WHERE target IS NOT NULL AND target != ''")
+        targets = [str(r[0]) for r in cur.fetchall()]
+
+    if not targets:
+        return {}
+
+    # Build a short-name list (symbolize if possible — but keep raw names as-is)
+    target_list_str = "\n".join(f"  - {t}" for t in targets)
+    system_prompt = """你是股票行情查询助手。请联网查询标的的最新价格。
+规则：
+1. A股、港股、美股、其他市场均可查；价格统一以人民币元/股返回（港股按港币换算为人民币，美股按美元换算为人民币）。
+2. 如果某个标的查不到、已退市、或名称过于模糊无法判断，请将 price 设为 null，不要猜测。
+3. 只返回 JSON，不要任何额外解释文字或 markdown 代码块。
+4. 格式严格如下：{"targets": [{"target": "原始标的名称", "price": 123.45}, ...]}  注意引号是双引号。"""
+
+    user_prompt = f"""请查询以下 {len(targets)} 个标的的最新价格（人民币元/股）：
+
+{target_list_str}
+
+请逐个查询并返回标准 JSON。注意 target 字段必须原样保留我给的名称。"""
+
+    data = _call_llm(system_prompt, user_prompt)
+    out: dict[str, float | None] = {}
+    items = data.get("targets") if isinstance(data, dict) else None
+    if isinstance(items, list):
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            t = str(it.get("target", "")).strip()
+            if not t:
+                continue
+            p = it.get("price")
+            if isinstance(p, list | dict):
+                continue  # LLM 偶尔返回嵌套结构，跳过
+            if p in (None, "", "null", "None"):
+                out[t] = None
+            else:
+                try:
+                    out[t] = float(p)
+                except (TypeError, ValueError):
+                    out[t] = None
+    # Fallback: flat {target: price}
+    if not out and isinstance(data, dict):
+        for t, p in data.items():
+            if isinstance(t, str) and t != "targets":
+                if isinstance(p, list | dict):
+                    continue
+                out[t] = float(p) if p not in (None, "", "null", "None") and isinstance(p, (int, float, str)) else None
+    # Best-effort normalize: also match when LLM returns codes vs names
+    return out
+
+
+def update_all_prices() -> dict[str, Any]:
+    """Query latest prices for all current targets and persist."""
+    price_map = _query_all_target_prices()
+    updated_rows = 0
+    with celebrity_connection() as conn:
+        initialize_schema(conn)
+        updated_rows = db.batch_update_prices(conn, price_map)
+        conn.commit()
+    success_targets = [t for t, p in price_map.items() if p is not None]
+    return {
+        "status": "ok",
+        "total_targets": len(price_map),
+        "success_count": len(success_targets),
+        "rows_updated": updated_rows,
+        "message": f"已更新 {len(success_targets)} 个标的的价格（影响 {updated_rows} 行持仓）",
+    }
+
+
+def refresh_all_prices_scheduled() -> None:
+    """Entry point called by the built-in Sunday-4am scheduler."""
+    try:
+        result = update_all_prices()
+        logger.info("Scheduled celebrity price update: %s", result.get("message"))
+    except Exception as exc:
+        logger.warning("Scheduled celebrity price update failed: %s", exc)
+
+
+# ---------------------------------------------------------------------------
 # Prompts
 # ---------------------------------------------------------------------------
 

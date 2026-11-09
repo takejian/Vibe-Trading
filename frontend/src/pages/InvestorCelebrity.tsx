@@ -3,9 +3,10 @@ import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { api, type CelebrityInvestor } from "@/lib/api";
 import { InvestorCard } from "@/components/celebrity/InvestorCard";
 import { WeeklyDynamics } from "@/components/celebrity/WeeklyDynamics";
+import { PublicHoldingTab } from "@/components/celebrity/PublicHoldingTab";
 import { PromptEditorDialog } from "@/components/celebrity/PromptEditorDialog";
 
-type Tab = "detail" | "weekly";
+type Tab = "detail" | "weekly" | "public";
 
 export function InvestorCelebrity() {
   const [tab, setTab] = useState<Tab>("detail");
@@ -81,6 +82,7 @@ export function InvestorCelebrity() {
       <div className="flex items-center gap-1 border-b border-border px-4">
         <TabButton active={tab === "detail"} onClick={() => setTab("detail")}>投资人详情</TabButton>
         <TabButton active={tab === "weekly"} onClick={() => setTab("weekly")}>名人周动态</TabButton>
+        <TabButton active={tab === "public"} onClick={() => setTab("public")}>公募持仓</TabButton>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -129,8 +131,15 @@ export function InvestorCelebrity() {
               <p className="text-sm text-muted-foreground">请选择或新增投资人</p>
             )}
           </div>
-        ) : (
+        ) : tab === "weekly" ? (
           <WeeklyDynamics
+            onSelectInvestor={(id) => {
+              setSelectedId(id);
+              setTab("detail");
+            }}
+          />
+        ) : (
+          <PublicHoldingTab
             onSelectInvestor={(id) => {
               setSelectedId(id);
               setTab("detail");

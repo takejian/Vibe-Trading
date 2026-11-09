@@ -1796,6 +1796,9 @@ export const api = {
       body: JSON.stringify({ investor_id: investorId, items }),
     }),
   celebrityWeekly: () => request<{ items: CelebrityWeeklyItem[] }>("/api/celebrity/weekly"),
+  celebrityAggregatedPositions: () => request<CelebrityAggregatedResult>("/api/celebrity/aggregated-positions"),
+  celebrityUpdatePrices: () =>
+    request<CelebrityUpdatePriceResult>("/api/celebrity/positions/update-prices", { method: "POST" }),
   celebrityPromptGet: (key: string) =>
     request<CelebrityPrompt>(`/api/celebrity/prompts/${encodeURIComponent(key)}`),
   celebrityPromptUpdate: (key: string, content: string) =>
@@ -4013,6 +4016,47 @@ export interface CelebrityWeeklyItem {
     review_result: string | null;
   } | null;
   updated_at: string | null;
+}
+
+export interface CelebrityAggRow {
+  investor_id: number;
+  investor_name: string;
+  target: string;
+  percentage: string | null;
+  action: string | null;
+  first_added_price: number | null;
+  latest_price: number | null;
+  return_rate: number | null;
+}
+
+export interface CelebrityAggGroup {
+  target: string;
+  count: number;
+  latest_price: number | null;
+  rows: CelebrityAggRow[];
+}
+
+export interface CelebrityClearedItem {
+  investor_id: number;
+  investor_name: string;
+  target: string;
+  first_added_price: number | null;
+  latest_price: number | null;
+  return_rate: number | null;
+  snapshot_date: string;
+}
+
+export interface CelebrityAggregatedResult {
+  items: CelebrityAggGroup[];
+  recently_cleared: CelebrityClearedItem[];
+}
+
+export interface CelebrityUpdatePriceResult {
+  status: string;
+  total_targets: number;
+  success_count: number;
+  rows_updated: number;
+  message: string;
 }
 
 export interface CelebrityPrompt {

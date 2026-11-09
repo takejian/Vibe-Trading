@@ -52,6 +52,9 @@ CREATE TABLE IF NOT EXISTS celebrity_position (
     source        VARCHAR(256) DEFAULT NULL,
     update_time   VARCHAR(32) DEFAULT NULL,
     confidence    VARCHAR(16) DEFAULT NULL,
+    first_added_price DECIMAL(14,4) DEFAULT NULL,
+    latest_price      DECIMAL(14,4) DEFAULT NULL,
+    return_rate       DECIMAL(10,6) DEFAULT NULL,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_position_investor (investor_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -64,6 +67,9 @@ CREATE TABLE IF NOT EXISTS celebrity_position_snapshot (
     percentage     VARCHAR(32) DEFAULT NULL,
     source         VARCHAR(256) DEFAULT NULL,
     confidence     VARCHAR(16) DEFAULT NULL,
+    first_added_price DECIMAL(14,4) DEFAULT NULL,
+    latest_price      DECIMAL(14,4) DEFAULT NULL,
+    return_rate       DECIMAL(10,6) DEFAULT NULL,
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_snapshot_investor_date (investor_id, snapshot_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -189,9 +195,15 @@ def initialize_schema(conn: pymysql.connections.Connection) -> None:
         stmt = stmt.strip()
         if stmt:
             conn.cursor().execute(stmt)
-    # Migrate: add columns only when missing (idempotent, no aborted txn).
-    if not _column_exists(conn, "celebrity_position", "percentage"):
-        conn.cursor().execute("ALTER TABLE celebrity_position ADD COLUMN percentage VARCHAR(32)")
+    # Migrations (idempotent, check column presence before ALTER).
+    for table in ("celebrity_position", "celebrity_position_snapshot"):
+        for col, ddl in [
+            ("first_added_price", "ADD COLUMN first_added_price DECIMAL(14,4) DEFAULT NULL"),
+            ("latest_price", "ADD COLUMN latest_price DECIMAL(14,4) DEFAULT NULL"),
+            ("return_rate", "ADD COLUMN return_rate DECIMAL(10,6) DEFAULT NULL"),
+        ]:
+            if not _column_exists(conn, table, col):
+                conn.cursor().execute(f"ALTER TABLE {table} {ddl}")
     if not _column_exists(conn, "celebrity_prompt", "is_user_edited"):
         conn.cursor().execute(
             "ALTER TABLE celebrity_prompt ADD COLUMN is_user_edited TINYINT(1) NOT NULL DEFAULT 0"
@@ -362,23 +374,55 @@ def overwrite_positions(
 ) -> tuple[int, bool]:
     """Overwrite current positions with the new top-15 holdings.
 
-    If the new holdings differ from the old ones (by target + percentage set),
-    the old holdings are archived into ``celebrity_position_snapshot`` tagged
-    with ``snapshot_date``. Returns ``(inserted_count, snapshot_saved)``.
+    Preserves ``first_added_price`` from old positions when the target is
+    still present in the new holdings (so it becomes the "first entry" price).
+    Snapshots archive the old prices too so cleared targets keep their last
+    known price trail.
     """
     old_positions = list_positions(conn, investor_id)
+    old_by_target: dict[str, dict[str, Any]] = {
+        str(p.get("target", "")): p for p in old_positions
+    }
 
     cleaned: list[dict[str, Any]] = []
     for p in positions[:15]:
         target = str(p.get("target", "")).strip()
         if not target:
             continue
+        old = old_by_target.get(target, {})
+        old_first = old.get("first_added_price")
+        old_latest = old.get("latest_price")
+        # New position with no prior record: use any provided price as first_added_price
+        # (LLM may embed first_added_price or latest_price in the incoming position dict).
+        incoming_first = p.get("first_added_price")
+        incoming_latest = p.get("latest_price")
+        first_added_price = (
+            old_first
+            if old_first is not None
+            else incoming_first
+            if incoming_first is not None
+            else incoming_latest
+            if incoming_latest is not None
+            else old_latest
+            if old_latest is not None
+            else None
+        )
+        latest_price = (
+            incoming_latest
+            if incoming_latest is not None
+            else old_latest
+            if old_latest is not None
+            else None
+        )
         cleaned.append({
             "target": target,
             "percentage": str(p.get("percentage", "") or ""),
             "source": str(p.get("source", "") or ""),
             "update_time": str(p.get("update_time", "") or ""),
             "confidence": str(p.get("confidence", "") or ""),
+            "first_added_price": first_added_price,
+            "latest_price": latest_price,
+            "return_rate": old.get("return_rate"),  # keep from old if exists
         })
 
     def _fingerprint(items: list[dict[str, Any]]) -> set[tuple[str, str]]:
@@ -392,8 +436,9 @@ def overwrite_positions(
             _exec(
                 conn,
                 "INSERT INTO celebrity_position_snapshot "
-                "(id, investor_id, snapshot_date, target, percentage, source, confidence) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "(id, investor_id, snapshot_date, target, percentage, source, confidence, "
+                " first_added_price, latest_price, return_rate) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     str(uuid.uuid4()),
                     investor_id,
@@ -402,6 +447,9 @@ def overwrite_positions(
                     str(old.get("percentage", "") or ""),
                     str(old.get("source", "") or ""),
                     str(old.get("confidence", "") or ""),
+                    old.get("first_added_price"),
+                    old.get("latest_price"),
+                    old.get("return_rate"),
                 ),
             )
         snapshot_saved = True
@@ -412,8 +460,9 @@ def overwrite_positions(
         _exec(
             conn,
             "INSERT INTO celebrity_position "
-            "(id, investor_id, target, percentage, source, update_time, confidence) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "(id, investor_id, target, percentage, source, update_time, confidence, "
+            " first_added_price, latest_price, return_rate) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 str(uuid.uuid4()),
                 investor_id,
@@ -422,6 +471,9 @@ def overwrite_positions(
                 p["source"],
                 p["update_time"],
                 p["confidence"],
+                p["first_added_price"],
+                p["latest_price"],
+                p["return_rate"],
             ),
         )
         inserted += 1
@@ -750,3 +802,179 @@ def get_weekly_dynamics(conn: pymysql.connections.Connection) -> list[dict[str, 
         })
     result.sort(key=lambda x: x["updated_at"] or "", reverse=True)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Aggregated position view (for 公募持仓 Tab)
+# ---------------------------------------------------------------------------
+
+def list_all_positions_with_investors(
+    conn: pymysql.connections.Connection,
+) -> list[dict[str, Any]]:
+    """Return every current position joined with investor name.
+
+    Each row is one investor+target pair. Caller groups by normalized target.
+    """
+    cur = _exec(
+        conn,
+        """SELECT cp.id, cp.investor_id, cp.target, cp.percentage,
+                  cp.first_added_price, cp.latest_price, cp.return_rate,
+                  ci.name AS investor_name
+             FROM celebrity_position cp
+             JOIN celebrity_investor ci ON ci.id = cp.investor_id
+             ORDER BY cp.target, cp.investor_id""",
+    )
+    return _rows_to_dicts(cur, cur.fetchall())
+
+
+def list_latest_adjust_per_target(
+    conn: pymysql.connections.Connection,
+) -> dict[tuple[int, str], dict[str, Any]]:
+    """Return the latest adjust per (investor_id, target) as a dict lookup."""
+    cur = _exec(
+        conn,
+        """SELECT a.investor_id, a.target, a.action, a.time
+             FROM celebrity_adjust a
+             JOIN (
+                 SELECT investor_id, target, MAX(time) AS max_time
+                 FROM celebrity_adjust
+                 GROUP BY investor_id, target
+             ) t ON a.investor_id = t.investor_id
+                 AND a.target = t.target
+                 AND a.time = t.max_time""",
+    )
+    rows = _rows_to_dicts(cur, cur.fetchall())
+    return {(int(r["investor_id"]), str(r["target"])): r for r in rows}
+
+
+def get_latest_snapshot_date(
+    conn: pymysql.connections.Connection, investor_id: int
+) -> str | None:
+    cur = _exec(
+        conn,
+        "SELECT snapshot_date FROM celebrity_position_snapshot "
+        "WHERE investor_id = %s ORDER BY snapshot_date DESC LIMIT 1",
+        (investor_id,),
+    )
+    row = cur.fetchone()
+    return str(row[0]) if row else None
+
+
+def list_latest_batch_cleared(
+    conn: pymysql.connections.Connection,
+) -> list[dict[str, Any]]:
+    """Return targets cleared in the most recent snapshot batch across all investors.
+
+    A cleared target = present in the latest snapshot batch of that investor
+    but absent from current celebrity_position.
+    """
+    # 1. Find latest snapshot_date per investor
+    cur = _exec(
+        conn,
+        """SELECT investor_id, MAX(snapshot_date) AS latest_date
+             FROM celebrity_position_snapshot
+             GROUP BY investor_id""",
+    )
+    latest_dates = _rows_to_dicts(cur, cur.fetchall())
+    results: list[dict[str, Any]] = []
+    for row in latest_dates:
+        inv_id = int(row["investor_id"])
+        snap_date = str(row["latest_date"])
+        cur2 = _exec(
+            conn,
+            """SELECT s.target, s.first_added_price, s.latest_price, s.return_rate,
+                      ci.name AS investor_name
+                 FROM celebrity_position_snapshot s
+                 JOIN celebrity_investor ci ON ci.id = s.investor_id
+                WHERE s.investor_id = %s AND s.snapshot_date = %s""",
+            (inv_id, snap_date),
+        )
+        snap_rows = _rows_to_dicts(cur2, cur2.fetchall())
+        snap_targets = {str(r["target"]): r for r in snap_rows}
+        cur3 = _exec(
+            conn,
+            "SELECT target FROM celebrity_position WHERE investor_id = %s",
+            (inv_id,),
+        )
+        current_targets = {str(r[0]) for r in cur3.fetchall()}
+        for target, snap in snap_targets.items():
+            if target not in current_targets:
+                results.append({
+                    "investor_id": inv_id,
+                    "investor_name": snap["investor_name"],
+                    "target": target,
+                    "first_added_price": snap.get("first_added_price"),
+                    "latest_price": snap.get("latest_price"),
+                    "return_rate": snap.get("return_rate"),
+                    "snapshot_date": snap_date,
+                })
+    results.sort(key=lambda x: str(x.get("snapshot_date", "")), reverse=True)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Price updates
+# ---------------------------------------------------------------------------
+
+def batch_update_prices(
+    conn: pymysql.connections.Connection,
+    price_map: dict[str, float | None],
+) -> int:
+    """Update latest_price + compute return_rate for all current positions.
+
+    price_map: {target: latest_price} (prices are numbers, NULL represented as None).
+    Returns number of rows updated.
+    """
+    return _do_batch_price_update(conn, price_map)
+
+
+def _do_batch_price_update(
+    conn: pymysql.connections.Connection,
+    price_map: dict[str, float | None],
+) -> int:
+    updated = 0
+    for target, latest_price in price_map.items():
+        if latest_price is None:
+            continue
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE celebrity_position "
+            "SET latest_price = %s, "
+            "    return_rate = CASE "
+            "      WHEN first_added_price IS NULL OR first_added_price = 0 THEN NULL "
+            "      ELSE ROUND((latest_price - first_added_price) / first_added_price, 6) "
+            "    END "
+            "WHERE target = %s",
+            (latest_price, target),
+        )
+        updated += cur.rowcount or 0
+    return updated
+
+
+def sync_prices_to_latest_snapshot(
+    conn: pymysql.connections.Connection,
+    investor_id: int,
+    target: str,
+    first_added_price: float | None,
+    latest_price: float | None,
+    return_rate: float | None,
+) -> None:
+    """Backfill price fields onto the latest snapshot row for this (investor, target).
+
+    Called when a position is cleared — the prices archived into snapshot by
+    overwrite_positions may be stale (since we archive first and prices may
+    update later). This ensures the latest snapshot row carries the final price.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """UPDATE celebrity_position_snapshot
+              SET first_added_price = %s,
+                  latest_price = %s,
+                  return_rate = %s
+            WHERE investor_id = %s AND target = %s
+              AND snapshot_date = (
+                  SELECT MAX(snapshot_date) FROM celebrity_position_snapshot
+                  WHERE investor_id = %s AND target = %s
+              )""",
+        (first_added_price, latest_price, return_rate, investor_id, target, investor_id, target),
+    )

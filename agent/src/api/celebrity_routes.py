@@ -166,6 +166,20 @@ def register_celebrity_routes(app: FastAPI) -> None:
     def weekly_dynamics() -> dict[str, Any]:
         return service.get_weekly_dynamics()
 
+    @app.get("/api/celebrity/aggregated-positions", dependencies=[Depends(require_auth)])
+    def aggregated_positions() -> dict[str, Any]:
+        try:
+            return service.get_aggregated_positions()
+        except CelebrityError as exc:
+            raise _handle(exc) from exc
+
+    @app.post("/api/celebrity/positions/update-prices", dependencies=[Depends(require_auth)])
+    def update_prices() -> dict[str, Any]:
+        try:
+            return service.update_all_prices()
+        except CelebrityError as exc:
+            raise _handle(exc) from exc
+
     @app.get("/api/celebrity/prompts/{key}", dependencies=[Depends(require_auth)])
     def get_prompt(key: str) -> dict[str, Any]:
         try:

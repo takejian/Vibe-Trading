@@ -31,19 +31,19 @@ def stop_celebrity_scheduler(app) -> None:
 async def _refresh_loop(app) -> None:
     from src.celebrity import service as celebrity_service
 
-    logger.info("Celebrity scheduler started (check interval=%ds)", _CHECK_INTERVAL_SECONDS)
+    logger.info("Celebrity scheduler started (price-update only, check interval=%ds)", _CHECK_INTERVAL_SECONDS)
     try:
         while True:
             try:
                 now = datetime.now()
                 # Sunday = weekday() == 6, hour == 4
                 if now.weekday() == 6 and now.hour == 4:
-                    logger.info("Celebrity scheduler: weekly refresh triggered at %s", now.isoformat())
+                    logger.info("Celebrity scheduler: weekly price update triggered at %s", now.isoformat())
                     try:
-                        celebrity_service.refresh_all_investors()
-                        logger.info("Celebrity scheduler: weekly refresh completed")
+                        celebrity_service.refresh_all_prices_scheduled()
+                        logger.info("Celebrity scheduler: weekly price update completed")
                     except Exception as exc:
-                        logger.warning("Celebrity scheduler: refresh failed: %s", exc)
+                        logger.warning("Celebrity scheduler: price update failed: %s", exc)
                     # sleep past 4am to avoid re-triggering within the same hour
                     await asyncio.sleep(60 * 60)
                     continue
