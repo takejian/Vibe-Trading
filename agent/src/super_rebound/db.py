@@ -150,6 +150,81 @@ CREATE TABLE IF NOT EXISTS etf_daily_net_flow (
     PRIMARY KEY (date),
     KEY idx_nf_date (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='国家队ETF每日净流入宽表（每行一交易日，各指数组为列，前端表格/柱状图直接读取）';
+
+CREATE TABLE IF NOT EXISTS rebound_indicator_def (
+    id                BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    dimension         VARCHAR(32) NOT NULL COMMENT '所属维度：赔率层/技术超卖/资金承接/情绪广度/外部流动性',
+    indicator_name    VARCHAR(128) NOT NULL COMMENT '指标名称',
+    judgment_criteria TEXT NOT NULL COMMENT '超跌判断标准（如 RSI < 30, ERP > 5）',
+    weight            DOUBLE NOT NULL DEFAULT 1 COMMENT '该指标在维度内的权重',
+    sort_order        INT NOT NULL DEFAULT 0 COMMENT '排序序号',
+    is_active         TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：1启用 0停用（软删除）',
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_dimension (dimension),
+    KEY idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='超跌指标定义表（维度内动态增删指标）';
+
+CREATE TABLE IF NOT EXISTS rebound_indicator_result (
+    id              BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    trade_date      DATE NOT NULL COMMENT '交易日',
+    index_code      VARCHAR(16) NOT NULL COMMENT '宽基指数代码',
+    indicator_id    BIGINT NOT NULL COMMENT '关联 rebound_indicator_def.id',
+    indicator_value VARCHAR(64) DEFAULT NULL COMMENT '大模型返回的指标原始值',
+    judgment_result TINYINT DEFAULT NULL COMMENT '本地代码判断结果：1=满足超跌标准，0=不满足，NULL=未判断',
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_date_indicator (trade_date, index_code, indicator_id),
+    KEY idx_date (trade_date),
+    KEY idx_indicator (indicator_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='超跌指标原始值与判断结果表（大模型取值，本地代码按判断标准计算0/1）';
+
+CREATE TABLE IF NOT EXISTS rebound_daily_status (
+    id                  BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    trade_date          DATE NOT NULL COMMENT '交易日',
+    index_code          VARCHAR(16) NOT NULL COMMENT '宽基指数代码',
+    odds_score          DOUBLE DEFAULT NULL COMMENT '赔率层维度得分',
+    technical_score     DOUBLE DEFAULT NULL COMMENT '技术超卖维度得分',
+    capital_score       DOUBLE DEFAULT NULL COMMENT '资金承接维度得分',
+    sentiment_score     DOUBLE DEFAULT NULL COMMENT '情绪广度维度得分',
+    external_score      DOUBLE DEFAULT NULL COMMENT '外部流动性/政策维度得分',
+    total_score         DOUBLE DEFAULT NULL COMMENT '五维度加权综合得分',
+    signal_light        VARCHAR(8) DEFAULT NULL COMMENT '信号灯：green/yellow/red',
+    volume_price_chip   VARCHAR(32) DEFAULT NULL COMMENT '量价与筹码判断结果（真反弹/假反弹）',
+    rebound_tracking    VARCHAR(32) DEFAULT NULL COMMENT '反弹存续跟踪结果（存续中/衰退信号）',
+    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_date_index (trade_date, index_code),
+    KEY idx_trade_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日超跌状态表（各维度得分+综合得分+量价与筹码+反弹存续跟踪）';
+
+CREATE TABLE IF NOT EXISTS rebound_prompt (
+    id             BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    prompt_type    VARCHAR(32) NOT NULL COMMENT '提示词类型：oversold_indicator/volume_price_chip/rebound_tracking',
+    prompt_name    VARCHAR(128) NOT NULL COMMENT '提示词名称',
+    prompt_content MEDIUMTEXT NOT NULL COMMENT '提示词内容',
+    updated_by     VARCHAR(64) DEFAULT NULL COMMENT '最后修改人',
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_prompt_type (prompt_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='大模型提示词表（超跌指标/量价与筹码/反弹存续跟踪）';
+
+CREATE TABLE IF NOT EXISTS rebound_schedule_config (
+    id          BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    task_name   VARCHAR(64) NOT NULL COMMENT '任务名称',
+    is_enabled  TINYINT NOT NULL DEFAULT 1 COMMENT '是否开启：1开启 0关闭（全局）',
+    run_time    VARCHAR(8) NOT NULL DEFAULT '23:00' COMMENT '执行时间 HH:MM',
+    timezone    VARCHAR(32) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '时区',
+    updated_by  VARCHAR(64) DEFAULT NULL COMMENT '最后修改人',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_task_name (task_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='定时任务配置表（全局开关）';
 """
 
 
@@ -871,3 +946,459 @@ def get_top_etf_by_avg_netflow(
             (start, end, limit),
         )
         return list(cur.fetchall())
+
+
+# ===================================================================
+# 超跌指标定义 CRUD (rebound_indicator_def)
+# ===================================================================
+
+DIMENSION_WEIGHTS: dict[str, float] = {
+    "赔率层": 30.0,
+    "技术超卖": 20.0,
+    "资金承接": 25.0,
+    "情绪广度": 15.0,
+    "外部流动性/政策": 10.0,
+}
+
+INITIAL_INDICATOR_DEFS: list[dict[str, Any]] = [
+    # 赔率层
+    {"dimension": "赔率层", "indicator_name": "ERP", "judgment_criteria": "> 5", "weight": 1.0, "sort_order": 1},
+    {"dimension": "赔率层", "indicator_name": "估值分位", "judgment_criteria": "> 80%", "weight": 1.0, "sort_order": 2},
+    {"dimension": "赔率层", "indicator_name": "阶段回撤", "judgment_criteria": "> 15%", "weight": 1.0, "sort_order": 3},
+    # 技术超卖
+    {"dimension": "技术超卖", "indicator_name": "RSI(14)", "judgment_criteria": "< 30", "weight": 1.0, "sort_order": 1},
+    {"dimension": "技术超卖", "indicator_name": "负乖离", "judgment_criteria": "< 0 (明显负乖离)", "weight": 1.0, "sort_order": 2},
+    {"dimension": "技术超卖", "indicator_name": "MACD 底背离", "judgment_criteria": "定性（底背离出现=1，否则=0）", "weight": 1.0, "sort_order": 3},
+    # 资金承接
+    {"dimension": "资金承接", "indicator_name": "两融维持担保比例", "judgment_criteria": "< 250%", "weight": 1.0, "sort_order": 1},
+    {"dimension": "资金承接", "indicator_name": "ETF 持续流入", "judgment_criteria": "> 500", "weight": 1.0, "sort_order": 2},
+    # 情绪广度
+    {"dimension": "情绪广度", "indicator_name": "上涨家数占比", "judgment_criteria": "< 20%", "weight": 1.0, "sort_order": 1},
+    {"dimension": "情绪广度", "indicator_name": "成交量 PCR", "judgment_criteria": "> 1", "weight": 1.0, "sort_order": 2},
+    # 外部流动性/政策
+    {"dimension": "外部流动性/政策", "indicator_name": "资金利率(SHIBOR/DR007)", "judgment_criteria": "定性（高位=1，否则=0）", "weight": 1.0, "sort_order": 1},
+    {"dimension": "外部流动性/政策", "indicator_name": "外部风险事件", "judgment_criteria": "定性（发生=1，否则=0）", "weight": 1.0, "sort_order": 2},
+]
+
+INITIAL_PROMPTS: list[dict[str, Any]] = [
+    {
+        "prompt_type": "oversold_indicator",
+        "prompt_name": "超跌指标取值提示词",
+        "prompt_content": (
+            "你是一个A股金融数据助手。请为指定宽基指数获取以下各指标的最新原始值。"
+            "严格只返回 JSON 对象，key 为指标名称，value 为数值或 0/1，不要有任何解释文字。\n\n"
+            "数值型指标（返回数值，含单位含义）：\n"
+            "- ERP：股债性价比数值，通常 >0 表示权益相对债券有溢价（如 6.2）\n"
+            "- 估值分位：历史估值百分位，范围 0-100（如 85 表示高于历史 85% 时间）\n"
+            "- 阶段回撤：从阶段高点的最大回撤幅度，百分比数值（如 18 表示回撤 18%）\n"
+            "- RSI(14)：14 日相对强弱指标，范围 0-100（如 28 表示超卖）\n"
+            "- 负乖离：当前价相对均线的乖离率，负数表示低于均线（如 -2.1 表示 -2.1%）\n"
+            "- 两融维持担保比例：百分比数值（如 235 表示 235%）\n"
+            "- ETF 持续流入：国家队 ETF 净流入金额，单位亿元（如 620 表示 620 亿）\n"
+            "- 上涨家数占比：上涨股票占全部 A 股比例，百分比数值（如 15 表示 15%）\n"
+            "- 成交量 PCR：Put/Call 成交量比值（如 1.3 表示看跌期权成交量是看涨的 1.3 倍）\n\n"
+            "定性指标（直接返回 1 表示条件成立，0 表示不成立）：\n"
+            "- MACD 底背离：价格创新低但 MACD 未创新低，出现底背离返回 1，否则 0\n"
+            "- 资金利率(SHIBOR/DR007)：市场资金利率处于高位（紧张）返回 1，否则 0\n"
+            "- 外部风险事件：发生美股大跌、地缘冲突等重大外部风险事件返回 1，否则 0\n\n"
+            "返回示例：{\"ERP\":6.2,\"估值分位\":85,\"阶段回撤\":18,\"RSI(14)\":28,"
+            "\"负乖离\":-2.1,\"MACD 底背离\":1,\"两融维持担保比例\":235,"
+            "\"ETF 持续流入\":620,\"上涨家数占比\":15,\"成交量 PCR\":1.3,"
+            "\"资金利率(SHIBOR/DR007)\":1,\"外部风险事件\":0}"
+        ),
+    },
+    {
+        "prompt_type": "volume_price_chip",
+        "prompt_name": "量价与筹码提示词（真假反弹过滤器）",
+        "prompt_content": (
+            "你是一个量价分析专家。请判断当前A股主要指数是否为真反弹。判断标准：\n"
+            "1. 下跌末端缩量\n2. 企稳阳线放量\n3. 成交量 PCR 小于 0.6\n"
+            "请返回 JSON：{\"result\": \"真反弹\" 或 \"假反弹\", \"reason\": \"简要说明\"}"
+        ),
+    },
+    {
+        "prompt_type": "rebound_tracking",
+        "prompt_name": "反弹存续跟踪提示词（开仓之后）",
+        "prompt_content": (
+            "你是一个反弹存续分析专家。请监测反弹是否可持续。衰退信号包括：\n"
+            "1. 指数创新高，但成交跟不上、量价背离\n"
+            "2. 涨跌家数再次萎缩、新高数量下降\n"
+            "3. ERP 快速回落、估值分位回到中性区间\n"
+            "4. 北向 / ETF 资金由流入转为流出\n"
+            "请返回 JSON：{\"result\": \"存续中\" 或 \"衰退信号\", \"reason\": \"简要说明\"}"
+        ),
+    },
+]
+
+
+def get_all_indicator_defs(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rebound_indicator_def WHERE is_active = 1 ORDER BY dimension, sort_order"
+        )
+        return list(cur.fetchall())
+
+
+def get_indicator_defs_by_dimension(
+    conn: pymysql.connections.Connection, dimension: str
+) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rebound_indicator_def WHERE dimension = %s AND is_active = 1 ORDER BY sort_order",
+            (dimension,),
+        )
+        return list(cur.fetchall())
+
+
+def upsert_indicator_def(
+    conn: pymysql.connections.Connection, row: dict[str, Any]
+) -> bool:
+    """Upsert indicator def by id; insert if id not present."""
+    with conn.cursor() as cur:
+        if row.get("id"):
+            cur.execute(
+                "SELECT 1 FROM rebound_indicator_def WHERE id = %s",
+                (row["id"],),
+            )
+            existed = cur.fetchone() is not None
+            if existed:
+                cur.execute(
+                    """UPDATE rebound_indicator_def SET
+                        dimension = %s, indicator_name = %s, judgment_criteria = %s,
+                        weight = %s, sort_order = %s, is_active = %s
+                       WHERE id = %s""",
+                    (
+                        row["dimension"], row["indicator_name"], row["judgment_criteria"],
+                        row.get("weight", 1.0), row.get("sort_order", 0), row.get("is_active", 1),
+                        row["id"],
+                    ),
+                )
+                conn.commit()
+                return False
+        cur.execute(
+            """INSERT INTO rebound_indicator_def
+                   (dimension, indicator_name, judgment_criteria, weight, sort_order, is_active)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (
+                row["dimension"], row["indicator_name"], row["judgment_criteria"],
+                row.get("weight", 1.0), row.get("sort_order", 0), row.get("is_active", 1),
+            ),
+        )
+    conn.commit()
+    return True
+
+
+def delete_indicator_def(conn: pymysql.connections.Connection, def_id: int) -> bool:
+    """Soft delete: set is_active = 0."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE rebound_indicator_def SET is_active = 0 WHERE id = %s",
+            (def_id,),
+        )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+# ===================================================================
+# 提示词 CRUD (rebound_prompt)
+# ===================================================================
+
+def get_all_prompts(conn: pymysql.connections.Connection) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM rebound_prompt ORDER BY prompt_type")
+        return list(cur.fetchall())
+
+
+def get_prompt_by_type(conn: pymysql.connections.Connection, prompt_type: str) -> dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rebound_prompt WHERE prompt_type = %s", (prompt_type,)
+        )
+        return cur.fetchone()
+
+
+def upsert_prompt(
+    conn: pymysql.connections.Connection, row: dict[str, Any]
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM rebound_prompt WHERE prompt_type = %s",
+            (row["prompt_type"],),
+        )
+        existed = cur.fetchone() is not None
+        if existed:
+            cur.execute(
+                """UPDATE rebound_prompt SET
+                    prompt_name = %s, prompt_content = %s, updated_by = %s
+                   WHERE prompt_type = %s""",
+                (row["prompt_name"], row["prompt_content"], row.get("updated_by"), row["prompt_type"]),
+            )
+        else:
+            cur.execute(
+                """INSERT INTO rebound_prompt (prompt_type, prompt_name, prompt_content, updated_by)
+                   VALUES (%s, %s, %s, %s)""",
+                (row["prompt_type"], row["prompt_name"], row["prompt_content"], row.get("updated_by")),
+            )
+    conn.commit()
+    return not existed
+
+
+# ===================================================================
+# 指标结果 CRUD (rebound_indicator_result)
+# ===================================================================
+
+def upsert_indicator_result(
+    conn: pymysql.connections.Connection, row: dict[str, Any]
+) -> None:
+    """Upsert by uk_date_indicator (trade_date, index_code, indicator_id)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO rebound_indicator_result
+                   (trade_date, index_code, indicator_id, indicator_value, judgment_result)
+               VALUES (%s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                   indicator_value = VALUES(indicator_value),
+                   judgment_result = VALUES(judgment_result)""",
+            (
+                row["trade_date"], row["index_code"], row["indicator_id"],
+                row.get("indicator_value"), row.get("judgment_result"),
+            ),
+        )
+    conn.commit()
+
+
+def batch_upsert_indicator_results(
+    conn: pymysql.connections.Connection, rows: list[dict[str, Any]]
+) -> int:
+    """批量 upsert，返回写入行数。"""
+    with conn.cursor() as cur:
+        for row in rows:
+            cur.execute(
+                """INSERT INTO rebound_indicator_result
+                       (trade_date, index_code, indicator_id, indicator_value, judgment_result)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE
+                       indicator_value = VALUES(indicator_value),
+                       judgment_result = VALUES(judgment_result)""",
+                (
+                    row["trade_date"], row["index_code"], row["indicator_id"],
+                    row.get("indicator_value"), row.get("judgment_result"),
+                ),
+            )
+    conn.commit()
+    return len(rows)
+
+
+def get_indicator_results_for_date(
+    conn: pymysql.connections.Connection, trade_date: date, index_code: str
+) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT r.*, d.dimension, d.indicator_name, d.judgment_criteria, d.weight
+                 FROM rebound_indicator_result r
+                 JOIN rebound_indicator_def d ON r.indicator_id = d.id
+                WHERE r.trade_date = %s AND r.index_code = %s
+                ORDER BY d.dimension, d.sort_order""",
+            (trade_date, index_code),
+        )
+        return list(cur.fetchall())
+
+
+# ===================================================================
+# 每日超跌状态 CRUD (rebound_daily_status)
+# ===================================================================
+
+def upsert_daily_status(
+    conn: pymysql.connections.Connection, row: dict[str, Any]
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO rebound_daily_status
+                   (trade_date, index_code, odds_score, technical_score, capital_score,
+                    sentiment_score, external_score, total_score, signal_light,
+                    volume_price_chip, rebound_tracking)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                   odds_score = VALUES(odds_score),
+                   technical_score = VALUES(technical_score),
+                   capital_score = VALUES(capital_score),
+                   sentiment_score = VALUES(sentiment_score),
+                   external_score = VALUES(external_score),
+                   total_score = VALUES(total_score),
+                   signal_light = VALUES(signal_light),
+                   volume_price_chip = VALUES(volume_price_chip),
+                   rebound_tracking = VALUES(rebound_tracking)""",
+            (
+                row["trade_date"], row["index_code"],
+                row.get("odds_score"), row.get("technical_score"), row.get("capital_score"),
+                row.get("sentiment_score"), row.get("external_score"), row.get("total_score"),
+                row.get("signal_light"), row.get("volume_price_chip"), row.get("rebound_tracking"),
+            ),
+        )
+    conn.commit()
+    return True
+
+
+def update_daily_status_fields(
+    conn: pymysql.connections.Connection,
+    trade_date: date,
+    index_code: str,
+    volume_price_chip: str | None = None,
+    rebound_tracking: str | None = None,
+) -> None:
+    """只更新量价筹码或反弹跟踪字段。"""
+    if volume_price_chip is None and rebound_tracking is None:
+        return
+    sets: list[str] = []
+    params: list[Any] = []
+    if volume_price_chip is not None:
+        sets.append("volume_price_chip = %s")
+        params.append(volume_price_chip)
+    if rebound_tracking is not None:
+        sets.append("rebound_tracking = %s")
+        params.append(rebound_tracking)
+    params.extend([trade_date, index_code])
+    with conn.cursor() as cur:
+        cur.execute(
+            f"UPDATE rebound_daily_status SET {', '.join(sets)} WHERE trade_date = %s AND index_code = %s",
+            params,
+        )
+    conn.commit()
+
+
+def get_daily_status_list(
+    conn: pymysql.connections.Connection,
+    start_date: date,
+    end_date: date,
+    index_code: str = "沪深300",
+) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT * FROM rebound_daily_status
+                WHERE trade_date BETWEEN %s AND %s AND index_code = %s
+                ORDER BY trade_date DESC""",
+            (start_date, end_date, index_code),
+        )
+        return list(cur.fetchall())
+
+
+def get_latest_daily_status(
+    conn: pymysql.connections.Connection, index_code: str = "沪深300"
+) -> dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT * FROM rebound_daily_status
+                WHERE index_code = %s ORDER BY trade_date DESC LIMIT 1""",
+            (index_code,),
+        )
+        return cur.fetchone()
+
+
+# ===================================================================
+# 定时配置 CRUD (rebound_schedule_config)
+# ===================================================================
+
+def get_schedule_config(
+    conn: pymysql.connections.Connection, task_name: str
+) -> dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rebound_schedule_config WHERE task_name = %s",
+            (task_name,),
+        )
+        return cur.fetchone()
+
+
+def upsert_schedule_config(
+    conn: pymysql.connections.Connection, row: dict[str, Any]
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO rebound_schedule_config
+                   (task_name, is_enabled, run_time, timezone, updated_by)
+               VALUES (%s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                   is_enabled = VALUES(is_enabled),
+                   run_time = VALUES(run_time),
+                   timezone = VALUES(timezone),
+                   updated_by = VALUES(updated_by)""",
+            (
+                row["task_name"], row["is_enabled"], row.get("run_time", "23:00"),
+                row.get("timezone", "Asia/Shanghai"), row.get("updated_by"),
+            ),
+        )
+    conn.commit()
+
+
+def is_schedule_enabled(
+    conn: pymysql.connections.Connection, task_name: str
+) -> bool:
+    cfg = get_schedule_config(conn, task_name)
+    return bool(cfg and cfg.get("is_enabled"))
+
+
+# ===================================================================
+# 种子数据初始化
+# ===================================================================
+
+def seed_initial_data(conn: pymysql.connections.Connection) -> dict[str, int]:
+    """Idempotent seed: initial indicator defs + prompts + schedule config.
+
+    Returns counts of what was inserted (not total).
+    """
+    inserted = {"indicator_defs": 0, "prompts": 0, "schedule": 0}
+
+    for defn in INITIAL_INDICATOR_DEFS:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM rebound_indicator_def WHERE indicator_name = %s AND dimension = %s",
+                (defn["indicator_name"], defn["dimension"]),
+            )
+            if cur.fetchone() is None:
+                cur.execute(
+                    """INSERT INTO rebound_indicator_def
+                           (dimension, indicator_name, judgment_criteria, weight, sort_order, is_active)
+                       VALUES (%s, %s, %s, %s, %s, 1)""",
+                    (defn["dimension"], defn["indicator_name"], defn["judgment_criteria"],
+                     defn["weight"], defn["sort_order"]),
+                )
+                conn.commit()
+                inserted["indicator_defs"] += 1
+
+    for p in INITIAL_PROMPTS:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM rebound_prompt WHERE prompt_type = %s", (p["prompt_type"],)
+            )
+            if cur.fetchone() is None:
+                cur.execute(
+                    """INSERT INTO rebound_prompt (prompt_type, prompt_name, prompt_content)
+                       VALUES (%s, %s, %s)""",
+                    (p["prompt_type"], p["prompt_name"], p["prompt_content"]),
+                )
+                conn.commit()
+                inserted["prompts"] += 1
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM rebound_schedule_config WHERE task_name = 'daily_status_auto'"
+        )
+        if cur.fetchone() is None:
+            cur.execute(
+                """INSERT INTO rebound_schedule_config
+                       (task_name, is_enabled, run_time, timezone)
+                   VALUES ('daily_status_auto', 1, '23:00', 'Asia/Shanghai')"""
+            )
+            conn.commit()
+            inserted["schedule"] += 1
+
+    return inserted
+
+
+def ensure_schema_seeded() -> dict[str, Any]:
+    """Convenience entry: connect → initialize_schema → seed_initial_data → close."""
+    from src.super_rebound.db import rebound_connection, initialize_schema, seed_initial_data
+    with rebound_connection() as conn:
+        initialize_schema(conn)
+        seeded = seed_initial_data(conn)
+    return {"schema": "ok", "seeded": seeded}

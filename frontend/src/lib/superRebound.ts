@@ -110,29 +110,85 @@ export interface RefreshResult {
   fetched_at?: string | null;
 }
 
-export interface IndicatorScoreStub {
-  index_code: string;
-  total_score: number | null;
-  signal: string;
-  message: string;
-  dimensions: { name: string; weight: number; score: number | null; status: string }[];
-  todo: string[];
+// --- New indicator / daily status / prompt / schedule types ---
+
+export type CompareOperator = ">" | ">=" | "<" | "<=" | "==" | "!=" | "定性";
+
+export interface IndicatorDef {
+  id: number;
+  dimension: string;
+  indicator_name: string;
+  threshold_value: number | null;
+  compare_operator: CompareOperator;
+  judgment_criteria: string | null;
+  weight: number;
+  sort_order: number;
+  is_active: number;
 }
 
-export interface IndicatorDimensionsStub {
+export interface IndicatorPrompt {
+  id: number;
+  prompt_type: "oversold_indicator" | "volume_price_chip" | "rebound_tracking" | string;
+  prompt_name: string;
+  prompt_content: string;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndicatorEvalResult {
+  trade_date: string;
   index_code: string;
-  dimensions: {
-    name: string;
+  dimension_scores: Record<string, number | null>;
+  total_score: number | null;
+  signal_light: "green" | "yellow" | "red" | "pending";
+  indicators: {
+    id: number;
+    dimension: string;
+    indicator_name: string;
+    threshold_value: number | null;
+    compare_operator: CompareOperator;
+    judgment_criteria: string | null;
     weight: number;
-    indicators: {
-      name: string;
-      criterion: string;
-      value: number | null;
-      score: number | null;
-      auto_from_finance?: boolean;
-    }[];
+    indicator_value: string | null | undefined;
+    judgment_result: number | null;
   }[];
-  todo: string;
+  error?: string;
+  message?: string;
+}
+
+export interface DailyStatusRow {
+  id: number;
+  trade_date: string;
+  index_code: string;
+  odds_score: number | null;
+  technical_score: number | null;
+  capital_score: number | null;
+  sentiment_score: number | null;
+  external_score: number | null;
+  total_score: number | null;
+  signal_light: string | null;
+  volume_price_chip: string | null;
+  rebound_tracking: string | null;
+  is_latest?: boolean;
+}
+
+export interface DailyStatusListResponse {
+  index_code: string;
+  date_range_start: string;
+  date_range_end: string;
+  daily_rows: DailyStatusRow[];
+  indicator_defs: IndicatorDef[];
+  prompts: IndicatorPrompt[];
+}
+
+export interface ScheduleConfig {
+  id: number;
+  task_name: string;
+  is_enabled: number;
+  run_time: string;
+  timezone: string;
+  updated_by?: string | null;
 }
 
 // --- API client ---
@@ -169,13 +225,83 @@ export const superReboundApi = {
   refresh: () =>
     fetchJson<RefreshResult>("/api/super-rebound/finance/refresh", { method: "POST" }),
 
-  indicatorScore: (indexCode = "沪深300") =>
-    fetchJson<IndicatorScoreStub>(
-      `/api/super-rebound/indicator/score?index_code=${encodeURIComponent(indexCode)}`
+  // --- Indicator defs ---
+  indicatorDefs: () =>
+    fetchJson<{ indicator_defs: IndicatorDef[] }>("/api/super-rebound/indicator/defs"),
+
+  upsertIndicatorDef: (def: Partial<IndicatorDef>) =>
+    fetchJson<{ created: boolean; indicator: IndicatorDef }>(
+      "/api/super-rebound/indicator/defs",
+      { method: "POST", body: JSON.stringify(def) }
     ),
 
-  indicatorDimensions: (indexCode = "沪深300") =>
-    fetchJson<IndicatorDimensionsStub>(
-      `/api/super-rebound/indicator/dimensions?index_code=${encodeURIComponent(indexCode)}`
+  deleteIndicatorDef: (defId: number) =>
+    fetchJson<{ deleted: boolean; def_id: number }>(
+      `/api/super-rebound/indicator/defs/${defId}`, { method: "DELETE" }
+    ),
+
+  // --- Prompts ---
+  prompts: () =>
+    fetchJson<{ prompts: IndicatorPrompt[] }>("/api/super-rebound/indicator/prompts"),
+
+  upsertPrompt: (prompt: Partial<IndicatorPrompt>) =>
+    fetchJson<{ created: boolean; prompt_type: string }>(
+      "/api/super-rebound/indicator/prompts",
+      { method: "PUT", body: JSON.stringify(prompt) }
+    ),
+
+  // --- Eval (manual trigger) ---
+  evalIndicator: (indexCode = "沪深300") =>
+    fetchJson<IndicatorEvalResult>(
+      `/api/super-rebound/indicator/eval?index_code=${encodeURIComponent(indexCode)}`,
+      { method: "POST" }
+    ),
+
+  // --- Daily status ---
+  dailyStatusList: (opts?: {
+    startDate?: string;
+    endDate?: string;
+    indexCode?: string;
+    days?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.startDate) params.set("start_date", opts.startDate);
+    if (opts?.endDate) params.set("end_date", opts.endDate);
+    if (opts?.indexCode) params.set("index_code", opts.indexCode);
+    if (opts?.days) params.set("days", String(opts.days));
+    const qs = params.toString();
+    return fetchJson<DailyStatusListResponse>(
+      `/api/super-rebound/daily-status/list${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  refreshVolumePriceChip: (indexCode = "沪深300") =>
+    fetchJson<{ trade_date: string; result: { result: string; reason: string } }>(
+      `/api/super-rebound/daily-status/volume-price-chip/refresh?index_code=${encodeURIComponent(indexCode)}`,
+      { method: "POST" }
+    ),
+
+  refreshReboundTracking: (indexCode = "沪深300") =>
+    fetchJson<{ trade_date: string; result: { result: string; reason: string } }>(
+      `/api/super-rebound/daily-status/rebound-tracking/refresh?index_code=${encodeURIComponent(indexCode)}`,
+      { method: "POST" }
+    ),
+
+  // --- Schedule ---
+  schedule: (taskName = "daily_status_auto") =>
+    fetchJson<{ schedule: ScheduleConfig }>(
+      `/api/super-rebound/daily-status/schedule?task_name=${encodeURIComponent(taskName)}`
+    ),
+
+  toggleSchedule: (taskName: string, isEnabled: boolean) =>
+    fetchJson<{ task_name: string; is_enabled: boolean }>(
+      "/api/super-rebound/daily-status/schedule",
+      { method: "PUT", body: JSON.stringify({ task_name: taskName, is_enabled: isEnabled }) }
+    ),
+
+  // --- Schema ensure ---
+  ensureSchema: () =>
+    fetchJson<{ schema: string; seeded: Record<string, number> }>(
+      "/api/super-rebound/schema/ensure", { method: "POST" }
     ),
 };

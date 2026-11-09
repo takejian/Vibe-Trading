@@ -92,94 +92,100 @@ def register_super_rebound_routes(app: FastAPI) -> None:
             logger.exception("super-rebound refresh failed")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    # --- Indicator (超跌指标) routes — TODO stubs ---
-    # These endpoints are declared but return placeholder data.
-    # Full implementation requires:
-    #   - Per-dimension data fetching (ERP, 估值分位, RSI, BIAS, MACD, etc.)
-    #   - Dimension score computation + weighted aggregate
-    #   - Missing-dimension normalisation
-    #   - External data source integration (AKShare / BaoStock / custom APIs)
-    @app.get("/api/super-rebound/indicator/score", dependencies=[Depends(require_auth)])
-    def rebound_indicator_score(
-        index_code: str = Query(default="沪深300", description="沪深300/上证A500/上证50/中证500/中证1000/创业板/科创50"),
-    ) -> dict[str, Any]:
-        # TODO: implement real scoring
-        return {
-            "index_code": index_code,
-            "total_score": None,
-            "signal": "pending",
-            "message": "超跌指标评分后端接口待实现（TODO），当前返回空数据",
-            "dimensions": [
-                {"name": "赔率层", "weight": 30, "score": None, "status": "pending"},
-                {"name": "技术超卖", "weight": 20, "score": None, "status": "pending"},
-                {"name": "资金承接", "weight": 25, "score": None, "status": "pending"},
-                {"name": "情绪广度", "weight": 15, "score": None, "status": "pending"},
-                {"name": "外部流动性/政策", "weight": 10, "score": None, "status": "pending"},
-            ],
-            "todo": [
-                "ERP 数据获取与高位区间判断",
-                "估值分位历史数据计算（PE/PB 分位）",
-                "阶段回撤计算",
-                "RSI(14) 计算",
-                "BIAS 乖离计算",
-                "MACD 底背离检测",
-                "自动引用资金面数据（两融 < 250%, ETF > 1000亿）",
-                "涨跌扩散度、成交量 PCR",
-                "SHIBOR/DR007 资金利率",
-                "外部风险事件信号",
-            ],
-        }
+    # --- Indicator (超跌指标) routes ---
 
-    @app.get("/api/super-rebound/indicator/dimensions", dependencies=[Depends(require_auth)])
-    def rebound_indicator_dimensions(
+    @app.get("/api/super-rebound/indicator/defs", dependencies=[Depends(require_auth)])
+    def rebound_indicator_defs() -> dict[str, Any]:
+        return {"indicator_defs": service.get_indicator_defs()}
+
+    @app.post("/api/super-rebound/indicator/defs", dependencies=[Depends(require_auth)])
+    def rebound_indicator_defs_upsert(body: dict[str, Any]) -> dict[str, Any]:
+        created = service.upsert_indicator_def(body)
+        return {"created": created, "indicator": body}
+
+    @app.delete("/api/super-rebound/indicator/defs/{def_id}", dependencies=[Depends(require_auth)])
+    def rebound_indicator_def_delete(def_id: int) -> dict[str, Any]:
+        deleted = service.delete_indicator_def(def_id)
+        return {"deleted": deleted, "def_id": def_id}
+
+    @app.get("/api/super-rebound/indicator/prompts", dependencies=[Depends(require_auth)])
+    def rebound_indicator_prompts() -> dict[str, Any]:
+        return {"prompts": service.get_prompts()}
+
+    @app.get("/api/super-rebound/indicator/prompts/{prompt_type}", dependencies=[Depends(require_auth)])
+    def rebound_indicator_prompt_by_type(prompt_type: str) -> dict[str, Any]:
+        prompt = service.get_prompt(prompt_type)
+        if not prompt:
+            raise HTTPException(status_code=404, detail=f"Prompt {prompt_type} not found")
+        return {"prompt": prompt}
+
+    @app.put("/api/super-rebound/indicator/prompts", dependencies=[Depends(require_auth)])
+    def rebound_indicator_prompt_upsert(body: dict[str, Any]) -> dict[str, Any]:
+        if "prompt_type" not in body:
+            raise HTTPException(status_code=400, detail="prompt_type required")
+        created = service.upsert_prompt(body)
+        return {"created": created, "prompt_type": body["prompt_type"]}
+
+    @app.post("/api/super-rebound/indicator/eval", dependencies=[Depends(require_auth)])
+    def rebound_indicator_eval(
         index_code: str = Query(default="沪深300"),
     ) -> dict[str, Any]:
-        # TODO: implement real dimension details
-        return {
-            "index_code": index_code,
-            "dimensions": [
-                {
-                    "name": "赔率层",
-                    "weight": 30,
-                    "indicators": [
-                        {"name": "ERP", "criterion": "ERP > 5", "value": None, "score": None},
-                        {"name": "估值分位", "criterion": "估值分位 > 80%", "value": None, "score": None},
-                        {"name": "阶段回撤", "criterion": "回撤 > 15%", "value": None, "score": None},
-                    ],
-                },
-                {
-                    "name": "技术超卖",
-                    "weight": 20,
-                    "indicators": [
-                        {"name": "RSI(14)", "criterion": "RSI < 30", "value": None, "score": None},
-                        {"name": "负乖离", "criterion": "明显负乖离", "value": None, "score": None},
-                        {"name": "MACD 底背离", "criterion": "底背离出现", "value": None, "score": None},
-                    ],
-                },
-                {
-                    "name": "资金承接",
-                    "weight": 25,
-                    "indicators": [
-                        {"name": "两融维持担保比例", "criterion": "< 250%", "value": None, "score": None, "auto_from_finance": True},
-                        {"name": "ETF 持续流入", "criterion": "> 1000亿", "value": None, "score": None, "auto_from_finance": True},
-                    ],
-                },
-                {
-                    "name": "情绪广度",
-                    "weight": 15,
-                    "indicators": [
-                        {"name": "上涨家数占比", "criterion": "长期 < 20%", "value": None, "score": None},
-                        {"name": "成交量 PCR", "criterion": "> 1", "value": None, "score": None},
-                    ],
-                },
-                {
-                    "name": "外部流动性/政策",
-                    "weight": 10,
-                    "indicators": [
-                        {"name": "资金利率", "criterion": "SHIBOR/DR007 高位", "value": None, "score": None},
-                        {"name": "外部风险事件", "criterion": "美股大跌/地缘冲突", "value": None, "score": None},
-                    ],
-                },
-            ],
-            "todo": "指标数据获取与计算逻辑待实现",
-        }
+        """手动触发指标评估（LLM 取值 + 本地 0/1 判断 + 写库）。"""
+        try:
+            return service.run_indicator_eval(index_code)
+        except Exception as exc:
+            logger.exception("indicator eval failed")
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # --- Daily status (每日超跌状态) routes ---
+
+    @app.get("/api/super-rebound/daily-status/list", dependencies=[Depends(require_auth)])
+    def rebound_daily_status_list(
+        start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
+        end_date: str | None = Query(default=None, description="YYYY-MM-DD"),
+        index_code: str = Query(default="沪深300"),
+        days: int = Query(default=30),
+    ) -> dict[str, Any]:
+        return service.get_daily_status_list(start_date, end_date, index_code, days)
+
+    @app.post("/api/super-rebound/daily-status/volume-price-chip/refresh", dependencies=[Depends(require_auth)])
+    def rebound_refresh_volume_price_chip(
+        index_code: str = Query(default="沪深300"),
+    ) -> dict[str, Any]:
+        try:
+            return service.refresh_volume_price_chip(index_code)
+        except Exception as exc:
+            logger.exception("volume_price_chip refresh failed")
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.post("/api/super-rebound/daily-status/rebound-tracking/refresh", dependencies=[Depends(require_auth)])
+    def rebound_refresh_rebound_tracking(
+        index_code: str = Query(default="沪深300"),
+    ) -> dict[str, Any]:
+        try:
+            return service.refresh_rebound_tracking(index_code)
+        except Exception as exc:
+            logger.exception("rebound_tracking refresh failed")
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get("/api/super-rebound/daily-status/schedule", dependencies=[Depends(require_auth)])
+    def rebound_schedule_get(
+        task_name: str = Query(default="daily_status_auto"),
+    ) -> dict[str, Any]:
+        return {"schedule": service.get_schedule_config(task_name)}
+
+    @app.put("/api/super-rebound/daily-status/schedule", dependencies=[Depends(require_auth)])
+    def rebound_schedule_toggle(body: dict[str, Any]) -> dict[str, Any]:
+        task_name = body.get("task_name", "daily_status_auto")
+        is_enabled = bool(body.get("is_enabled", True))
+        return service.toggle_schedule(task_name, is_enabled)
+
+    # --- Schema init endpoint (called once on startup) ---
+
+    @app.post("/api/super-rebound/schema/ensure", dependencies=[Depends(require_auth)])
+    def rebound_schema_ensure() -> dict[str, Any]:
+        try:
+            return service.ensure_schema_seeded()
+        except Exception as exc:
+            logger.exception("schema ensure failed")
+            raise HTTPException(status_code=502, detail=str(exc)) from exc

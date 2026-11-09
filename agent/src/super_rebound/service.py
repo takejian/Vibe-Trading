@@ -1041,3 +1041,508 @@ def get_etf_flow_detail(
                 "不等于二级市场成交净买入。"
             ),
         }
+
+
+# ===================================================================
+# Phase 2 — 超跌指标 / 每日状态 / LLM 判断逻辑
+# ===================================================================
+
+import json as _json
+import re as _re
+
+
+def _extract_json(text: str) -> str | None:
+    """Best-effort extraction of a JSON object from a possibly-markdown response."""
+    text = text.strip()
+    if text.startswith("{") or text.startswith("["):
+        return text
+    if "```" in text:
+        for block in text.split("```"):
+            block = block.strip()
+            # Strip possible language tag like "json\n"
+            for _ in range(2):
+                block = block.split("\n", 1)[1] if "\n" in block and block.split("\n", 1)[0].lower() in ("json", "javascript") else block
+            if block.startswith("{") or block.startswith("["):
+                return block
+    # Fallback: find first { ... last }
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace >= 0 and last_brace > first_brace:
+        return text[first_brace : last_brace + 1]
+    return None
+
+
+def _coerce_value(raw: str) -> float | None:
+    """从大模型返回的原始值字符串中提取数值。"""
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(",", "")
+    m = _re.search(r"[-+]?\d*\.?\d+", s)
+    if not m:
+        return None
+    try:
+        val = float(m.group())
+    except ValueError:
+        return None
+    # 百分比：如果原始字符串包含 '%'，转为小数
+    if "%" in str(raw):
+        val = val / 100.0
+    return val
+
+
+def _parse_criteria(criteria: str) -> tuple[str, float | None]:
+    """Parse judgment criteria string like '> 5', '< 30', '>= 10%' into (op, threshold).
+
+    Returns (op, threshold) where op is '>', '<', '>=', '<=', '==', '!='.
+    Returns ('?', None) for criteria that can't be parsed (qualitative).
+    """
+    if not criteria:
+        return ("?", None)
+    s = criteria.replace(" ", "")
+    m = _re.match(r"(>=|<=|!=|==|>|<)\s*([-+]?\d*\.?\d+)", s)
+    if m:
+        op = m.group(1)
+        th = float(m.group(2))
+        if "%" in criteria:
+            th = th / 100.0
+        return (op, th)
+    return ("?", None)
+
+
+def compute_judgment(raw_value: str | float | None, criteria: str) -> int | None:
+    """通用本地判断：judgment_criteria 纯文本 → 解析操作符+阈值 → 1(满足)/0(不满足)/None。
+
+    - 数值型：正则匹配 `>`/`<`/`>=`/`<=`/`==`/`!=` + 数值阈值，比较后返回 0/1
+    - 定性型：文本包含"定性"/"发生"/"底背离"/"外部风险"/"高位"等关键词，直接取 LLM 返回的 0/1
+    """
+    if not criteria:
+        return None
+
+    # 定性关键词识别
+    qualitative_keywords = ("定性", "底背离", "外部风险", "高位", "发生", "事件")
+    is_qualitative = any(kw in criteria for kw in qualitative_keywords)
+
+    val = _coerce_value(str(raw_value)) if raw_value is not None else None
+
+    if is_qualitative:
+        if val is None:
+            return None
+        return 1 if val >= 0.5 else 0
+
+    if val is None:
+        return None
+
+    # 数值型：用原有 _parse_criteria 解析
+    op, th = _parse_criteria(criteria)
+    if op == "?" or th is None:
+        return None
+    if op == ">": return 1 if val > th else 0
+    if op == ">=": return 1 if val >= th else 0
+    if op == "<": return 1 if val < th else 0
+    if op == "<=": return 1 if val <= th else 0
+    if op == "==": return 1 if val == th else 0
+    if op == "!=": return 1 if val != th else 0
+    return None
+
+
+def compute_dimension_score(judgments: list[tuple[float, int | None]]) -> float | None:
+    """按指标权重加权平均 0/1 结果 × 100。
+
+    judgments: [(weight, judgment_result), ...]
+    Returns 0-100 float, or None if no valid judgments.
+    """
+    valid = [(w, j) for w, j in judgments if j is not None]
+    if not valid:
+        return None
+    total_weight = sum(w for w, _ in valid)
+    if total_weight == 0:
+        return None
+    score = sum(w * j for w, j in valid) / total_weight * 100
+    return round(score, 2)
+
+
+def compute_signal_light(total_score: float | None) -> str:
+    if total_score is None:
+        return "pending"
+    if total_score <= 30:
+        return "green"
+    if total_score <= 70:
+        return "yellow"
+    return "red"
+
+
+# -------------------------------------------------------------------
+# LLM 调用函数
+# -------------------------------------------------------------------
+
+def fetch_indicator_values_via_llm(
+    index_code: str,
+    prompt_content: str,
+    indicator_defs: list[dict[str, Any]],
+) -> dict[str, str]:
+    """调用大模型一次性获取各维度指标的原始值。
+
+    Returns {indicator_id: raw_value_str} dict. Empty dict on failure.
+    """
+    from src.providers.chat import ChatLLM
+
+    # 组装当前活跃指标清单（用于确认哪些指标需要返回）
+    indicator_list_lines: list[str] = []
+    for d in indicator_defs:
+        op = d.get("compare_operator", ">")
+        th = d.get("threshold_value")
+        jc = d.get("judgment_criteria", "") or ""
+        if op == "定性":
+            indicator_list_lines.append(f"- {d['indicator_name']} (维度: {d['dimension']}, 定性: {jc})")
+        else:
+            indicator_list_lines.append(
+                f"- {d['indicator_name']} (维度: {d['dimension']}, {op} {th}, 备注: {jc})"
+            )
+    indicator_list_str = "\n".join(indicator_list_lines)
+
+    system_msg = (
+        "你是一个A股金融数据助手，擅长获取市场最新指标数据。"
+        "严格只返回 JSON 对象，key 为指标名称，value 为数值或 0/1，不要有任何解释文字。"
+    )
+    user_msg = (
+        f"请为宽基指数 [{index_code}] 获取以下指标的最新原始值。\n\n"
+        f"【详细要求】\n{prompt_content}\n\n"
+        f"【当前需要返回的指标清单】\n{indicator_list_str}\n\n"
+        f"请严格按照上述要求返回 JSON 对象。"
+    )
+
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": user_msg},
+    ]
+
+    try:
+        llm = ChatLLM()
+        response = llm.chat(messages, timeout=60)
+        content = getattr(response, "content", str(response))
+    except Exception as exc:
+        logger.warning("LLM call failed for indicator values: %s", exc)
+        return {}
+
+    json_str = _extract_json(content)
+    if not json_str:
+        logger.warning("LLM returned non-JSON for indicator values: %s", content[:200])
+        return {}
+
+    try:
+        data = _json.loads(json_str)
+    except _json.JSONDecodeError as exc:
+        logger.warning("LLM JSON parse failed for indicator values: %s (raw: %s)", exc, content[:200])
+        return {}
+
+    # 以 indicator_name 为 key 匹配 → 转为 indicator_id 为 key
+    name_to_id = {d["indicator_name"]: d["id"] for d in indicator_defs}
+    result: dict[str, str] = {}
+    for d in indicator_defs:
+        val = data.get(d["indicator_name"])
+        if val is None:
+            result[str(d["id"])] = ""
+        else:
+            result[str(d["id"])] = str(val)
+    return result
+
+
+def fetch_qualitative_via_llm(
+    prompt_content: str,
+    system_instruction: str = "你是一个专业的交易分析专家。",
+) -> dict[str, Any]:
+    """LLM 定性判断（量价与筹码 / 反弹存续跟踪），直接返回结论。
+
+    Returns {"result": "...", "reason": "..."} 或 {"result": "未知", "reason": "LLM 调用失败"}
+    """
+    from src.providers.chat import ChatLLM
+
+    messages = [
+        {"role": "system", "content": system_instruction},
+        {"role": "user", "content": prompt_content},
+    ]
+
+    try:
+        llm = ChatLLM()
+        response = llm.chat(messages, timeout=45)
+        content = getattr(response, "content", str(response))
+    except Exception as exc:
+        logger.warning("LLM qualitative call failed: %s", exc)
+        return {"result": "未知", "reason": f"LLM 调用失败: {exc}"}
+
+    json_str = _extract_json(content)
+    if not json_str:
+        logger.warning("LLM qualitative returned non-JSON: %s", content[:200])
+        return {"result": "未知", "reason": content[:200]}
+
+    try:
+        data = _json.loads(json_str)
+    except _json.JSONDecodeError as exc:
+        logger.warning("LLM qualitative JSON parse failed: %s", exc)
+        return {"result": "未知", "reason": content[:200]}
+
+    result = str(data.get("result", "未知"))
+    # 量价与筹码规范化
+    if "真反弹" in result:
+        result = "真反弹"
+    elif "假反弹" in result:
+        result = "假反弹"
+    # 反弹存续规范化
+    elif "存续" in result or "正常" in result:
+        result = "存续中"
+    elif "衰退" in result or "信号" in result or "危险" in result or "结束" in result:
+        result = "衰退信号"
+    reason = str(data.get("reason", ""))
+    return {"result": result, "reason": reason}
+
+
+# -------------------------------------------------------------------
+# 主流程：超跌指标评估
+# -------------------------------------------------------------------
+
+def run_indicator_eval(index_code: str = "沪深300") -> dict[str, Any]:
+    """主流程：LLM 取值 → 本地判断 → 写结果表 → 写每日状态表。"""
+    trade_date = date.today()
+
+    with _conn() as conn:
+        # 1. 读提示词
+        prompt_row = db.get_prompt_by_type(conn, "oversold_indicator")
+        if not prompt_row:
+            # fallback: seed if missing
+            db.seed_initial_data(conn)
+            prompt_row = db.get_prompt_by_type(conn, "oversold_indicator")
+        prompt_content = prompt_row["prompt_content"] if prompt_row else ""
+
+        # 2. 读指标定义
+        indicator_defs = db.get_all_indicator_defs(conn)
+        if not indicator_defs:
+            db.seed_initial_data(conn)
+            indicator_defs = db.get_all_indicator_defs(conn)
+        if not indicator_defs:
+            return {"error": "no_indicator_defs", "message": "指标定义为空，请先配置"}
+
+        # 3. LLM 一次性取值
+        indicator_values = fetch_indicator_values_via_llm(index_code, prompt_content, indicator_defs)
+
+        # 4. 本地判断 0/1 + 计算维度得分
+        dimension_judgments: dict[str, list[tuple[float, int | None]]] = {}
+        result_rows: list[dict[str, Any]] = []
+
+        for d in indicator_defs:
+            raw = indicator_values.get(str(d["id"]), "")
+            judgment = compute_judgment(raw, d["judgment_criteria"])
+            dimension_judgments.setdefault(d["dimension"], []).append((d.get("weight", 1.0), judgment))
+            result_rows.append({
+                "trade_date": trade_date,
+                "index_code": index_code,
+                "indicator_id": d["id"],
+                "indicator_value": raw if raw else None,
+                "judgment_result": judgment,
+            })
+
+        # 5. 计算各维度得分
+        dimension_scores: dict[str, float | None] = {}
+        for dim_name, judgments in dimension_judgments.items():
+            dimension_scores[dim_name] = compute_dimension_score(judgments)
+
+        # 6. 加权综合得分（跳过缺失维度，剩余权重归一化）
+        dim_weights = db.DIMENSION_WEIGHTS
+        total_weight = 0.0
+        weighted_sum = 0.0
+        for dim_name, score in dimension_scores.items():
+            if score is None:
+                continue
+            w = dim_weights.get(dim_name, 0)
+            total_weight += w
+            weighted_sum += score * w
+        total_score = round(weighted_sum / total_weight, 2) if total_weight > 0 else None
+
+        signal = compute_signal_light(total_score)
+
+        # 7. 批量写 indicator_result
+        db.batch_upsert_indicator_results(conn, result_rows)
+
+        # 8. 写 daily_status（只写超跌指标部分，量价筹码/反弹跟踪留空或查已有）
+        existing = db.get_latest_daily_status(conn, index_code) or {}
+        db.upsert_daily_status(conn, {
+            "trade_date": trade_date,
+            "index_code": index_code,
+            "odds_score": dimension_scores.get("赔率层"),
+            "technical_score": dimension_scores.get("技术超卖"),
+            "capital_score": dimension_scores.get("资金承接"),
+            "sentiment_score": dimension_scores.get("情绪广度"),
+            "external_score": dimension_scores.get("外部流动性/政策"),
+            "total_score": total_score,
+            "signal_light": signal,
+            "volume_price_chip": existing.get("volume_price_chip"),
+            "rebound_tracking": existing.get("rebound_tracking"),
+        })
+
+        # 9. 返回结果供前端展示
+        return {
+            "trade_date": str(trade_date),
+            "index_code": index_code,
+            "dimension_scores": dimension_scores,
+            "total_score": total_score,
+            "signal_light": signal,
+            "indicators": [
+                {
+                    "id": d["id"],
+                    "dimension": d["dimension"],
+                    "indicator_name": d["indicator_name"],
+                    "judgment_criteria": d["judgment_criteria"],
+                    "weight": d.get("weight", 1.0),
+                    "indicator_value": indicator_values.get(str(d["id"])),
+                    "judgment_result": compute_judgment(
+                        indicator_values.get(str(d["id"]), ""), d["judgment_criteria"]
+                    ),
+                }
+                for d in indicator_defs
+            ],
+        }
+
+
+def refresh_volume_price_chip(index_code: str = "沪深300") -> dict[str, Any]:
+    """手动/定时触发量价与筹码指标判断（LLM 定性）。"""
+    trade_date = date.today()
+    with _conn() as conn:
+        prompt_row = db.get_prompt_by_type(conn, "volume_price_chip")
+        prompt_content = prompt_row["prompt_content"] if prompt_row else ""
+        result = fetch_qualitative_via_llm(
+            prompt_content=prompt_content,
+            system_instruction="你是一个量价分析专家，擅长识别真假反弹。",
+        )
+        db.upsert_daily_status(conn, {
+            "trade_date": trade_date,
+            "index_code": index_code,
+            "volume_price_chip": result["result"],
+        })
+        return {"trade_date": str(trade_date), "result": result}
+
+
+def refresh_rebound_tracking(index_code: str = "沪深300") -> dict[str, Any]:
+    """手动/定时触发反弹存续跟踪指标判断（LLM 定性）。"""
+    trade_date = date.today()
+    with _conn() as conn:
+        prompt_row = db.get_prompt_by_type(conn, "rebound_tracking")
+        prompt_content = prompt_row["prompt_content"] if prompt_row else ""
+        result = fetch_qualitative_via_llm(
+            prompt_content=prompt_content,
+            system_instruction="你是一个反弹存续分析专家，擅长识别反弹衰退信号。",
+        )
+        db.upsert_daily_status(conn, {
+            "trade_date": trade_date,
+            "index_code": index_code,
+            "rebound_tracking": result["result"],
+        })
+        return {"trade_date": str(trade_date), "result": result}
+
+
+def get_daily_status_list(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    index_code: str = "沪深300",
+    days: int = 30,
+) -> dict[str, Any]:
+    """每日超跌状态列表，默认近 30 交易日。"""
+    if not end_date:
+        end_date = str(date.today())
+    if not start_date:
+        start_date = str(date.today() - timedelta(days=days * 2))  # 粗略多取，服务端再截
+    start = date.fromisoformat(start_date)
+    end = date.fromisoformat(end_date)
+
+    with _conn() as conn:
+        rows = db.get_daily_status_list(conn, start, end, index_code)
+
+    # 截取近 N 个交易日（去重+限制数量）
+    rows = rows[:days]
+    # 标记最新交易日
+    if rows:
+        rows[0]["is_latest"] = True
+
+    # 附带指标定义，便于前端展示判断标准
+    with _conn() as conn:
+        indicator_defs = db.get_all_indicator_defs(conn)
+        prompts = db.get_all_prompts(conn)
+
+    return {
+        "index_code": index_code,
+        "date_range_start": start_date,
+        "date_range_end": end_date,
+        "daily_rows": rows,
+        "indicator_defs": indicator_defs,
+        "prompts": prompts,
+    }
+
+
+# -------------------------------------------------------------------
+# 指标定义 / 提示词 / 定时配置 业务层
+# -------------------------------------------------------------------
+
+def get_indicator_defs() -> list[dict[str, Any]]:
+    with _conn() as conn:
+        return db.get_all_indicator_defs(conn)
+
+
+def upsert_indicator_def(row: dict[str, Any]) -> bool:
+    with _conn() as conn:
+        return db.upsert_indicator_def(conn, row)
+
+
+def delete_indicator_def(def_id: int) -> bool:
+    with _conn() as conn:
+        return db.delete_indicator_def(conn, def_id)
+
+
+def get_prompts() -> list[dict[str, Any]]:
+    with _conn() as conn:
+        return db.get_all_prompts(conn)
+
+
+def get_prompt(prompt_type: str) -> dict[str, Any] | None:
+    with _conn() as conn:
+        return db.get_prompt_by_type(conn, prompt_type)
+
+
+def upsert_prompt(row: dict[str, Any]) -> bool:
+    with _conn() as conn:
+        return db.upsert_prompt(conn, row)
+
+
+def get_schedule_config(task_name: str = "daily_status_auto") -> dict[str, Any]:
+    with _conn() as conn:
+        cfg = db.get_schedule_config(conn, task_name)
+    if not cfg:
+        # 创建默认配置
+        with _conn() as conn:
+            db.upsert_schedule_config(conn, {
+                "task_name": task_name, "is_enabled": 1, "run_time": "23:00",
+                "timezone": "Asia/Shanghai", "updated_by": None,
+            })
+            cfg = db.get_schedule_config(conn, task_name)
+    return cfg or {"task_name": task_name, "is_enabled": 1, "run_time": "23:00", "timezone": "Asia/Shanghai"}
+
+
+def toggle_schedule(task_name: str, is_enabled: bool) -> dict[str, Any]:
+    with _conn() as conn:
+        db.upsert_schedule_config(conn, {
+            "task_name": task_name,
+            "is_enabled": 1 if is_enabled else 0,
+            "run_time": "23:00",
+            "timezone": "Asia/Shanghai",
+        })
+        return {"task_name": task_name, "is_enabled": bool(is_enabled)}
+
+
+def is_schedule_enabled(task_name: str = "daily_status_auto") -> bool:
+    with _conn() as conn:
+        return db.is_schedule_enabled(conn, task_name)
+
+
+# -------------------------------------------------------------------
+# 启动时 ensure schema + seed
+# -------------------------------------------------------------------
+
+def ensure_schema_seeded() -> dict[str, Any]:
+    return db.ensure_schema_seeded()

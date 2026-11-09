@@ -104,6 +104,39 @@ async def _sync_loop(app) -> None:
             except Exception as exc:
                 logger.exception("Super-rebound scheduler loop error: %s", exc)
 
+            # ---- 每日 23:00 超跌状态自动生成 ----
+            try:
+                from src.super_rebound import service as _service
+                today = date.today()
+                now_hour = datetime.now().hour
+                status_done = getattr(app.state, "sr_daily_status_last_date", None)
+                if (
+                    now_hour == 23
+                    and status_done != today
+                    and today.weekday() < 5  # 只在交易日
+                    and _service.is_schedule_enabled("daily_status_auto")
+                ):
+                    logger.info("Super-rebound daily status auto-generate (%s)", today)
+                    for idx_code in ("沪深300", "科创50"):
+                        logger.info("Super-rebound daily eval %s (%s)", idx_code, today)
+                        try:
+                            result = await asyncio.to_thread(_service.run_indicator_eval, idx_code)
+                            logger.info("Super-rebound daily eval %s (%s): %s", idx_code, today,
+                                        result.get("total_score", "pending"))
+                        except Exception as exc:
+                            logger.exception("Super-rebound daily eval %s failed: %s", idx_code, exc)
+                        try:
+                            await asyncio.to_thread(_service.refresh_volume_price_chip, idx_code)
+                        except Exception as exc:
+                            logger.exception("Super-rebound volume_price_chip %s failed: %s", idx_code, exc)
+                        try:
+                            await asyncio.to_thread(_service.refresh_rebound_tracking, idx_code)
+                        except Exception as exc:
+                            logger.exception("Super-rebound rebound_tracking %s failed: %s", idx_code, exc)
+                    app.state.sr_daily_status_last_date = today
+            except Exception as exc:
+                logger.exception("Super-rebound daily status window error: %s", exc)
+
             await asyncio.sleep(_TICK_SECONDS)
     except asyncio.CancelledError:
         logger.info("Super-rebound scheduler stopped.")
