@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Edit2, Loader2 } from "lucide-react";
+import { Calendar, Edit2, Loader2, X } from "lucide-react";
 import {
   api,
   type CelebrityCard,
   type CelebrityInvestor,
+  type CelebritySnapshotGroup,
 } from "@/lib/api";
 import { PromptEditorDialog } from "./PromptEditorDialog";
 
@@ -31,6 +32,25 @@ export function InvestorCard({ investor }: InvestorCardProps) {
   const [backfilling, setBackfilling] = useState(false);
 
   const [promptDialog, setPromptDialog] = useState<{ key: string; title: string } | null>(null);
+
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [snapshots, setSnapshots] = useState<CelebritySnapshotGroup[]>([]);
+
+  const openSnapshots = async () => {
+    setSnapshotOpen(true);
+    setSnapshotLoading(true);
+    setSnapshotError(null);
+    try {
+      const res = await api.celebrityPositionSnapshots(investor.id);
+      setSnapshots(res.snapshots ?? []);
+    } catch {
+      setSnapshotError("加载持仓快照失败");
+    } finally {
+      setSnapshotLoading(false);
+    }
+  };
 
   const loadCard = () => {
     setLoading(true);
@@ -298,13 +318,21 @@ export function InvestorCard({ investor }: InvestorCardProps) {
 
           {/* 当前持仓 */}
           <Section title="当前持仓 · 前15大重仓" actions={
-            <button
-              onClick={handleBackfill}
-              disabled={backfilling}
-              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
-            >
-              {backfilling && <Loader2 className="h-3 w-3 animate-spin" />} 回灌历史
-            </button>
+            <div className="flex gap-1">
+              <button
+                onClick={openSnapshots}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+              >
+                <Calendar className="h-3.5 w-3.5" /> 查看历史快照
+              </button>
+              <button
+                onClick={handleBackfill}
+                disabled={backfilling}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+              >
+                {backfilling && <Loader2 className="h-3 w-3 animate-spin" />} 回灌历史
+              </button>
+            </div>
           }>
             <Table headers={["标的", "持仓占比", "来源", "更新时间", "置信度"]}>
               {card.positions.length === 0 ? (
@@ -425,6 +453,15 @@ export function InvestorCard({ investor }: InvestorCardProps) {
           onClose={() => setPromptDialog(null)}
         />
       )}
+
+      {snapshotOpen && (
+        <SnapshotDialog
+          loading={snapshotLoading}
+          error={snapshotError}
+          snapshots={snapshots}
+          onClose={() => { setSnapshotOpen(false); setSnapshots([]); }}
+        />
+      )}
     </div>
   );
 }
@@ -479,4 +516,79 @@ function ActionTag({ value }: { value: string | null }) {
   };
   if (!value) return <span className="text-muted-foreground">—</span>;
   return <span className={`text-xs font-medium ${map[value] ?? ""}`}>{value}</span>;
+}
+
+function SnapshotDialog({
+  loading,
+  error,
+  snapshots,
+  onClose,
+}: {
+  loading: boolean;
+  error: string | null;
+  snapshots: CelebritySnapshotGroup[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="mt-12 mr-8 w-[560px] max-w-[92vw] rounded-lg border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h3 className="text-sm font-semibold">历史持仓快照</h3>
+          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+            </div>
+          ) : error ? (
+            <p className="py-8 text-center text-sm text-destructive">{error}</p>
+          ) : snapshots.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">暂无历史持仓快照</p>
+          ) : (
+            <div className="space-y-4">
+              {snapshots.map((grp) => (
+                <div key={grp.snapshot_date} className="rounded-md border border-border/60 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium">{grp.snapshot_date}</span>
+                    <span className="text-xs text-muted-foreground">
+                      · {grp.positions.length} 只标的
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border/60 text-left text-muted-foreground">
+                          <th className="py-1 pr-2 font-medium">标的</th>
+                          <th className="py-1 pr-2 font-medium">持仓占比</th>
+                          <th className="py-1 pr-2 font-medium">来源</th>
+                          <th className="py-1 pr-2 font-medium">置信度</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grp.positions.map((p) => (
+                          <tr key={p.id} className="border-b border-border/30">
+                            <td className="py-1 pr-2">{p.target}</td>
+                            <td className="py-1 pr-2">{p.percentage || "—"}</td>
+                            <td className="py-1 pr-2">{p.source || "—"}</td>
+                            <td className="py-1 pr-2"><ConfidenceTag value={p.confidence} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

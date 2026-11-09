@@ -370,6 +370,46 @@ def get_weekly_dynamics() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Position snapshots (read-only grouping by snapshot_date)
+# ---------------------------------------------------------------------------
+
+def get_position_snapshots(investor_id: int) -> dict[str, Any]:
+    """Return historical position snapshots of one investor, grouped by snapshot_date.
+
+    Each group (same snapshot_date) represents one historical full portfolio
+    captured on that refresh. Returns snapshots ordered by date descending.
+    """
+    with celebrity_connection() as conn:
+        initialize_schema(conn)
+        inv = db.get_investor(conn, investor_id)
+        if inv is None:
+            raise CelebrityNotFoundError(f"投资人 {investor_id} 不存在")
+        rows = db.list_position_snapshots(conn, investor_id)
+
+    # Group rows by snapshot_date
+    from collections import OrderedDict
+
+    grouped: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    for row in rows:
+        key = str(row.get("snapshot_date", ""))
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append({
+            "id": row["id"],
+            "target": row.get("target", ""),
+            "percentage": row.get("percentage"),
+            "source": row.get("source"),
+            "confidence": row.get("confidence"),
+        })
+
+    snapshots = [
+        {"snapshot_date": date, "positions": positions}
+        for date, positions in grouped.items()
+    ]
+    return {"investor_id": investor_id, "snapshots": snapshots}
+
+
+# ---------------------------------------------------------------------------
 # Prompts
 # ---------------------------------------------------------------------------
 

@@ -1765,6 +1765,8 @@ export const api = {
     request<{ deleted: boolean; id: number }>(`/api/celebrity/investors/${investorId}`, { method: "DELETE" }),
   celebrityCard: (investorId: number) =>
     request<CelebrityCard>(`/api/celebrity/investors/${investorId}/card`),
+  celebrityPositionSnapshots: (investorId: number) =>
+    request<CelebritySnapshotsResult>(`/api/celebrity/investors/${investorId}/position-snapshots`),
   celebrityRefresh: (investorId: number) =>
     request<CelebrityRefreshResult>(`/api/celebrity/investors/${investorId}/refresh`, { method: "POST" }),
   celebrityBackfill: (investorId: number) =>
@@ -3960,6 +3962,24 @@ export interface CelebrityPerformance {
   peer_compare: string | null;
   risk_note: string | null;
   created_at?: string;
+}
+
+export interface CelebrityPositionSnapshot {
+  id: string;
+  target: string;
+  percentage: string | null;
+  source: string | null;
+  confidence: string | null;
+}
+
+export interface CelebritySnapshotGroup {
+  snapshot_date: string;
+  positions: CelebrityPositionSnapshot[];
+}
+
+export interface CelebritySnapshotsResult {
+  investor_id: number;
+  snapshots: CelebritySnapshotGroup[];
 }
 
 export interface CelebrityCard {

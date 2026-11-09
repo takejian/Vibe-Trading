@@ -98,6 +98,13 @@ def register_celebrity_routes(app: FastAPI) -> None:
         except CelebrityError as exc:
             raise _handle(exc) from exc
 
+    @app.get("/api/celebrity/investors/{investor_id}/position-snapshots", dependencies=[Depends(require_auth)])
+    def get_position_snapshots(investor_id: int) -> dict[str, Any]:
+        try:
+            return service.get_position_snapshots(investor_id)
+        except CelebrityError as exc:
+            raise _handle(exc) from exc
+
     @app.post("/api/celebrity/investors/{investor_id}/refresh", dependencies=[Depends(require_auth)])
     def refresh_investor(investor_id: int) -> dict[str, Any]:
         try:
