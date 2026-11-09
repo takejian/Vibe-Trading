@@ -897,7 +897,11 @@ def backfill_etf_nav(
 def get_etf_flow_overview(
     start_date: str | None = None, end_date: str | None = None
 ) -> dict[str, Any]:
-    """头部汇总：累计净流入、最新日净流入、最大单日净流入、监测天数。"""
+    """头部汇总：最新日净流入、区间最高净流入、当日/区间最强 ETF。
+
+    **数据源**：``etf_daily_net_flow`` 宽表 + ``etf_daily_flow``（逐 ETF 排行）。
+    返回字段与前端 ``EtfMonitorSummary`` 类型对齐。
+    """
     with _conn() as conn:
         if start_date and end_date:
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -906,38 +910,87 @@ def get_etf_flow_overview(
             end = date.today()
             start = end - timedelta(days=60)
 
-        summary = db.get_etf_flow_summary(conn, start, end)
-        if not summary:
+        raw = db.get_etf_netflow_detail(conn, start, end)
+        if not raw:
             return {
-                "cumulative_net_flow_bn": 0.0,
-                "latest_day_total_bn": 0.0,
+                "latest_total_net_flow_bn": 0,
+                "latest_day_net_flow_bn": 0,
                 "latest_day": None,
-                "max_day_total_bn": 0.0,
-                "max_day": None,
+                "range_high_net_flow_bn": 0,
+                "range_high_net_flow_date": None,
+                "latest_strongest_etf": None,
+                "avg_largest_etf": None,
                 "monitor_days": 0,
+                "sample_etf_count": len(db.ETF_TARGETS),
                 "date_range_start": str(start),
                 "date_range_end": str(end),
-                "note": "暂无数据，请先刷新",
             }
 
-        # 按日期再汇总一次（不同 index_tag 要相加）
-        by_date: dict[date, float] = {}
-        for row in summary:
+        # 区间累计净流入（求和所有交易日的 total_net_flow）
+        range_total = round(sum(float(r.get("total_net_flow") or 0) for r in raw), 2)
+
+        # 取非零指数组最多的最新交易日作为 latest_day（用于"最新交易日"卡片）
+        n_groups = len(db.INDEX_TAGS)
+        best_date: date | None = None
+        best_nonzero = -1
+        latest_day_total = 0.0
+        for row in raw:
             d = row["date"]
             if isinstance(d, datetime):
                 d = d.date()
-            by_date[d] = by_date.get(d, 0.0) + float(row["total_net_flow_bn"] or 0)
+            nonzero = sum(1 for tag in db.INDEX_TAGS if row.get(f"{tag}_net_flow") not in (None, 0))
+            if nonzero >= n_groups:
+                best_date = d
+                latest_day_total = float(row.get("total_net_flow") or 0)
+                break
+            if nonzero > best_nonzero:
+                best_nonzero = nonzero
+                best_date = d
+                latest_day_total = float(row.get("total_net_flow") or 0)
+        latest_date = best_date or raw[-1]["date"]
+        if isinstance(latest_date, datetime):
+            latest_date = latest_date.date()
+        latest_day_total = round(latest_day_total, 2)
 
-        dates = sorted(by_date)
-        latest = dates[-1]
-        high_date = max(by_date, key=by_date.get)
+        # 区间最高净流入日
+        high_row = max(raw, key=lambda r: float(r.get("total_net_flow") or 0))
+        high_date = high_row["date"]
+        if isinstance(high_date, datetime):
+            high_date = high_date.date()
+        high_total = round(float(high_row.get("total_net_flow") or 0), 2)
+
+        # 当日净流入最大 ETF + 区间平均净流入最大 ETF
+        latest_strongest_etf: dict[str, Any] | None = None
+        avg_largest_etf: dict[str, Any] | None = None
+        top_day = db.get_top_etf_by_day_netflow(conn, latest_date, limit=1)
+        if top_day:
+            t = top_day[0]
+            latest_strongest_etf = {
+                "etf_code": t["fund_code"],
+                "etf_name": t.get("fund_name") or "",
+                "index_group": db.INDEX_TAG_LABEL.get(t["index_tag"], t["index_tag"] or ""),
+                "net_flow_bn": float(t["net_flow"] or 0),
+            }
+        top_avg = db.get_top_etf_by_avg_netflow(conn, start, end, limit=1)
+        if top_avg:
+            t = top_avg[0]
+            avg_largest_etf = {
+                "etf_code": t["fund_code"],
+                "etf_name": t.get("fund_name") or "",
+                "index_group": db.INDEX_TAG_LABEL.get(t["index_tag"], t["index_tag"] or ""),
+                "avg_net_flow_bn": float(t["avg_net_flow_bn"] or 0),
+            }
+
         return {
-            "cumulative_net_flow_bn": round(sum(by_date.values()), 4),
-            "latest_day_total_bn": round(by_date[latest], 4),
-            "latest_day": str(latest),
-            "max_day_total_bn": round(by_date[high_date], 4),
-            "max_day": str(high_date),
-            "monitor_days": len(dates),
+            "latest_total_net_flow_bn": range_total,
+            "latest_day_net_flow_bn": latest_day_total,
+            "latest_day": str(latest_date),
+            "range_high_net_flow_bn": high_total,
+            "range_high_net_flow_date": str(high_date),
+            "latest_strongest_etf": latest_strongest_etf,
+            "avg_largest_etf": avg_largest_etf,
+            "monitor_days": len(raw),
+            "sample_etf_count": len(db.ETF_TARGETS),
             "date_range_start": str(start),
             "date_range_end": str(end),
         }
@@ -947,7 +1000,14 @@ def get_etf_flow_detail(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, Any]:
-    """全量明细 + 按日期分组 + 累计行，前端表格/折线直接消费。"""
+    """全量明细 + 按日期分组 + 区间平均行，前端表格/柱状图直接消费。
+
+    **数据源**：``etf_daily_net_flow`` 宽表（每行一交易日，7 指数组各为列）。
+    返回格式与前端 ``EtfMonitorDetail`` 类型对齐：
+    - ``groups``：中文指数组标签（前端表格列头 / 图例）
+    - ``daily_rows[].values.per_group``：以中文标签为 key 的各指数组净流入
+    - ``cumulative_row``：区间平均净流入行
+    """
     with _conn() as conn:
         if start_date and end_date:
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -956,87 +1016,92 @@ def get_etf_flow_detail(
             end = date.today()
             start = end - timedelta(days=60)
 
-        raw = db.get_etf_flow_detail(conn, start, end)
+        raw = db.get_etf_netflow_detail(conn, start, end)
         if not raw:
             return {
                 "date_range_start": str(start),
                 "date_range_end": str(end),
-                "tags": list(db.INDEX_TAG_LABEL.values()),
+                "groups": list(db.INDEX_TAG_LABEL.values()),
                 "daily_rows": [],
                 "cumulative_row": None,
                 "latest_date": None,
                 "note": "暂无数据，请先刷新",
                 "disclaimer": (
-                    "本数据采集自上交所官方披露（深交所官方接口 2025 年起下线，暂缺）；"
+                    "本数据采集自交易所官方披露；"
                     "净流入 =（当日份额 − 前交易日份额）× 单位净值，为一级市场申赎口径，"
                     "不等于二级市场成交净买入。"
                 ),
             }
 
-        # 按 (date, index_tag) 聚合净流入
-        by_date_tag: dict[tuple[date, str], float] = {}
-        by_date_funds: dict[tuple[date, str], list[dict[str, Any]]] = {}
+        # index_tag → 中文标签
+        groups_labeled = [db.INDEX_TAG_LABEL.get(tag, tag) for tag in db.INDEX_TAGS]
+        tag_to_col = {tag: f"{tag}_net_flow" for tag in db.INDEX_TAGS}
+
+        by_date: dict[date, dict[str, float]] = {}
         for row in raw:
             d = row["date"]
             if isinstance(d, datetime):
                 d = d.date()
-            tag = row["index_tag"]
-            nf = float(row["net_flow"] or 0)
-            by_date_tag[(d, tag)] = by_date_tag.get((d, tag), 0.0) + nf
-            by_date_funds.setdefault((d, tag), []).append({
-                "fund_code": row["fund_code"],
-                "fund_name": row["fund_name"],
-                "nav": row["nav"],
-                "share_t": row["share_t"],
-                "share_t_1": row["share_t_1"],
-                "market_cap_bn": row["market_cap_bn"],
-                "net_flow": row["net_flow"],
-                "exchange": row["exchange"],
-                "remark": row["remark"],
-            })
+            day = {}
+            for tag in db.INDEX_TAGS:
+                label = db.INDEX_TAG_LABEL.get(tag, tag)
+                val = row.get(tag_to_col[tag])
+                day[label] = float(val) if val is not None else 0.0
+            by_date[d] = day
 
-        dates_sorted = sorted({d for d, _ in by_date_tag})
-        latest_date = dates_sorted[-1]
+        dates_sorted = sorted(by_date)
+        # latest_date：取非零指数组最多的最新交易日（避免 SZSE 缺失导致 latest 偏小）
+        best_date: date | None = None
+        best_nonzero = -1
+        n_groups = len(groups_labeled)
+        for trade_date in reversed(dates_sorted):
+            nonzero = sum(1 for v in by_date[trade_date].values() if v != 0)
+            if nonzero >= n_groups:
+                best_date = trade_date
+                break
+            if nonzero > best_nonzero:
+                best_nonzero = nonzero
+                best_date = trade_date
+        latest_date = best_date or dates_sorted[-1]
 
-        cum_tag = {tag: 0.0 for tag in db.INDEX_TAG_LABEL}
+        group_sum = {g: 0.0 for g in groups_labeled}
         daily_rows_out: list[dict[str, Any]] = []
 
         for trade_date in dates_sorted:
-            day_tags: dict[str, float] = {tag: 0.0 for tag in db.INDEX_TAG_LABEL}
-            day_funds: dict[str, list[dict[str, Any]]] = {}
-            for (d, tag), v in by_date_tag.items():
-                if d == trade_date:
-                    day_tags[tag] = round(v, 4)
-                    day_funds[tag] = by_date_funds[(d, tag)]
-            day_total = round(sum(day_tags.values()), 4)
-            for tag in db.INDEX_TAG_LABEL:
-                cum_tag[tag] += day_tags[tag]
+            day_groups = {g: float(by_date[trade_date].get(g, 0.0)) for g in groups_labeled}
+            day_total = round(sum(day_groups.values()), 2)
+            per_group = {g: round(v, 2) for g, v in day_groups.items()}
+            per_group["__total__"] = day_total
 
             daily_rows_out.append({
                 "trade_date": str(trade_date),
-                "values": {"per_tag": day_tags, "total": day_total},
-                "funds_by_tag": day_funds,
+                "values": {"per_group": per_group, "total": day_total},
                 "is_latest": trade_date == latest_date,
             })
+            for g, v in day_groups.items():
+                group_sum[g] += v
 
-        cum_per_tag = {tag: round(v, 4) for tag, v in cum_tag.items()}
-        cum_total = round(sum(cum_tag.values()), 4)
+        n_days = len(dates_sorted)
+        avg_per_group = {g: round(group_sum[g] / n_days, 2) for g in groups_labeled}
+        avg_total = round(sum(group_sum.values()) / n_days, 2)
+        avg_per_group["__total__"] = avg_total
 
         return {
             "date_range_start": str(start),
             "date_range_end": str(end),
-            "tags": list(db.INDEX_TAG_LABEL.values()),
-            "tag_label": db.INDEX_TAG_LABEL,
+            "groups": groups_labeled,
+            "etf_codes_by_group": _etf_codes_by_group(),
             "daily_rows": daily_rows_out,
             "cumulative_row": {
-                "trade_date": "累计",
-                "values": {"per_tag": cum_per_tag, "total": cum_total},
+                "trade_date": "区间平均",
+                "values": {"per_group": avg_per_group, "total": avg_total},
                 "is_latest": False,
                 "is_cumulative": True,
+                "is_average": True,
             },
             "latest_date": str(latest_date),
             "disclaimer": (
-                "本数据采集自上交所官方披露（深交所官方接口 2025 年起下线，暂缺）；"
+                "本数据采集自交易所官方披露；"
                 "净流入 =（当日份额 − 前交易日份额）× 单位净值，为一级市场申赎口径，"
                 "不等于二级市场成交净买入。"
             ),
