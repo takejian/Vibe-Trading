@@ -7,6 +7,7 @@ All endpoints are behind ``require_auth``.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -112,6 +113,58 @@ def register_super_rebound_routes(app: FastAPI) -> None:
     def rebound_indicator_prompts() -> dict[str, Any]:
         return {"prompts": service.get_prompts()}
 
+    # ⚠️ 顺序敏感：静态路径 "/prompts/full" 必须在动态路径 "/prompts/{prompt_type}" 之前
+    # FastAPI 按定义顺序匹配，full 被 {prompt_type} 捕获就会报 404 Prompt full not found
+
+    @app.get("/api/super-rebound/indicator/prompts/full", dependencies=[Depends(require_auth)])
+    def rebound_indicator_prompt_full(
+        prompt_type: str = Query(default="oversold_indicator"),
+    ) -> dict[str, Any]:
+        """直接返回 DB 里存的完整提示词（已经是 [System]+[User] 组装好的）。"""
+        full_prompt = service.get_full_prompt_from_db()
+        # 同时把 base_user_hint 也返回（用户编辑时可能想知道那段）
+        base_hint = ""
+        m = re.search(
+            r"【详细要求】\s*\n(.*?)\n\s*【当前需要返回的指标清单】",
+            full_prompt, re.DOTALL,
+        )
+        if m:
+            base_hint = m.group(1).strip()
+        return {
+            "prompt_type": prompt_type,
+            "prompt_name": "超跌指标取值提示词",
+            "full_prompt": full_prompt,
+            "base_user_hint": base_hint,
+        }
+
+    @app.post("/api/super-rebound/indicator/prompts/full-save", dependencies=[Depends(require_auth)])
+    def rebound_indicator_prompt_full_save(body: dict[str, Any]) -> dict[str, Any]:
+        """保存完整提示词到 DB。
+
+        直接把前端编辑框里的 [System]...[User]... 全量文本写进 prompt_content。
+        如果是 oversold_indicator，保存后还会刷新一次（确保指标清单和最新 defs 对齐）。
+        """
+        prompt_type = body.get("prompt_type", "oversold_indicator")
+        prompt_name = body.get("prompt_name", "超跌指标取值提示词")
+        full_prompt = body.get("full_prompt", "").strip()
+        if not full_prompt:
+            raise HTTPException(status_code=400, detail="full_prompt required")
+
+        service.upsert_prompt({
+            "prompt_type": prompt_type,
+            "prompt_name": prompt_name,
+            "prompt_content": full_prompt,  # ← 完整文本直接写
+        })
+
+        # oversold_indicator：保存后再 regenerate 一次，用最新 indicator_defs 覆盖
+        # 【当前需要返回的指标清单】段，保证指标变动立即生效
+        if prompt_type == "oversold_indicator":
+            regenerated = service.refresh_full_prompt_in_db()
+            return {"saved": True, "regenerated": True, "full_prompt": regenerated}
+
+        return {"saved": True, "full_prompt": full_prompt}
+
+    # 动态路径放最后
     @app.get("/api/super-rebound/indicator/prompts/{prompt_type}", dependencies=[Depends(require_auth)])
     def rebound_indicator_prompt_by_type(prompt_type: str) -> dict[str, Any]:
         prompt = service.get_prompt(prompt_type)
@@ -136,6 +189,17 @@ def register_super_rebound_routes(app: FastAPI) -> None:
         except Exception as exc:
             logger.exception("indicator eval failed")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    @app.get("/api/super-rebound/indicator/latest", dependencies=[Depends(require_auth)])
+    def rebound_indicator_latest(
+        index_code: str = Query(default="沪深300"),
+    ) -> dict[str, Any]:
+        """从 DB 读最近一次 eval 结果（不调 LLM，ms 级响应）。
+        用于页面初始加载和切换指数时展示缓存结果。"""
+        result = service.get_latest_eval_result(index_code)
+        if result is None:
+            return {"has_data": False, "message": "暂无 eval 结果，请先手动触发"}
+        return {"has_data": True, "result": result}
 
     # --- Daily status (每日超跌状态) routes ---
 

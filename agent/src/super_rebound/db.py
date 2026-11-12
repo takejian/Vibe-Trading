@@ -962,22 +962,43 @@ DIMENSION_WEIGHTS: dict[str, float] = {
 
 INITIAL_INDICATOR_DEFS: list[dict[str, Any]] = [
     # 赔率层
-    {"dimension": "赔率层", "indicator_name": "ERP", "judgment_criteria": "> 5", "weight": 1.0, "sort_order": 1},
-    {"dimension": "赔率层", "indicator_name": "估值分位", "judgment_criteria": "> 80%", "weight": 1.0, "sort_order": 2},
-    {"dimension": "赔率层", "indicator_name": "阶段回撤", "judgment_criteria": "> 15%", "weight": 1.0, "sort_order": 3},
+    {"dimension": "赔率层", "indicator_name": "ERP",
+     "threshold_value": 5, "compare_operator": ">",
+     "judgment_criteria": "> 5", "weight": 1.0, "sort_order": 1},
+    {"dimension": "赔率层", "indicator_name": "估值分位",
+     "threshold_value": 80, "compare_operator": ">",
+     "judgment_criteria": "> 80%", "weight": 1.0, "sort_order": 2},
+    {"dimension": "赔率层", "indicator_name": "阶段回撤",
+     "threshold_value": 15, "compare_operator": ">",
+     "judgment_criteria": "> 15%", "weight": 1.0, "sort_order": 3},
     # 技术超卖
-    {"dimension": "技术超卖", "indicator_name": "RSI(14)", "judgment_criteria": "< 30", "weight": 1.0, "sort_order": 1},
-    {"dimension": "技术超卖", "indicator_name": "负乖离", "judgment_criteria": "< 0 (明显负乖离)", "weight": 1.0, "sort_order": 2},
-    {"dimension": "技术超卖", "indicator_name": "MACD 底背离", "judgment_criteria": "定性（底背离出现=1，否则=0）", "weight": 1.0, "sort_order": 3},
+    {"dimension": "技术超卖", "indicator_name": "RSI(14)",
+     "threshold_value": 30, "compare_operator": "<",
+     "judgment_criteria": "< 30", "weight": 1.0, "sort_order": 1},
+    {"dimension": "技术超卖", "indicator_name": "负乖离",
+     "threshold_value": 0, "compare_operator": "<",
+     "judgment_criteria": "< 0 (明显负乖离)", "weight": 1.0, "sort_order": 2},
+    {"dimension": "技术超卖", "indicator_name": "MACD 底背离",
+     "threshold_value": None, "compare_operator": "定性",
+     "judgment_criteria": "底背离出现=1，否则=0", "weight": 1.0, "sort_order": 3},
     # 资金承接
-    {"dimension": "资金承接", "indicator_name": "两融维持担保比例", "judgment_criteria": "< 250%", "weight": 1.0, "sort_order": 1},
-    {"dimension": "资金承接", "indicator_name": "ETF 持续流入", "judgment_criteria": "> 500", "weight": 1.0, "sort_order": 2},
+    {"dimension": "资金承接", "indicator_name": "两融维持担保比例",
+     "threshold_value": 250, "compare_operator": "<",
+     "judgment_criteria": "< 250%", "weight": 1.0, "sort_order": 1},
+    {"dimension": "资金承接", "indicator_name": "ETF 持续流入",
+     "threshold_value": 1000, "compare_operator": ">",
+     "judgment_criteria": "> 1000亿", "weight": 1.0, "sort_order": 2},
     # 情绪广度
-    {"dimension": "情绪广度", "indicator_name": "上涨家数占比", "judgment_criteria": "< 20%", "weight": 1.0, "sort_order": 1},
-    {"dimension": "情绪广度", "indicator_name": "成交量 PCR", "judgment_criteria": "> 1", "weight": 1.0, "sort_order": 2},
+    {"dimension": "情绪广度", "indicator_name": "上涨家数占比",
+     "threshold_value": 20, "compare_operator": "<",
+     "judgment_criteria": "< 20%", "weight": 1.0, "sort_order": 1},
+    {"dimension": "情绪广度", "indicator_name": "成交量 PCR",
+     "threshold_value": 1, "compare_operator": ">",
+     "judgment_criteria": "> 1", "weight": 1.0, "sort_order": 2},
     # 外部流动性/政策
-    {"dimension": "外部流动性/政策", "indicator_name": "资金利率(SHIBOR/DR007)", "judgment_criteria": "定性（高位=1，否则=0）", "weight": 1.0, "sort_order": 1},
-    {"dimension": "外部流动性/政策", "indicator_name": "外部风险事件", "judgment_criteria": "定性（发生=1，否则=0）", "weight": 1.0, "sort_order": 2},
+    {"dimension": "外部流动性/政策", "indicator_name": "外部风险事件",
+     "threshold_value": None, "compare_operator": "定性",
+     "judgment_criteria": "美股大跌/地缘冲突=1，否则=0", "weight": 1.0, "sort_order": 1},
 ]
 
 INITIAL_PROMPTS: list[dict[str, Any]] = [
@@ -1039,6 +1060,132 @@ def get_all_indicator_defs(conn: pymysql.connections.Connection) -> list[dict[st
         return list(cur.fetchall())
 
 
+def get_latest_eval_result(
+    conn: pymysql.connections.Connection, index_code: str
+) -> dict[str, Any] | None:
+    """从 DB 读最近一次 eval 结果（不调 LLM）。
+
+    从 rebound_indicator_result + rebound_indicator_def + rebound_daily_status
+    三张表 JOIN 出与 run_indicator_eval 相同结构的结果。返回 None 表示无数据。
+    """
+    with conn.cursor() as cur:
+        # 1. 最新交易日
+        cur.execute(
+            """SELECT trade_date FROM rebound_indicator_result
+               WHERE index_code = %s
+               ORDER BY trade_date DESC LIMIT 1""",
+            (index_code,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        trade_date = row["trade_date"]
+
+        # 2. 指标定义
+        cur.execute(
+            "SELECT * FROM rebound_indicator_def WHERE is_active = 1 ORDER BY dimension, sort_order"
+        )
+        defs = list(cur.fetchall())
+
+        # 3. 指标取值 + 判断结果
+        cur.execute(
+            """SELECT r.indicator_id, r.indicator_value, r.judgment_result,
+                      r.updated_at
+               FROM rebound_indicator_result r
+               WHERE r.index_code = %s AND r.trade_date = %s
+               ORDER BY r.updated_at DESC""",
+            (index_code, trade_date),
+        )
+        results_raw = cur.fetchall()
+
+        # 同一交易日如果多次 eval，取最新一次的结果（updated_at 最大的那批）
+        latest_ts = max(
+            (r["updated_at"] for r in results_raw), default=None
+        )
+        results_by_id: dict[int, dict[str, Any]] = {}
+        if latest_ts is not None:
+            for r in results_raw:
+                # 只保留 latest_ts 那一批（或同日所有记录都取 updated_at 最大的那条）
+                existing = results_by_id.get(r["indicator_id"])
+                if existing is None or r["updated_at"] > existing["updated_at"]:
+                    results_by_id[r["indicator_id"]] = r
+
+        # 4. 每日状态（维度得分 + 总得分 + 信号灯）
+        cur.execute(
+            """SELECT * FROM rebound_daily_status
+               WHERE index_code = %s AND trade_date = %s
+               ORDER BY updated_at DESC LIMIT 1""",
+            (index_code, trade_date),
+        )
+        daily_status = cur.fetchone()
+
+        # 5. 组装 indicators 列表
+        indicators: list[dict[str, Any]] = []
+        dimension_weights: dict[str, list[tuple[float, float]]] = {}
+        for d in defs:
+            r = results_by_id.get(d["id"], {})
+            judgment = r.get("judgment_result")
+            indicators.append({
+                "id": d["id"],
+                "dimension": d["dimension"],
+                "indicator_name": d["indicator_name"],
+                "compare_operator": d.get("compare_operator"),
+                "threshold_value": d.get("threshold_value"),
+                "judgment_criteria": d.get("judgment_criteria"),
+                "weight": d.get("weight", 1.0),
+                "indicator_value": r.get("indicator_value"),
+                "judgment_result": judgment,
+            })
+            if judgment is not None:
+                dimension_weights.setdefault(d["dimension"], []).append(
+                    (float(d.get("weight", 1.0)), float(judgment))
+                )
+
+        # 6. 从 daily_status 表取维度得分（如果有），否则重新算
+        dimension_scores: dict[str, float | None] = {}
+        total_score: float | None = None
+        signal_light: str | None = None
+        if daily_status:
+            dim_map = {
+                "赔率层": daily_status.get("odds_score"),
+                "技术超卖": daily_status.get("technical_score"),
+                "资金承接": daily_status.get("capital_score"),
+                "情绪广度": daily_status.get("sentiment_score"),
+                "外部流动性/政策": daily_status.get("external_score"),
+            }
+            dimension_scores = dim_map
+            total_score = daily_status.get("total_score")
+            signal_light = daily_status.get("signal_light")
+
+        # 7. 如果 daily_status 没存（老数据），本地重算一次
+        if total_score is None:
+            for dim, items in dimension_weights.items():
+                wsum = sum(w for w, _ in items)
+                if wsum > 0:
+                    dimension_scores[dim] = round(
+                        sum(w * j for w, j in items) / wsum * 100, 2
+                    )
+            valid_dims = [s for s in dimension_scores.values() if s is not None]
+            if valid_dims:
+                total_score = round(sum(valid_dims) / len(valid_dims), 2)
+                if total_score >= 60:
+                    signal_light = "red"
+                elif total_score >= 30:
+                    signal_light = "yellow"
+                else:
+                    signal_light = "green"
+
+        return {
+            "trade_date": str(trade_date),
+            "index_code": index_code,
+            "dimension_scores": dimension_scores,
+            "total_score": total_score,
+            "signal_light": signal_light,
+            "indicators": indicators,
+            "sourced_from_db": True,  # 标记给前端看是 DB 缓存不是实时 eval
+        }
+
+
 def get_indicator_defs_by_dimension(
     conn: pymysql.connections.Connection, dimension: str
 ) -> list[dict[str, Any]]:
@@ -1053,7 +1200,11 @@ def get_indicator_defs_by_dimension(
 def upsert_indicator_def(
     conn: pymysql.connections.Connection, row: dict[str, Any]
 ) -> bool:
-    """Upsert indicator def by id; insert if id not present."""
+    """Upsert indicator def by id; insert if id not present.
+
+    包含全部结构化字段：dimension / indicator_name / threshold_value /
+    compare_operator / judgment_criteria / weight / sort_order / is_active。
+    """
     with conn.cursor() as cur:
         if row.get("id"):
             cur.execute(
@@ -1064,12 +1215,16 @@ def upsert_indicator_def(
             if existed:
                 cur.execute(
                     """UPDATE rebound_indicator_def SET
-                        dimension = %s, indicator_name = %s, judgment_criteria = %s,
-                        weight = %s, sort_order = %s, is_active = %s
+                        dimension = %s, indicator_name = %s,
+                        threshold_value = %s, compare_operator = %s,
+                        judgment_criteria = %s, weight = %s,
+                        sort_order = %s, is_active = %s
                        WHERE id = %s""",
                     (
-                        row["dimension"], row["indicator_name"], row["judgment_criteria"],
-                        row.get("weight", 1.0), row.get("sort_order", 0), row.get("is_active", 1),
+                        row["dimension"], row["indicator_name"],
+                        row.get("threshold_value"), row.get("compare_operator"),
+                        row.get("judgment_criteria"), row.get("weight", 1.0),
+                        row.get("sort_order", 0), row.get("is_active", 1),
                         row["id"],
                     ),
                 )
@@ -1077,11 +1232,14 @@ def upsert_indicator_def(
                 return False
         cur.execute(
             """INSERT INTO rebound_indicator_def
-                   (dimension, indicator_name, judgment_criteria, weight, sort_order, is_active)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
+                   (dimension, indicator_name, threshold_value, compare_operator,
+                    judgment_criteria, weight, sort_order, is_active)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
             (
-                row["dimension"], row["indicator_name"], row["judgment_criteria"],
-                row.get("weight", 1.0), row.get("sort_order", 0), row.get("is_active", 1),
+                row["dimension"], row["indicator_name"],
+                row.get("threshold_value"), row.get("compare_operator"),
+                row.get("judgment_criteria"), row.get("weight", 1.0),
+                row.get("sort_order", 0), row.get("is_active", 1),
             ),
         )
     conn.commit()
@@ -1357,10 +1515,12 @@ def seed_initial_data(conn: pymysql.connections.Connection) -> dict[str, int]:
             if cur.fetchone() is None:
                 cur.execute(
                     """INSERT INTO rebound_indicator_def
-                           (dimension, indicator_name, judgment_criteria, weight, sort_order, is_active)
-                       VALUES (%s, %s, %s, %s, %s, 1)""",
-                    (defn["dimension"], defn["indicator_name"], defn["judgment_criteria"],
-                     defn["weight"], defn["sort_order"]),
+                           (dimension, indicator_name, threshold_value, compare_operator,
+                            judgment_criteria, weight, sort_order, is_active)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, 1)""",
+                    (defn["dimension"], defn["indicator_name"],
+                     defn.get("threshold_value"), defn.get("compare_operator"),
+                     defn["judgment_criteria"], defn["weight"], defn["sort_order"]),
                 )
                 conn.commit()
                 inserted["indicator_defs"] += 1

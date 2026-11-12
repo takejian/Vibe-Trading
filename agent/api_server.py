@@ -139,6 +139,8 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+# SPA 挂载移到文件末尾（所有 register_* 之后），避免 catch-all mount("/") 拦截 API 路由
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
@@ -322,6 +324,19 @@ from src.api.scheduled_routes import (  # noqa: E402, F401
     _get_scheduled_research_store,
     _scheduled_research_scheduler_enabled,
 )
+
+
+# ============================================================================
+# SPA 静态文件挂载（生产模式） — 必须放在所有 register_* 之后
+# ============================================================================
+# 直接 uvicorn.run(app, ...) 启动不会走 serve_main，所以在这里挂载。
+# CLI serve 走 serve_main 也会再 mount 一次（幂等，已存在 "/" 时跳过）。
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    from src.api.spa import SPAStaticFiles
+    if not any(getattr(r, "path", None) == "/" for r in app.routes):
+        app.mount("/", SPAStaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
+        print(f"[spa] Mounted frontend from {_FRONTEND_DIST}")
 
 
 # ============================================================================

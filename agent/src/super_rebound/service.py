@@ -1138,7 +1138,12 @@ def _extract_json(text: str) -> str | None:
 
 
 def _coerce_value(raw: str) -> float | None:
-    """从大模型返回的原始值字符串中提取数值。"""
+    """从大模型返回的原始值字符串中提取数值。
+
+    注意：不做百分比 /100 转换，直接提取数值。DB 中 threshold_value 也
+    存原始数值（如 250 表示 250%、80 表示 80%），LLM 返回的百分比数值
+    也应是原始口径（如 "262.63%" → 262.63）。
+    """
     if raw is None:
         return None
     s = str(raw).strip().replace(",", "")
@@ -1146,13 +1151,9 @@ def _coerce_value(raw: str) -> float | None:
     if not m:
         return None
     try:
-        val = float(m.group())
+        return float(m.group())
     except ValueError:
         return None
-    # 百分比：如果原始字符串包含 '%'，转为小数
-    if "%" in str(raw):
-        val = val / 100.0
-    return val
 
 
 def _parse_criteria(criteria: str) -> tuple[str, float | None]:
@@ -1174,39 +1175,41 @@ def _parse_criteria(criteria: str) -> tuple[str, float | None]:
     return ("?", None)
 
 
-def compute_judgment(raw_value: str | float | None, criteria: str) -> int | None:
-    """通用本地判断：judgment_criteria 纯文本 → 解析操作符+阈值 → 1(满足)/0(不满足)/None。
+def compute_judgment(
+    raw_value: str | float | None,
+    compare_operator: str | None = None,
+    threshold_value: float | None = None,
+) -> int | None:
+    """通用本地判断（**结构化字段驱动**）。
 
-    - 数值型：正则匹配 `>`/`<`/`>=`/`<=`/`==`/`!=` + 数值阈值，比较后返回 0/1
-    - 定性型：文本包含"定性"/"发生"/"底背离"/"外部风险"/"高位"等关键词，直接取 LLM 返回的 0/1
+    按指标定义的 compare_operator + threshold_value 进行比较：
+    - 定性型（compare_operator == "定性"）：LLM 返回 0/1 直接采用
+    - 数值型（>/</>=/<=/==/!=）：用原始阈值做数值比较
+
+    不再从 judgment_criteria 纯文本里用正则解析，避免与 DB 结构化字段冲突。
     """
-    if not criteria:
-        return None
-
-    # 定性关键词识别
-    qualitative_keywords = ("定性", "底背离", "外部风险", "高位", "发生", "事件")
-    is_qualitative = any(kw in criteria for kw in qualitative_keywords)
-
-    val = _coerce_value(str(raw_value)) if raw_value is not None else None
-
-    if is_qualitative:
+    # 定性指标：LLM 直接返回 0/1
+    if compare_operator == "定性":
+        val = _coerce_value(str(raw_value)) if raw_value is not None else None
         if val is None:
             return None
         return 1 if val >= 0.5 else 0
 
+    # 数值型：必须有 threshold_value
+    if threshold_value is None:
+        return None
+
+    val = _coerce_value(str(raw_value)) if raw_value is not None else None
     if val is None:
         return None
 
-    # 数值型：用原有 _parse_criteria 解析
-    op, th = _parse_criteria(criteria)
-    if op == "?" or th is None:
-        return None
-    if op == ">": return 1 if val > th else 0
-    if op == ">=": return 1 if val >= th else 0
-    if op == "<": return 1 if val < th else 0
-    if op == "<=": return 1 if val <= th else 0
-    if op == "==": return 1 if val == th else 0
-    if op == "!=": return 1 if val != th else 0
+    op = compare_operator or ">"
+    if op == ">":   return 1 if val > threshold_value else 0
+    if op == ">=":  return 1 if val >= threshold_value else 0
+    if op == "<":   return 1 if val < threshold_value else 0
+    if op == "<=":  return 1 if val <= threshold_value else 0
+    if op == "==":  return 1 if val == threshold_value else 0
+    if op == "!=":  return 1 if val != threshold_value else 0
     return None
 
 
@@ -1237,45 +1240,139 @@ def compute_signal_light(total_score: float | None) -> str:
 
 
 # -------------------------------------------------------------------
-# LLM 调用函数
+# LLM 提示词 — DB 直接存完整 prompt，不再动态拼凑
+#
+#   DB prompt_content = "[System]\n...\n\n[User]\n..." 完整文本
+#   所有发送 LLM / 前端编辑 / eval 取值 全部直接读 DB
+#   指标定义变动 → generate_full_prompt() → 写回 DB → 前端重新拉
 # -------------------------------------------------------------------
 
-def fetch_indicator_values_via_llm(
-    index_code: str,
-    prompt_content: str,
+_SYSTEM_MSG = (
+    "你是一个A股金融数据助手，擅长获取市场最新指标数据。"
+    "严格只返回 JSON 对象，key 为指标名称，value 为数值或 0/1，不要有任何解释文字。"
+)
+
+
+def generate_full_prompt(
     indicator_defs: list[dict[str, Any]],
-) -> dict[str, str]:
-    """调用大模型一次性获取各维度指标的原始值。
+    index_code: str = "沪深300",
+    base_user_hint: str = "",
+) -> str:
+    """根据当前指标定义生成完整提示词字符串（写入 DB + 发给 LLM 都用这个）。
 
-    Returns {indicator_id: raw_value_str} dict. Empty dict on failure.
+    user_msg 里的指标清单**每次都从最新 indicator_defs 动态生成**，
+    保证 compare_operator / threshold_value 变动立即反映。
     """
-    from src.providers.chat import ChatLLM
-
-    # 组装当前活跃指标清单（用于确认哪些指标需要返回）
     indicator_list_lines: list[str] = []
     for d in indicator_defs:
-        op = d.get("compare_operator", ">")
+        op = d.get("compare_operator") or ">"
         th = d.get("threshold_value")
         jc = d.get("judgment_criteria", "") or ""
         if op == "定性":
-            indicator_list_lines.append(f"- {d['indicator_name']} (维度: {d['dimension']}, 定性: {jc})")
+            indicator_list_lines.append(
+                f"- {d['indicator_name']} (维度: {d['dimension']}, 定性: {jc})"
+            )
         else:
             indicator_list_lines.append(
                 f"- {d['indicator_name']} (维度: {d['dimension']}, {op} {th}, 备注: {jc})"
             )
     indicator_list_str = "\n".join(indicator_list_lines)
 
-    system_msg = (
-        "你是一个A股金融数据助手，擅长获取市场最新指标数据。"
-        "严格只返回 JSON 对象，key 为指标名称，value 为数值或 0/1，不要有任何解释文字。"
-    )
+    # 基础 user hint（如果有）+ 标准模板
+    hint = base_user_hint.strip()
     user_msg = (
         f"请为宽基指数 [{index_code}] 获取以下指标的最新原始值。\n\n"
-        f"【详细要求】\n{prompt_content}\n\n"
+    )
+    if hint:
+        user_msg += f"【详细要求】\n{hint}\n\n"
+    user_msg += (
         f"【当前需要返回的指标清单】\n{indicator_list_str}\n\n"
         f"请严格按照上述要求返回 JSON 对象。"
     )
 
+    return (
+        f"[System]\n{_SYSTEM_MSG}\n\n"
+        f"[User]\n{user_msg}\n"
+    )
+
+
+def _split_full_prompt(full_prompt: str) -> tuple[str, str]:
+    """从完整 prompt 里拆出 (system_msg, user_msg) 供 send_llm 用。"""
+    system_msg = _SYSTEM_MSG
+    user_msg = ""
+    if "[User]" in full_prompt:
+        parts = full_prompt.split("[User]", 1)
+        system_msg = parts[0].replace("[System]", "").strip()
+        user_msg = parts[1].strip()
+    return system_msg, user_msg
+
+
+def get_latest_eval_result(index_code: str = "沪深300") -> dict[str, Any] | None:
+    """从 DB 读最近一次 eval 结果（不调 LLM）。供前端打开页面时加载。"""
+    with _conn() as conn:
+        return db.get_latest_eval_result(conn, index_code)
+
+
+def refresh_full_prompt_in_db(index_code: str = "沪深300") -> str:
+    """根据当前 indicator_defs + DB 里已有的 base_user_hint，
+    生成新的完整 prompt 并写回 DB。返回新的 full_prompt。
+
+    指标定义的 upsert/delete 都应该调这个函数。
+    """
+    with _conn() as conn:
+        indicator_defs = db.get_all_indicator_defs(conn)
+        existing = db.get_prompt_by_type(conn, "oversold_indicator")
+        # 从已有的 full_prompt 里抠出用户可能自定义的【详细要求】段作为 hint
+        base_hint = ""
+        if existing and existing.get("prompt_content"):
+            m = _re.search(
+                r"【详细要求】\s*\n(.*?)\n\s*【当前需要返回的指标清单】",
+                existing["prompt_content"],
+                _re.DOTALL,
+            )
+            if m:
+                base_hint = m.group(1).strip()
+
+        full_prompt = generate_full_prompt(
+            indicator_defs, index_code, base_user_hint=base_hint
+        )
+        db.upsert_prompt(conn, {
+            "prompt_type": "oversold_indicator",
+            "prompt_name": "超跌指标取值提示词",
+            "prompt_content": full_prompt,  # ← DB 存完整 prompt
+        })
+        conn.commit()
+        return full_prompt
+
+
+def get_full_prompt_from_db() -> str:
+    """直接从 DB 读完整 prompt。所有地方都走这里。"""
+    with _conn() as conn:
+        row = db.get_prompt_by_type(conn, "oversold_indicator")
+        if row and row.get("prompt_content"):
+            return row["prompt_content"]
+    # DB 空就 seed + generate
+    db.seed_initial_data(conn)
+    return refresh_full_prompt_in_db()
+
+
+# -------------------------------------------------------------------
+# LLM 调用函数
+# -------------------------------------------------------------------
+
+def fetch_indicator_values_via_llm(
+    index_code: str,
+    full_prompt: str,
+    indicator_defs: list[dict[str, Any]],
+) -> dict[str, str]:
+    """调用大模型一次性获取各维度指标的原始值。
+
+    直接用 DB 里的完整 prompt，不再组装。
+    Returns {indicator_id: raw_value_str} dict. Empty dict on failure.
+    """
+    from src.providers.chat import ChatLLM
+
+    system_msg, user_msg = _split_full_prompt(full_prompt)
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": user_msg},
@@ -1365,18 +1462,90 @@ def fetch_qualitative_via_llm(
 # 主流程：超跌指标评估
 # -------------------------------------------------------------------
 
+def _overlay_capital_indicators(
+    conn: pymysql.connections.Connection,
+    indicator_defs: list[dict[str, Any]],
+    indicator_values: dict[str, str],
+) -> None:
+    """从本地 DB 资金面表覆盖资金承接维度的指标值（比 LLM 更准确）。
+
+    - "两融维持担保比例" (id=7) ← rebound_margin_daily_trade.latest_ratio
+                                  取最近交易日的 MAINTENANCE_RATIO_AVG
+    - "ETF 持续流入"     (id=8) ← etf_daily_net_flow.total_net_flow
+                                  取最近交易日的累计净流入（单位：亿元）
+                                  如果是 5 日累计口径，除以 10 转为"亿"
+
+    原地修改 indicator_values dict。覆盖条件：DB 里有有效数值。
+    """
+    today = date.today()
+
+    # 两融维持担保比例（字段名：AVG_GUARANTEE_RATIO，单位：%）
+    margin_def = next(
+        (d for d in indicator_defs if d["indicator_name"] == "两融维持担保比例"), None
+    )
+    if margin_def:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT AVG_GUARANTEE_RATIO, STATISTICS_DATE
+                   FROM rebound_margin_daily_trade
+                   WHERE STATISTICS_DATE <= %s
+                   ORDER BY STATISTICS_DATE DESC LIMIT 1""",
+                (today,),
+            )
+            row = cur.fetchone()
+            if row and row.get("AVG_GUARANTEE_RATIO") is not None:
+                val = float(row["AVG_GUARANTEE_RATIO"])
+                # 直接存纯数值（不带 %），与 DB 里的 threshold_value=250 比较口径一致
+                indicator_values[str(margin_def["id"])] = f"{val:.2f}"
+                logger.info(
+                    "资金承接覆盖: 两融维持担保比例 = %.2f (DB %s)",
+                    val, row["STATISTICS_DATE"],
+                )
+
+    # ETF 持续流入
+    etf_def = next(
+        (d for d in indicator_defs if d["indicator_name"] == "ETF 持续流入"), None
+    )
+    if etf_def:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT total_net_flow, date
+                   FROM etf_daily_net_flow
+                   WHERE date <= %s
+                   ORDER BY date DESC LIMIT 1""",
+                (today,),
+            )
+            row = cur.fetchone()
+            if row and row.get("total_net_flow") is not None:
+                val = float(row["total_net_flow"])
+                indicator_values[str(etf_def["id"])] = f"{val:.2f}"
+                logger.info(
+                    "资金承接覆盖: ETF 持续净流入 = %.2f亿元 (%s)",
+                    val, row["date"],
+                )
+
+
+def _overlay_odds_indicators(
+    conn: pymysql.connections.Connection,
+    indicator_defs: list[dict[str, Any]],
+    indicator_values: dict[str, str],
+    index_code: str,
+) -> None:
+    """赔率层指标：如果本地 market data 有就覆盖。
+
+    ERP / 估值分位 / 阶段回撤 → 目前没有专门 DB 表，保留 LLM 值。
+    这里先留个钩子，后续接上 factor 层。
+    """
+    pass  # noqa: WPS420 — 预留
+
+
 def run_indicator_eval(index_code: str = "沪深300") -> dict[str, Any]:
-    """主流程：LLM 取值 → 本地判断 → 写结果表 → 写每日状态表。"""
+    """主流程：DB 取完整 prompt → LLM 取值 → DB 覆盖资金承接 → 本地判断。"""
     trade_date = date.today()
 
     with _conn() as conn:
-        # 1. 读提示词
-        prompt_row = db.get_prompt_by_type(conn, "oversold_indicator")
-        if not prompt_row:
-            # fallback: seed if missing
-            db.seed_initial_data(conn)
-            prompt_row = db.get_prompt_by_type(conn, "oversold_indicator")
-        prompt_content = prompt_row["prompt_content"] if prompt_row else ""
+        # 1. 读完整 prompt（DB 里已经是组装好的）
+        full_prompt = get_full_prompt_from_db()
 
         # 2. 读指标定义
         indicator_defs = db.get_all_indicator_defs(conn)
@@ -1387,7 +1556,21 @@ def run_indicator_eval(index_code: str = "沪深300") -> dict[str, Any]:
             return {"error": "no_indicator_defs", "message": "指标定义为空，请先配置"}
 
         # 3. LLM 一次性取值
-        indicator_values = fetch_indicator_values_via_llm(index_code, prompt_content, indicator_defs)
+        indicator_values = fetch_indicator_values_via_llm(index_code, full_prompt, indicator_defs)
+
+        # 3.5 资金承接指标 → 从本地 DB 资金面表覆盖（更准确）
+        #     - "两融维持担保比例" (id=7) ← rebound_margin_daily_trade
+        #     - "ETF 持续流入"     (id=8) ← etf_daily_net_flow
+        try:
+            _overlay_capital_indicators(conn, indicator_defs, indicator_values)
+        except Exception as exc:
+            logger.warning("资金承接指标 DB 覆盖失败，保留 LLM 值: %s", exc)
+
+        # 3.6 赔率层指标：DB 有就从 DB 拿（避免 LLM 瞎编）
+        try:
+            _overlay_odds_indicators(conn, indicator_defs, indicator_values, index_code)
+        except Exception as exc:
+            logger.warning("赔率层指标 DB 覆盖失败，保留 LLM 值: %s", exc)
 
         # 4. 本地判断 0/1 + 计算维度得分
         dimension_judgments: dict[str, list[tuple[float, int | None]]] = {}
@@ -1395,7 +1578,11 @@ def run_indicator_eval(index_code: str = "沪深300") -> dict[str, Any]:
 
         for d in indicator_defs:
             raw = indicator_values.get(str(d["id"]), "")
-            judgment = compute_judgment(raw, d["judgment_criteria"])
+            judgment = compute_judgment(
+                raw,
+                compare_operator=d.get("compare_operator"),
+                threshold_value=d.get("threshold_value"),
+            )
             dimension_judgments.setdefault(d["dimension"], []).append((d.get("weight", 1.0), judgment))
             result_rows.append({
                 "trade_date": trade_date,
@@ -1455,11 +1642,15 @@ def run_indicator_eval(index_code: str = "沪深300") -> dict[str, Any]:
                     "id": d["id"],
                     "dimension": d["dimension"],
                     "indicator_name": d["indicator_name"],
-                    "judgment_criteria": d["judgment_criteria"],
+                    "compare_operator": d.get("compare_operator"),
+                    "threshold_value": d.get("threshold_value"),
+                    "judgment_criteria": d.get("judgment_criteria"),
                     "weight": d.get("weight", 1.0),
                     "indicator_value": indicator_values.get(str(d["id"])),
                     "judgment_result": compute_judgment(
-                        indicator_values.get(str(d["id"]), ""), d["judgment_criteria"]
+                        indicator_values.get(str(d["id"]), ""),
+                        compare_operator=d.get("compare_operator"),
+                        threshold_value=d.get("threshold_value"),
                     ),
                 }
                 for d in indicator_defs
@@ -1552,12 +1743,24 @@ def get_indicator_defs() -> list[dict[str, Any]]:
 
 def upsert_indicator_def(row: dict[str, Any]) -> bool:
     with _conn() as conn:
-        return db.upsert_indicator_def(conn, row)
+        result = db.upsert_indicator_def(conn, row)
+    # 指标定义变了 → 自动刷新 prompt（指标清单、阈值、操作符立即同步）
+    try:
+        refresh_full_prompt_in_db()
+    except Exception as exc:
+        logger.warning("指标 upsert 后刷新 prompt 失败: %s", exc)
+    return result
 
 
 def delete_indicator_def(def_id: int) -> bool:
     with _conn() as conn:
-        return db.delete_indicator_def(conn, def_id)
+        result = db.delete_indicator_def(conn, def_id)
+    # 指标删了 → 也刷新 prompt
+    try:
+        refresh_full_prompt_in_db()
+    except Exception as exc:
+        logger.warning("指标 delete 后刷新 prompt 失败: %s", exc)
+    return result
 
 
 def get_prompts() -> list[dict[str, Any]]:

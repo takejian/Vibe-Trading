@@ -132,7 +132,6 @@ function IndicatorForm({
 export function IndicatorPanel() {
   const [indexCode, setIndexCode] = useState("沪深300");
   const [evalResult, setEvalResult] = useState<IndicatorEvalResult | null>(null);
-  const [prompts, setPrompts] = useState<IndicatorPrompt[]>([]);
   const [defs, setDefs] = useState<IndicatorDef[]>([]);
   const [evalLoading, setEvalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,11 +148,12 @@ export function IndicatorPanel() {
   });
 
   useEffect(() => {
-    superReboundApi.prompts().then((r) => setPrompts(r.prompts)).catch(() => {});
     superReboundApi.indicatorDefs().then((r) => setDefs(r.indicator_defs)).catch(() => {});
-  }, []);
-
-  useEffect(() => { handleEval(true); /* eslint-disable-next-line */ }, [indexCode]);
+    // 打开页面 + 切换指数 → 从 DB 加载上次结果（ms 级，不调 LLM）
+    superReboundApi.latestIndicator(indexCode).then((r) => {
+      if (r.has_data && r.result) setEvalResult(r.result);
+    }).catch(() => {});
+  }, [indexCode]);
 
   async function handleEval(silent = false) {
     if (!silent) setEvalLoading(true);
@@ -178,23 +178,30 @@ export function IndicatorPanel() {
     return grouped;
   }, [evalResult]);
 
+  async function loadFullPrompt() {
+    try {
+      const r = await superReboundApi.promptFull();
+      setPromptDraft(r.full_prompt);
+    } catch {
+      setPromptDraft("加载提示词失败，请确认后端已启动");
+    }
+  }
+
   function openPromptDialog(promptType: string) {
-    const p = prompts.find((x) => x.prompt_type === promptType);
-    if (!p) return;
-    setPromptEditing(p);
-    setPromptDraft(p.prompt_content);
+    setPromptEditing({ id: 0, prompt_type: promptType, prompt_name: "超跌指标取值提示词", prompt_content: "" } as IndicatorPrompt);
+    loadFullPrompt();
     setPromptDialogOpen(true);
   }
 
   async function savePrompt() {
     if (!promptEditing) return;
-    await superReboundApi.upsertPrompt({
+    const r = await superReboundApi.savePromptFull({
+      full_prompt: promptDraft,
       prompt_type: promptEditing.prompt_type,
       prompt_name: promptEditing.prompt_name,
-      prompt_content: promptDraft,
     });
-    const r = await superReboundApi.prompts();
-    setPrompts(r.prompts);
+    // 保存后用服务端 regenerated 的版本（服务端会重新拼指标清单）
+    setPromptDraft(r.full_prompt);
     setPromptDialogOpen(false);
   }
 

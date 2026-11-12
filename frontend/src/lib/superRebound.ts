@@ -244,6 +244,24 @@ export const superReboundApi = {
   prompts: () =>
     fetchJson<{ prompts: IndicatorPrompt[] }>("/api/super-rebound/indicator/prompts"),
 
+  promptFull: () =>
+    fetchJson<{
+      prompt_type: string;
+      prompt_name: string;
+      full_prompt: string;
+      base_user_hint: string;
+    }>("/api/super-rebound/indicator/prompts/full?prompt_type=oversold_indicator"),
+
+  savePromptFull: (params: { full_prompt: string; prompt_type?: string; prompt_name?: string }) =>
+    fetchJson<{
+      saved: boolean;
+      regenerated?: boolean;
+      full_prompt: string;
+    }>(
+      "/api/super-rebound/indicator/prompts/full-save",
+      { method: "POST", body: JSON.stringify(params) }
+    ),
+
   upsertPrompt: (prompt: Partial<IndicatorPrompt>) =>
     fetchJson<{ created: boolean; prompt_type: string }>(
       "/api/super-rebound/indicator/prompts",
@@ -255,6 +273,11 @@ export const superReboundApi = {
     fetchJson<IndicatorEvalResult>(
       `/api/super-rebound/indicator/eval?index_code=${encodeURIComponent(indexCode)}`,
       { method: "POST" }
+    ),
+
+  latestIndicator: (indexCode = "沪深300") =>
+    fetchJson<{ has_data: boolean; result?: IndicatorEvalResult; message?: string }>(
+      `/api/super-rebound/indicator/latest?index_code=${encodeURIComponent(indexCode)}`
     ),
 
   // --- Daily status ---

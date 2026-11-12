@@ -77,8 +77,29 @@ if [[ ! -x "$VIBE_BIN" ]]; then
 fi
 
 # 4. Launch detached and record the pid.
+#    pysqlite3 patch — some environments (e.g. this sandbox) have a broken
+#    stdlib sqlite3 module that raises "undefined symbol: sqlite3_deserialize"
+#    at import time. We patch sys.modules['sqlite3'] with pysqlite3 before
+#    any vibe-trading code is loaded, so the rest of the app works unchanged.
+PY="$ROOT/.venv/bin/python"
 info "starting vibe-trading serve on $HOST:$PORT (log: $LOGFILE)"
-nohup "$VIBE_BIN" serve --host "$HOST" --port "$PORT" >>"$LOGFILE" 2>&1 &
+nohup "$PY" - "$HOST" "$PORT" "$ROOT" <<'PYWRAP' >>"$LOGFILE" 2>&1 &
+import sys, os
+host, port, root = sys.argv[1], sys.argv[2], sys.argv[3]
+os.environ.setdefault("VIBE_TRADING_HOME", os.path.expanduser("~/.vibe-trading"))
+try:
+    import pysqlite3 as _p
+    sys.modules["sqlite3"] = _p
+except ImportError:
+    pass
+sys.path.insert(0, os.path.join(root, "agent"))
+os.chdir(os.path.join(root, "agent"))
+from dotenv import load_dotenv
+load_dotenv(".env")
+from api_server import app
+import uvicorn
+uvicorn.run(app, host=host, port=int(port), log_level="info")
+PYWRAP
 server_pid=$!
 echo "$server_pid" >"$PIDFILE"
 
