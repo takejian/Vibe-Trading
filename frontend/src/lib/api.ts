@@ -1754,6 +1754,19 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ confidence }) },
     ),
 
+  // --- V3: gold daily bar ---
+  goldDailyBar: (limit = 0, symbol = "AU0") =>
+    request<GoldDailyBarResponse>(
+      `/api/gold/daily-bar?limit=${limit}&symbol=${encodeURIComponent(symbol)}`,
+    ),
+  goldDailyBarLatest: (symbol = "AU0") =>
+    request<GoldDailyBar>(`/api/gold/daily-bar/latest?symbol=${encodeURIComponent(symbol)}`),
+  goldDailyRefresh: (refreshType = "manual", symbol = "AU0", force = false) =>
+    request<GoldDailyRefreshResult>(
+      `/api/gold/daily-refresh?refresh_type=${refreshType}&symbol=${encodeURIComponent(symbol)}&force=${force}`,
+      { method: "POST" },
+    ),
+
   // --- Investment celebrity holdings & opinions tracker ---
   celebrityInvestors: () => request<{ items: CelebrityInvestor[] }>("/api/celebrity/investors"),
   celebrityAddInvestor: (name: string, investStyle: string, remark: string) =>
@@ -3902,6 +3915,48 @@ export interface GoldCycleSignalsResponse {
   cycle_id: number;
   cycle_name: string | null;
   items: GoldSignalItem[];
+}
+
+// --- V3: gold daily bar (SHFE AU0 via akshare, MySQL) ---
+
+export interface GoldDailyBar {
+  trade_date: string;          // ISO date 'YYYY-MM-DD'
+  symbol: string;              // 'AU0'
+  exchange: string;            // 'SHFE'
+  open: number;
+  high: number;
+  low: number;
+  close: number;               // 人民币/克
+  prev_close: number | null;
+  volume: number | null;
+  open_interest: number | null;
+  settlement: number | null;
+  change_amt: number | null;   // 涨跌额 人民币/克
+  change_pct: number | null;   // 涨跌幅 %
+  fx_rate_cny_usd: number | null;
+  price_usd_per_oz: number | null;  // 美元/盎司 换算参考
+  is_interday: boolean;
+  source: string;
+  fetched_at?: string;
+  updated_at?: string;
+}
+
+export interface GoldDailyBarResponse {
+  symbol: string;
+  count: number;
+  latest: GoldDailyBar | null;
+  latest_summary: GoldDailyBar | null;
+  items: GoldDailyBar[];
+}
+
+export interface GoldDailyRefreshResult {
+  rows_fetched: number;
+  rows_inserted: number;
+  rows_updated: number;
+  latest_trade_date: string | null;
+  is_interday: boolean;
+  status: string;              // 'ok' | 'ok_already_latest' | 'failed'
+  error_msg?: string | null;
 }
 
 // --- Investment celebrity types ---

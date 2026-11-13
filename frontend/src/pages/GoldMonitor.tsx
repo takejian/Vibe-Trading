@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { api, type GoldCurrentStatus, type GoldPolicyCycle, type GoldCycleTrend, type GoldSignalsResponse, type GoldFomcResponse } from "@/lib/api";
+import { api, type GoldCurrentStatus, type GoldPolicyCycle, type GoldCycleTrend, type GoldSignalsResponse, type GoldFomcResponse, type GoldDailyBar } from "@/lib/api";
 import { StatusCards } from "@/components/gold/StatusCards";
 import { CycleList } from "@/components/gold/CycleList";
 import { ReviewDialog } from "@/components/gold/ReviewDialog";
 import { SignalSection } from "@/components/gold/SignalSection";
+import { DailyBarTab } from "@/components/gold/DailyBarTab";
 
-type Tab = "current" | "history";
+type Tab = "current" | "history" | "daily";
 
 export function GoldMonitor() {
   const [tab, setTab] = useState<Tab>("current");
@@ -18,6 +19,13 @@ export function GoldMonitor() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshNeeded, setRefreshNeeded] = useState<string | null>(null);
+
+  // Daily bar state
+  const [dailyBars, setDailyBars] = useState<GoldDailyBar[]>([]);
+  const [dailyLatest, setDailyLatest] = useState<GoldDailyBar | null>(null);
+  const [dailySummary, setDailySummary] = useState<GoldDailyBar | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyRefreshing, setDailyRefreshing] = useState(false);
 
   // Review dialog state
   const [reviewDialog, setReviewDialog] = useState<{
@@ -101,6 +109,44 @@ export function GoldMonitor() {
     await loadStatus();
   };
 
+  const loadDailyBars = async () => {
+    setDailyLoading(true);
+    try {
+      const resp = await api.goldDailyBar(0);
+      setDailyBars(resp.items);
+      setDailyLatest(resp.latest);
+      setDailySummary(resp.latest_summary);
+    } catch {
+      // 数据可能还没初始化 (404) — 忽略, 让组件显示空状态
+      setDailyBars([]);
+      setDailyLatest(null);
+      setDailySummary(null);
+    } finally {
+      setDailyLoading(false);
+    }
+  };
+
+  const handleDailyRefresh = async () => {
+    setDailyRefreshing(true);
+    try {
+      const result = await api.goldDailyRefresh("manual", "AU0", false);
+      if (result.status === "failed") {
+        setError("日线刷新失败：" + (result.error_msg ?? "未知错误"));
+      } else if (result.status === "ok_already_latest") {
+        // 已是最新 — 不报错, 静默刷新一下页面数据 (可能有盘中更新)
+      } else {
+        // ok — 顺便显示一下 (可以后面加个 toast)
+      }
+      await loadDailyBars();
+    } catch (e: any) {
+      // HTTP 层的异常 (429 限流 / 502 akshare 挂了)
+      const msg = e?.response?.data?.detail ?? e?.message ?? String(e);
+      setError("日线刷新失败：" + msg);
+    } finally {
+      setDailyRefreshing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-6">
@@ -146,6 +192,20 @@ export function GoldMonitor() {
         >
           历史周期
         </button>
+        <button
+          type="button"
+          className={`-mb-px border-b-2 px-3 py-2 text-sm ${
+            tab === "daily"
+              ? "border-primary font-medium text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => {
+            setTab("daily");
+            if (dailyBars.length === 0) loadDailyBars();
+          }}
+        >
+          日线行情
+        </button>
       </div>
 
       {tab === "current" && status && (
@@ -164,6 +224,17 @@ export function GoldMonitor() {
 
       {tab === "history" && (
         <CycleList cycles={cycles} onCycleApproved={() => loadStatus()} />
+      )}
+
+      {tab === "daily" && (
+        <DailyBarTab
+          bars={dailyBars}
+          latest={dailyLatest}
+          latestSummary={dailySummary}
+          loading={dailyLoading}
+          refreshing={dailyRefreshing}
+          onRefresh={handleDailyRefresh}
+        />
       )}
 
       {reviewDialog && reviewDialog.kind === "diff" && (

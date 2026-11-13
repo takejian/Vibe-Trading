@@ -209,6 +209,51 @@ def register_gold_routes(app: FastAPI) -> None:
         except GoldValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # --- V3: gold daily bar (SHFE AU0 via akshare, MySQL) ---
+    @app.get("/api/gold/daily-bar", dependencies=[Depends(require_auth)])
+    def gold_daily_bar(
+        limit: int = Query(default=0, ge=0, le=2000),
+        symbol: str = Query(default="AU0"),
+    ) -> dict[str, Any]:
+        from src.gold_monitor import daily_service
+        if not daily_service.has_data(symbol):
+            raise HTTPException(status_code=404, detail=f"gold_daily_bar 中无 symbol={symbol} 的数据, 请先 POST /api/gold/daily-refresh 初始化")
+        bars = daily_service.get_daily_bars(symbol=symbol, limit=limit or None)
+        latest = daily_service.get_latest_bar(symbol)
+        latest_summary = daily_service.get_latest_price_summary(symbol)
+        return {
+            "symbol": symbol,
+            "count": len(bars),
+            "latest": latest,
+            "latest_summary": latest_summary,
+            "items": bars,
+        }
+
+    @app.get("/api/gold/daily-bar/latest", dependencies=[Depends(require_auth)])
+    def gold_daily_bar_latest(symbol: str = Query(default="AU0")) -> dict[str, Any]:
+        from src.gold_monitor import daily_service
+        summary = daily_service.get_latest_price_summary(symbol)
+        if summary is None:
+            raise HTTPException(status_code=404, detail=f"gold_daily_bar 中无 symbol={symbol} 的数据")
+        return summary
+
+    @app.post("/api/gold/daily-refresh", dependencies=[Depends(require_auth)])
+    def gold_daily_refresh(
+        refresh_type: str = Query(default="manual", pattern="^(manual|scheduled|init)$"),
+        symbol: str = Query(default="AU0"),
+        force: bool = Query(default=False),
+    ) -> dict[str, Any]:
+        from src.gold_monitor import daily_service
+        try:
+            return daily_service.refresh_gold_daily(
+                refresh_type=refresh_type, symbol=symbol, force=force,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("gold_daily_refresh failed")
+            raise HTTPException(status_code=502, detail=f"akshare 拉取失败: {exc}") from exc
+
 
 # ---------------------------------------------------------------------------
 # Helpers

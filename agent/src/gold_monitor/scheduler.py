@@ -3,20 +3,23 @@
 Mirrors ``src.paper.scheduler`` — uses ``asyncio.create_task`` and is
 started/stopped from the FastAPI lifespan (see ``src.api.lifecycle``).
 
-The task loops daily; on the 1st of each month it attempts to refresh
-the previous month's data via the LLM. Failures are logged but do not
-kill the server.
+The task loops hourly and triggers three refresh flows:
+    * **Daily 08:00** — gold daily bar refresh (pre-market, picks up yesterday's close)
+    * **Daily 18:00** — gold daily bar refresh (post-day-session, intra-bar refresh)
+    * **1st of month** — monthly indicator refresh via LLM
+    * **Mondays** — indicator signal batch refresh
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 logger = logging.getLogger(__name__)
 
-_CHECK_INTERVAL_SECONDS = 60 * 60 * 24  # daily check
+#: Check every hour (enough granular to fire exactly on 08:00 / 18:00)
+_CHECK_INTERVAL_SECONDS = 60 * 60
 
 
 def start_gold_scheduler(app) -> None:
@@ -35,18 +38,27 @@ def stop_gold_scheduler(app) -> None:
 
 
 async def _refresh_loop(app) -> None:
-    """Daily check — monthly data refresh on the 1st, signal batch refresh on Mondays."""
+    """Hourly check — fires daily-bar refresh at 08:00 / 18:00 local time,
+    monthly LLM refresh on the 1st, signal batch refresh on Mondays."""
     from src.gold_monitor import db as gold_db
     from src.gold_monitor import service as gold_service
 
     logger.info("Gold monitor scheduler started (check interval=%ds)", _CHECK_INTERVAL_SECONDS)
+    _last_daily_refresh_hour: int | None = None  # guard double-fire in same hour
     try:
         while True:
             try:
+                now = datetime.now()
                 today = date.today()
+                hour = now.hour
+
+                # 0) Daily bar refresh at 08:00 and 18:00
+                if hour in (8, 18) and _last_daily_refresh_hour != hour:
+                    _last_daily_refresh_hour = hour
+                    _scheduled_daily_bar_refresh(hour)
 
                 # 1) Monthly data refresh on the 1st of each month
-                if today.day == 1:
+                if today.day == 1 and hour == 8:
                     prev_year = today.year
                     prev_month = today.month - 1
                     if prev_month == 0:
@@ -72,8 +84,8 @@ async def _refresh_loop(app) -> None:
                                     error_msg=str(exc),
                                 )
 
-                # 2) Batch signal refresh every Monday
-                if today.weekday() == 0:
+                # 2) Batch signal refresh every Monday at 9:00
+                if today.weekday() == 0 and hour == 9:
                     with gold_db.gold_connection() as conn:
                         gold_db.initialize_schema(conn)
                         sig_done = gold_db.has_refreshed_today(conn, source="scheduler_signals")
@@ -95,3 +107,25 @@ async def _refresh_loop(app) -> None:
             await asyncio.sleep(_CHECK_INTERVAL_SECONDS)
     except asyncio.CancelledError:
         logger.info("Gold monitor scheduler stopped.")
+
+
+def _scheduled_daily_bar_refresh(hour: int) -> None:
+    """Trigger the daily-bar refresh pipeline synchronously (called inside asyncio loop
+    via asyncio.get_event_loop().run_in_executor on the first heavy op; but because
+    our akshare + pymysql calls are not async we just run inline — the 2-hourly
+    cadence makes this acceptable)."""
+    try:
+        from src.gold_monitor import daily_service
+
+        # 08:00 = pre-market (refresh_type='scheduled_pre'), 18:00 = post-market
+        refresh_type = "scheduled"
+        logger.info("Gold scheduler: triggering daily-bar refresh (hour=%d)", hour)
+        result = daily_service.refresh_gold_daily(refresh_type=refresh_type, force=False)
+        logger.info(
+            "Gold scheduler: daily-bar refresh done — fetched=%d inserted=%d updated=%d latest=%s status=%s",
+            result.get("rows_fetched"), result.get("rows_inserted"),
+            result.get("rows_updated"), result.get("latest_trade_date"),
+            result.get("status"),
+        )
+    except Exception as exc:
+        logger.warning("Gold scheduler: daily-bar refresh failed (hour=%d): %s", hour, exc)

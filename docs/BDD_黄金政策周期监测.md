@@ -92,22 +92,48 @@ Feature: 政策周期自动判定
 ### US-03：手动刷新当前数据
 
 > **As a** 个人黄金投资者
-> **I want to** 在当前状态页面点击"刷新"按钮，主动获取最新月份数据
-> **So that** 当我认为数据可能滞后时，可以随时拉取最新快照
+> **I want to** 在当前状态页面点击"刷新"按钮，主动获取最新已发布月份数据
+> **So that** 当我发现 scheduler 每月1号自动刷新没跑（服务未启动）时，能手动补拉最新月
 
 #### BDD 验收用例
 
 ```gherkin
 Feature: 手动刷新数据
 
-  Scenario: 用户点击刷新按钮，大模型成功返回新月份数据
-    Given 用户停留在黄金当前状态tab
-    And 本地最新数据月份为2026-09
+  # target_month 规则:
+  #   scheduler 每月1号自动刷新 → target = 上月  (2026-11-01 → target=2026-10)
+  #   manual 手动刷新           → target = 上月  (同上，拉取最新已发布月)
+  #   当月数据(2026-11)尚未发布 → not_published，保留上月快照
+
+  Scenario: 手动刷新拉取上月数据成功写入
+    Given 本地最新数据月份为2026-09
+    And 当前日期为 2026-11-13 (10月数据已发布)
     When 用户点击"手动刷新"按钮
     And 大模型成功返回2026-10的7个指标值
     Then 页面展示应立即更新为2026-10的数据
-    And 本地数据表中新增一条2026-10记录
+    And DuckDB gold_monthly 中新增一条2026-10记录
+    And refresh_log 写入 source=manual, target=2026-10, action=insert
     And 若自动判定出新政策周期则进入待审核状态
+
+  Scenario: scheduler 每月1号自动刷新上月
+    Given FastAPI serve 已启动 (scheduler lifespan 已注册)
+    And 当前日期为 2026-12-01
+    And DuckDB gold_monthly 最新为2026-10
+    When scheduler 触发每日 08:00 / 18:00 检查
+    And today.day == 1
+    Then 自动调用 trigger_refresh(source="scheduler")
+    And target_month = "2026-11" (上月)
+    And LLM 返回已发布数据后自动写入 gold_monthly
+    And refresh_log 写入 source=scheduler, action=insert
+
+  Scenario: scheduler 未启动导致月数据缺失, 手动刷新补拉
+    Given 本月1-12号 serve 未启动
+    And DuckDB gold_monthly 最新为2026-09
+    When 用户首次启动 serve 并点击"手动刷新"
+    Then trigger_refresh(source="manual") 拉取 target=2026-10
+    And 若 10月数据已发布 → 写入 gold_monthly
+    And 若 11月数据已发布 → 再拉一次 target=2026-11 写入
+    And 页面展示最新已发布月
 
   Scenario: 大模型返回的数据与本地已存储数据存在差异
     Given 本地已存储2026-09金价为4319
@@ -116,12 +142,14 @@ Feature: 手动刷新数据
     And 用户确认后才覆盖本地数据
     And 用户拒绝则保留原数据不变
 
-  Scenario: 当前月份官方数据尚未发布
-    Given 当前日期在1-3日之间，上月官方数据尚未发布
-    When 用户点击刷新
-    And 大模型返回"数据尚未发布"的响应
-    Then 页面应保留本地上次数据
-    And 在刷新按钮旁显示"数据尚未发布，将保留上月快照"的提示
+  Scenario: 目标月数据尚未发布 (太早或太晚)
+    Given 当前日期在 2026-12-02 (11月数据可能还没发布)
+    When scheduler/手动 刷新 target="2026-11"
+    And LLM 返回 not_published
+    Then 不写入任何数据
+    And refresh_log 记录 action=not_published, success=True
+    And 页面保留本地上次数据 (2026-10)
+    And 刷新按钮旁显示"11月数据尚未发布，将保留10月快照"
 
   Scenario: 大模型获取失败或返回字段不全
     Given 用户点击刷新按钮
@@ -285,6 +313,9 @@ Feature: 历史周期查看
 
 ### Epic 7：FOMC 议息会议日程展示
 支持手动触发 LLM 获取未来 FOMC 议息会议时间表，存入本地表，并在当前状态页面显眼处展示下一次会议日期。
+
+### Epic 8：黄金日线行情实时监控（V3）
+在"黄金"模块下新增独立的"日线行情"Tab，展示上期所黄金主力连续（AU0）的完整日线 OHLCV 历史和当日实时最新价。后端定时任务每日 8:00/18:00 自动从 akshare 拉取并 upsert 到 MySQL `vibe.gold_daily_bar`；前端提供手动刷新按钮。价格口径为人民币/克（上期所期货），同时换算并展示美元/盎司参考价。数据源为 akshare `futures_main_sina(symbol="AU0")`，在中国大陆 IP 下稳定可用（Yahoo Finance 自 2021-11-01 起对大陆 IP 全域名封，不可用）。
 
 ---
 
@@ -458,6 +489,94 @@ Feature: FOMC会议日程
     Then 显示"暂无FOMC会议日程，点击更新"
 ```
 
+### US-13：查看黄金日线行情 Tab
+
+> **As a** 个人黄金投资者
+> **I want to** 在黄金模块下看到独立的日线行情 Tab，展示黄金主力合约的完整日线历史和当日最新价
+> **So that** 我能直观看到金价的每日波动轨迹和实时位置
+
+#### BDD 验收用例
+
+```gherkin
+Feature: 黄金日线行情展示
+
+  Scenario: 用户切换到日线行情 Tab
+    Given MySQL gold_daily_bar 表中已有至少 30 条历史日线
+    When 用户在黄金模块下点击"日线行情" Tab
+    Then 页面顶部展示一个大卡片，包含：
+         "当日最新价 ￥852.50/克（≈ $3682.74/盎司）"
+         "较昨收 -20.80 (-2.38%)"
+         "数据源：akshare / SHFE 黄金主力连续 AU0"
+         "最后更新：YYYY-MM-DD HH:mm"
+    And 卡片旁显示"🔄 手动刷新"按钮
+    And 页面主体展示一张日线折线图（或 K 线图），默认显示最近 1 年
+    And 图上可切换 MA5 / MA20 / MA60 均线叠加
+    And 横轴为 trade_date，纵轴为 close 价（人民币/克）
+
+  Scenario: 当日数据尚未存入库
+    Given gold_daily_bar 表最新 trade_date 为昨日
+    And 当前时间已过今日 15:00（日盘收盘）
+    When 用户进入日线行情 Tab
+    Then 页面自动触发一次数据拉取（不阻塞展示）
+    And 拉取完成后卡片和图表自动刷新
+
+  Scenario: 盘中实时数据（日盘/夜盘进行中）
+    Given 当前时间为日盘中（9:00-15:00）或夜盘中（21:00-02:30）
+    When 用户进入日线行情 Tab 或点击手动刷新
+    Then 最新价卡片和图表最后一根 K 线的 close 显示 akshare 返回的实时撮合价
+    And 卡片旁标注"⚠️ 盘中实时，可能继续变动"
+    And gold_daily_bar.is_interday 字段写 1
+
+  Scenario: 数据库中完全没有日线数据
+    Given gold_daily_bar 表为空
+    When 用户进入日线行情 Tab
+    Then 页面显示"暂无数据，点击刷新加载日线历史"
+    And 页面主体区域为空图表，引导用户点击刷新
+    And 点击刷新后执行 akshare futures_main_sina(symbol="AU0", start_date="20200101") 全量拉取
+
+  Scenario: 图表可切换时间范围
+    Given 用户在日线行情 Tab
+    When 用户切换"1月 / 3月 / 1年 / 3年 / 全部"时间范围
+    Then 图表横轴缩放相应变化
+    And 数据源不变（gold_daily_bar 全量返回，前端切片）
+```
+
+### US-14：手动刷新黄金日线数据
+
+> **As a** 个人黄金投资者
+> **I want to** 点击日线行情 Tab 上的"手动刷新"按钮，主动拉取最新日线（含当日实时价）
+> **So that** 我可以在盘中或收盘后随时获取最新行情
+
+#### BDD 验收用例
+
+```gherkin
+Feature: 日线手动刷新
+
+  Scenario: 用户点击手动刷新成功
+    Given 用户停留在黄金日线行情 Tab
+    When 用户点击"🔄 手动刷新"按钮
+    And akshare futures_main_sina 正常返回
+    Then 按钮临时变为"⏳ 刷新中..."（disabled 状态，防重复点击）
+    Then 刷新完成后按钮恢复"🔄 手动刷新"
+    And 当日最新价卡片和图表自动更新
+    And 后端 gold_daily_bar upsert 执行完成（按 trade_date + symbol 主键幂等）
+    And gold_daily_refresh_log 写入一条 status='ok' 记录
+
+  Scenario: akshare 返回失败
+    Given 用户点击手动刷新
+    And akshare 请求超时或返回空数据
+    Then 页面顶部显示红色/橙色提示条："日线刷新失败：akshare 请求超时"
+    Then 保留本地上次数据展示不变
+    Then 按钮恢复"🔄 手动刷新"并可再次点击
+    Then gold_daily_refresh_log 写入一条 status='failed' 的记录，error_msg 记录具体原因
+
+  Scenario: 定时任务自动刷新与手动刷新并行
+    Given 后端定时任务每日 08:00 / 18:00 自动拉取 AU0 日线
+    And 用户在定时任务执行期间点击手动刷新
+    Then 两者均可独立执行（gold_daily_bar 主键 upsert，幂等）
+    And gold_daily_refresh_log 各写一条记录（refresh_type 字段区分 scheduled / manual）
+```
+
 ---
 
 ## 五-B、扩展数据管理规则（V2）
@@ -473,6 +592,76 @@ Feature: FOMC会议日程
 ### D8：gold_fomc 表（FOMC会议日程）
 > 主键 `meeting_id`(UUID)，字段：`meeting_date`、`title`、`notes`、`source`、`updated_at`。
 > 手动更新时清空未来会议记录再写入。
+
+### D9：gold_daily_bar 表（黄金日线行情，已在 vibe MySQL 库）
+
+> 存储上期所黄金主力连续（AU0）的日线 OHLCV 历史 + 当日实时价。数据源为 **akshare `futures_main_sina(symbol="AU0")`**（中国大陆 IP 下唯一稳定可用方案，Yahoo 系自 2021-11-01 起被大陆 IP 全域名封禁）。
+>
+> 表结构（已在 vibe MySQL 库执行，`scripts/gold_create_tables.py`）：
+>
+> ```sql
+> CREATE TABLE gold_daily_bar (
+>     trade_date          DATE NOT NULL                           COMMENT '交易日',
+>     symbol              VARCHAR(16) NOT NULL DEFAULT 'AU0'      COMMENT 'AU0=上期所黄金主力连续, AU9999=现货',
+>     exchange            VARCHAR(8)  NOT NULL DEFAULT 'SHFE',
+>     open                DOUBLE NOT NULL                         COMMENT '开盘价 人民币/克',
+>     high                DOUBLE NOT NULL                         COMMENT '最高价 人民币/克',
+>     low                 DOUBLE NOT NULL                         COMMENT '最低价 人民币/克',
+>     close               DOUBLE NOT NULL                         COMMENT '收盘价 人民币/克',
+>     prev_close          DOUBLE          DEFAULT NULL            COMMENT '前一交易日收盘价 (自动推导)',
+>     volume              BIGINT          DEFAULT NULL            COMMENT '成交量 手',
+>     open_interest       BIGINT          DEFAULT NULL            COMMENT '持仓量 手',
+>     settlement          DOUBLE          DEFAULT NULL            COMMENT '动态结算价 (akshare 返回)',
+>     change_amt          DOUBLE          DEFAULT NULL            COMMENT '涨跌额 = close - prev_close',
+>     change_pct          DOUBLE          DEFAULT NULL            COMMENT '涨跌幅 %',
+>     fx_rate_cny_usd     DOUBLE          DEFAULT NULL            COMMENT '当日 USD/CNY 汇率 (换算用)',
+>     price_usd_per_oz    DOUBLE          DEFAULT NULL            COMMENT '美元/盎司参考价 = close * 31.1035 / fx_rate',
+>     is_interday         TINYINT(1) NOT NULL DEFAULT 0           COMMENT '0=已收盘 1=盘中实时',
+>     source              VARCHAR(32) NOT NULL DEFAULT 'akshare.futures_main_sina',
+>     fetched_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+>     updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+>     PRIMARY KEY (trade_date, symbol),
+>     KEY idx_gold_daily_date (trade_date),
+>     KEY idx_gold_daily_symbol (symbol)
+> ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='黄金日线行情 (SHFE AU0, 人民币/克 + USD/oz 参考)';
+> ```
+>
+> Upsert 规则：按 `(trade_date, symbol)` 主键 INSERT ON DUPLICATE KEY UPDATE 幂等写入。`prev_close` / `change_amt` / `change_pct` / `price_usd_per_oz` 四个字段**由后端 upsert 时自动计算并填入**，不直接信任 akshare 返回。
+
+### D10：gold_daily_refresh_log 表（黄金日线拉取日志）
+
+> 每次定时任务或手动刷新执行完后写一条，用于审计和失败排查。
+>
+> ```sql
+> CREATE TABLE gold_daily_refresh_log (
+>     log_id              BIGINT NOT NULL AUTO_INCREMENT,
+>     refresh_type        VARCHAR(16) NOT NULL                      COMMENT 'scheduled / manual / init',
+>     fetch_symbol        VARCHAR(16) NOT NULL DEFAULT 'AU0',
+>     rows_fetched        INT NOT NULL DEFAULT 0,
+>     rows_inserted       INT NOT NULL DEFAULT 0,
+>     rows_updated        INT NOT NULL DEFAULT 0,
+>     latest_trade_date   DATE            DEFAULT NULL,
+>     is_interday         TINYINT(1) NOT NULL DEFAULT 0,
+>     source              VARCHAR(32) NOT NULL DEFAULT 'akshare.futures_main_sina',
+>     status              VARCHAR(16) NOT NULL DEFAULT 'ok'         COMMENT 'ok / partial / failed',
+>     error_msg           VARCHAR(512)    DEFAULT NULL,
+>     fetched_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+>     PRIMARY KEY (log_id),
+>     KEY idx_refresh_log_date (fetched_at),
+>     KEY idx_refresh_log_type (refresh_type)
+> ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='黄金日线拉取日志';
+> ```
+
+### R12：黄金日线定时刷新规则
+> 后端 celery/scheduler 定时任务：
+> - **每日 08:00**：拉取前一交易日收盘数据（覆盖日盘 + 夜盘）
+> - **每日 18:00**：盘中补拉（日盘已收盘，夜盘刚开盘）
+> - 手动刷新：前端按钮触发，走相同 upsert 链路，`refresh_type='manual'`
+> - 首次全量初始化：`refresh_type='init'`，start_date="20200101"
+>
+> 数据源固定为 akshare `futures_main_sina(symbol="AU0")`，**不做多源 fallback**（经实测 Yahoo 系在中国大陆 IP 下全域名封禁，Eastmoney secid 格式不稳定，均不可靠）。
+>
+> 刷新频率上限：单日（自然日）内同一 symbol 最多刷新 10 次（防止用户疯狂点击触发 akshare 限流）。
 
 ---
 
@@ -499,7 +688,7 @@ Feature: FOMC会议日程
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  黄金 / 当前状态  |  历史                                         │
+│  黄金 / 当前状态  |  历史  |  日线行情                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─ 政策周期 ──────────────────────────────────────────────┐    │
@@ -543,7 +732,7 @@ Feature: FOMC会议日程
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  黄金 / 当前状态  |  历史                                         │
+│  黄金 / 当前状态  |  历史  |  日线行情                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─ 周期列表 ──────────────────────────────────────────────┐    │
@@ -611,6 +800,56 @@ Feature: FOMC会议日程
 │  [✓ 使用新值覆盖]   [✗ 保留本地原值]  │
 │                                       │
 └───────────────────────────────────────┘
+```
+
+### P6：日线行情 Tab（新增）
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  黄金 / 当前状态  |  历史  |  日线行情  ◀── 新增 Tab              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─ 当日最新价卡片 ──────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │   当日最新价                                               │ │
+│  │   ┌──────────────────┐   ┌──────────────────┐             │ │
+│  │   │   ￥ 852.50/克    │   │   ≈ $3682.74/盎司│             │ │
+│  │   │   ╱    ╲    ╲_     │   │  ──换算参考──   │             │ │
+│  │   └──────────────────┘   └──────────────────┘             │ │
+│  │                                                           │ │
+│  │   较昨收  -20.80 (-2.38%)  📉                              │ │
+│  │   数据源：akshare / SHFE AU0（上期所黄金主力连续）           │ │
+│  │   最后更新：2026-11-12 19:55                                │ │
+│  │                                                           │ │
+│  │                              [🔄 手动刷新]                 │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─ 日线图区 ────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │   [1月] [3月] [1年▾] [3年] [全部]     MA5[✓] MA20[✓] MA60[ ] │
+│  │                                                           │ │
+│  │  900 ┤    ╱╲                                               │ │
+│  │  880 ┤   ╱  ╲    ╱                                         │ │
+│  │  860 ┤  ╱    ╲  ╱  ╲   ╱                                    │ │
+│  │  840 ┤ ╱      ╲╱    ╲╱                                      │ │
+│  │  820 ┤╱                                                     │ │
+│  │      └────────────────────────────── 2026                   │ │
+│  │      2026-01  2026-04  2026-07  2026-11                      │ │
+│  │                                                           │ │
+│  │   注：图表纵轴 人民币/克, 收盘价 + MA 均线叠加               │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─ 近 5 日明细表格 ──────────────────────────────────────────┐ │
+│  │ 日期       │开价   │高价   │低价   │收价   │涨跌%   │成交量 │ │
+│  │────────────┼───────┼───────┼───────┼───────┼───────┼───────│ │
+│  │ 2026-11-06 │ 886.22│ 888.66│ 867.10│ 869.86│ -1.85% │ ...   │ │
+│  │ 2026-11-09 │ 873.02│ 888.90│ 865.00│ 882.76│ +1.12% │ ...   │ │
+│  │ 2026-11-10 │ 886.00│ 889.58│ 881.22│ 885.12│ -0.10% │ ...   │ │
+│  │ 2026-11-11 │ 876.14│ 876.90│ 863.56│ 873.30│ -0.32% │ ...   │ │
+│  │ 2026-11-12 │ 869.40│ 870.12│ 851.48│ 852.50│ -2.38% │ ...   │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
